@@ -14,6 +14,86 @@ export type Database = {
   }
   public: {
     Tables: {
+      challenges: {
+        Row: {
+          bet_per_month: number
+          created_at: string
+          duration_months: number
+          id: string
+          odds: number
+          sessions_per_week: number
+          started_at: string
+          status: string
+          total_sessions: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bet_per_month?: number
+          created_at?: string
+          duration_months?: number
+          id?: string
+          odds?: number
+          sessions_per_week?: number
+          started_at?: string
+          status?: string
+          total_sessions?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bet_per_month?: number
+          created_at?: string
+          duration_months?: number
+          id?: string
+          odds?: number
+          sessions_per_week?: number
+          started_at?: string
+          status?: string
+          total_sessions?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      check_ins: {
+        Row: {
+          challenge_id: string
+          checked_in_at: string
+          created_at: string
+          id: string
+          photo_url: string | null
+          user_id: string
+          verified: boolean
+        }
+        Insert: {
+          challenge_id: string
+          checked_in_at?: string
+          created_at?: string
+          id?: string
+          photo_url?: string | null
+          user_id: string
+          verified?: boolean
+        }
+        Update: {
+          challenge_id?: string
+          checked_in_at?: string
+          created_at?: string
+          id?: string
+          photo_url?: string | null
+          user_id?: string
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "check_ins_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -40,6 +120,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      rewards: {
+        Row: {
+          challenge_id: string
+          created_at: string
+          description: string | null
+          emoji: string | null
+          id: string
+          name: string
+          tier: number
+          unlocked: boolean
+          user_id: string
+          value: string | null
+        }
+        Insert: {
+          challenge_id: string
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          name: string
+          tier?: number
+          unlocked?: boolean
+          user_id: string
+          value?: string | null
+        }
+        Update: {
+          challenge_id?: string
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          name?: string
+          tier?: number
+          unlocked?: boolean
+          user_id?: string
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rewards_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

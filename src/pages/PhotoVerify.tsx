@@ -2,22 +2,42 @@ import { Camera, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import BottomNav from "@/components/BottomNav";
+import { useActiveChallenge, useCreateCheckIn } from "@/hooks/useChallenge";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 const PhotoVerify = () => {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [preview, setPreview] = useState<string | null>(null);
+  const { data: challenge } = useActiveChallenge();
+  const createCheckIn = useCreateCheckIn();
+  const navigate = useNavigate();
 
-  const handleCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!challenge) {
+      toast.error("Aucun défi actif");
+      return;
+    }
 
     const url = URL.createObjectURL(file);
     setPreview(url);
     setStatus("loading");
 
-    // Simulate AI verification
-    setTimeout(() => {
-      setStatus(Math.random() > 0.2 ? "success" : "error");
+    // Simulate AI verification then save check-in
+    const verified = Math.random() > 0.2;
+    setTimeout(async () => {
+      try {
+        await createCheckIn.mutateAsync({
+          challenge_id: challenge.id,
+          verified,
+        });
+        setStatus(verified ? "success" : "error");
+      } catch {
+        setStatus("error");
+      }
     }, 2500);
   };
 
