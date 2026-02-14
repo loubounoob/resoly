@@ -1,15 +1,42 @@
-import { Trophy, Lock, CheckCircle2 } from "lucide-react";
+import { Trophy, Lock, CheckCircle2, Loader2 } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
+import { useActiveChallenge, useRewards } from "@/hooks/useChallenge";
 
-const REWARDS = [
-  { tier: 1, name: "Accessoire sport", description: "Casquette ou serre-poignet", value: "~30€", emoji: "🧢", unlocked: true },
-  { tier: 2, name: "T-shirt premium", description: "T-shirt d'une marque sportive", value: "~80€", emoji: "👕", unlocked: true },
-  { tier: 3, name: "Ensemble sportif", description: "Short + haut de qualité", value: "~150€", emoji: "🎽", unlocked: false, current: true },
+const FALLBACK_REWARDS = [
+  { tier: 1, name: "Accessoire sport", description: "Casquette ou serre-poignet", value: "~30€", emoji: "🧢", unlocked: false },
+  { tier: 2, name: "T-shirt premium", description: "T-shirt d'une marque sportive", value: "~80€", emoji: "👕", unlocked: false },
+  { tier: 3, name: "Ensemble sportif", description: "Short + haut de qualité", value: "~150€", emoji: "🎽", unlocked: false },
   { tier: 4, name: "Chaussures de sport", description: "Paire de chaussures running ou training", value: "~300€", emoji: "👟", unlocked: false },
   { tier: 5, name: "Tenue complète", description: "Équipement complet d'une marque premium", value: "~500€+", emoji: "🏆", unlocked: false },
 ];
 
+const getTargetTier = (rewardValue: number) => {
+  if (rewardValue >= 500) return 5;
+  if (rewardValue >= 300) return 4;
+  if (rewardValue >= 150) return 3;
+  if (rewardValue >= 80) return 2;
+  return 1;
+};
+
 const Rewards = () => {
+  const { data: challenge, isLoading: loadingChallenge } = useActiveChallenge();
+  const { data: rewards, isLoading: loadingRewards } = useRewards(challenge?.id);
+
+  if (loadingChallenge || loadingRewards) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    );
+  }
+
+  const rewardValue = challenge ? Math.round(challenge.bet_per_month * Number(challenge.odds)) : 0;
+  const targetTier = getTargetTier(rewardValue);
+  const displayRewards = (rewards && rewards.length > 0 ? rewards : FALLBACK_REWARDS).map((r) => ({
+    ...r,
+    current: r.tier === targetTier && !r.unlocked,
+  }));
+
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
       <div className="flex items-center gap-3 mb-2">
@@ -21,7 +48,7 @@ const Rewards = () => {
       </p>
 
       <div className="space-y-4">
-        {REWARDS.map((r) => (
+        {displayRewards.map((r) => (
           <div
             key={r.tier}
             className={`relative rounded-2xl border p-5 transition-all ${
