@@ -1,27 +1,100 @@
-import { Flame, TrendingUp, Camera, Calendar, Trophy, ChevronRight } from "lucide-react";
+import { Flame, TrendingUp, Camera, Calendar, Trophy, ChevronRight, Plus, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import BottomNav from "@/components/BottomNav";
+import { useActiveChallenge, useCheckIns } from "@/hooks/useChallenge";
+import { differenceInDays, startOfWeek, endOfWeek, isWithinInterval, format, parseISO } from "date-fns";
+import { fr } from "date-fns/locale";
 
-// Mock challenge data
-const challenge = {
-  sessionsPerWeek: 4,
-  duration: 3,
-  betPerMonth: 75,
-  odds: 2.1,
-  completedSessions: 18,
-  totalSessions: 48,
-  daysRemaining: 52,
-  currentStreak: 5,
-  rewardTier: "Ensemble sportif 🎽",
+const weekDayLabels = ["L", "M", "M", "J", "V", "S", "D"];
+
+const getRewardTier = (value: number) => {
+  if (value >= 500) return "Tenue complète 🏆";
+  if (value >= 300) return "Chaussures de sport 👟";
+  if (value >= 150) return "Ensemble sportif 🎽";
+  if (value >= 80) return "T-shirt premium 👕";
+  return "Accessoire sport 🧢";
 };
-
-const weekDays = ["L", "M", "M", "J", "V", "S", "D"];
-const weekStatus = [true, false, true, true, false, null, null]; // true=done, false=missed, null=upcoming
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const progress = Math.round((challenge.completedSessions / challenge.totalSessions) * 100);
+  const { data: challenge, isLoading: loadingChallenge } = useActiveChallenge();
+  const { data: checkIns, isLoading: loadingCheckIns } = useCheckIns(challenge?.id);
+
+  if (loadingChallenge) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    );
+  }
+
+  if (!challenge) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 pb-24 gap-6">
+        <div className="text-center space-y-3">
+          <Flame className="w-12 h-12 text-primary mx-auto" />
+          <h2 className="text-2xl font-display font-bold">Aucun défi actif</h2>
+          <p className="text-muted-foreground text-sm">Crée ton premier défi fitness et commence à gagner des récompenses !</p>
+        </div>
+        <Button
+          onClick={() => navigate("/create")}
+          className="h-14 px-8 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
+        >
+          <Plus className="w-5 h-5 mr-2" />
+          Créer un défi
+        </Button>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  const verifiedCheckIns = checkIns?.filter(c => c.verified) ?? [];
+  const completedSessions = verifiedCheckIns.length;
+  const totalSessions = challenge.total_sessions;
+  const progress = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
+
+  const startDate = parseISO(challenge.started_at);
+  const endDate = new Date(startDate);
+  endDate.setMonth(endDate.getMonth() + challenge.duration_months);
+  const daysRemaining = Math.max(0, differenceInDays(endDate, new Date()));
+
+  // Current streak
+  let currentStreak = 0;
+  if (verifiedCheckIns.length > 0) {
+    const sorted = [...verifiedCheckIns].sort((a, b) => new Date(b.checked_in_at).getTime() - new Date(a.checked_in_at).getTime());
+    const today = new Date();
+    let checkDay = new Date(today);
+    for (const ci of sorted) {
+      const ciDate = new Date(ci.checked_in_at);
+      const diff = differenceInDays(checkDay, ciDate);
+      if (diff <= 1) {
+        currentStreak++;
+        checkDay = ciDate;
+      } else break;
+    }
+  }
+
+  // Week tracker
+  const now = new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+  const thisWeekCheckIns = verifiedCheckIns.filter(ci =>
+    isWithinInterval(new Date(ci.checked_in_at), { start: weekStart, end: weekEnd })
+  );
+  const checkedDays = new Set(thisWeekCheckIns.map(ci => new Date(ci.checked_in_at).getDay()));
+
+  const weekStatus = Array.from({ length: 7 }, (_, i) => {
+    const dayIndex = i === 6 ? 0 : i + 1; // Mon=1..Sun=0
+    const dayDate = new Date(weekStart);
+    dayDate.setDate(dayDate.getDate() + i);
+    if (dayDate > now) return null; // upcoming
+    return checkedDays.has(dayIndex) ? true : false;
+  });
+
+  const rewardValue = Math.round(challenge.bet_per_month * Number(challenge.odds));
+  const rewardTier = getRewardTier(rewardValue);
+  const totalBet = challenge.bet_per_month * challenge.duration_months;
 
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
@@ -33,7 +106,7 @@ const Dashboard = () => {
         </div>
         <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
           <Flame className="w-4 h-4 text-accent" />
-          <span className="text-sm font-bold">{challenge.currentStreak}j</span>
+          <span className="text-sm font-bold">{currentStreak}j</span>
         </div>
       </div>
 
@@ -60,7 +133,7 @@ const Dashboard = () => {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-4xl font-display font-bold">{progress}%</span>
-            <span className="text-xs text-muted-foreground">{challenge.completedSessions}/{challenge.totalSessions} séances</span>
+            <span className="text-xs text-muted-foreground">{completedSessions}/{totalSessions} séances</span>
           </div>
         </div>
       </div>
@@ -69,10 +142,10 @@ const Dashboard = () => {
       <div className="bg-gradient-card rounded-2xl border border-border p-4 mb-4 shadow-card">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-medium">Cette semaine</span>
-          <span className="text-xs text-muted-foreground">Obj: {challenge.sessionsPerWeek} séances</span>
+          <span className="text-xs text-muted-foreground">Obj: {challenge.sessions_per_week} séances</span>
         </div>
         <div className="grid grid-cols-7 gap-2">
-          {weekDays.map((day, i) => (
+          {weekDayLabels.map((day, i) => (
             <div key={i} className="flex flex-col items-center gap-1.5">
               <span className="text-[10px] text-muted-foreground">{day}</span>
               <div
@@ -98,14 +171,14 @@ const Dashboard = () => {
             <TrendingUp className="w-4 h-4 text-accent" />
             <span className="text-xs text-muted-foreground">Cote</span>
           </div>
-          <span className="text-2xl font-display font-bold text-gradient-gold">x{challenge.odds}</span>
+          <span className="text-2xl font-display font-bold text-gradient-gold">x{Number(challenge.odds)}</span>
         </div>
         <div className="bg-gradient-card rounded-xl border border-border p-4 shadow-card">
           <div className="flex items-center gap-2 mb-2">
             <Calendar className="w-4 h-4 text-primary" />
             <span className="text-xs text-muted-foreground">Restant</span>
           </div>
-          <span className="text-2xl font-display font-bold">{challenge.daysRemaining}j</span>
+          <span className="text-2xl font-display font-bold">{daysRemaining}j</span>
         </div>
       </div>
 
@@ -114,11 +187,11 @@ const Dashboard = () => {
         <div className="flex items-center justify-between">
           <div>
             <span className="text-xs text-muted-foreground block">Mise totale</span>
-            <span className="text-xl font-display font-bold">{challenge.betPerMonth * challenge.duration}€</span>
+            <span className="text-xl font-display font-bold">{totalBet}€</span>
           </div>
           <div className="text-right">
             <span className="text-xs text-muted-foreground block">Récompense visée</span>
-            <span className="text-lg font-display font-bold text-gradient-gold">{challenge.rewardTier}</span>
+            <span className="text-lg font-display font-bold text-gradient-gold">{rewardTier}</span>
           </div>
         </div>
       </div>

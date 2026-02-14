@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { ArrowLeft, Flame, TrendingUp, Gift } from "lucide-react";
+import { ArrowLeft, Flame, TrendingUp, Gift, Loader2 } from "lucide-react";
+import { useCreateChallenge } from "@/hooks/useChallenge";
+import { toast } from "sonner";
 
 const DURATION_OPTIONS = [1, 2, 3, 6, 12];
 const SESSIONS_OPTIONS = [2, 3, 4, 5, 6, 7];
@@ -27,11 +29,27 @@ const CreateChallenge = () => {
   const [betAmount, setBetAmount] = useState(50);
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
+  const createChallenge = useCreateChallenge();
 
   const odds = calculateOdds(sessionsPerWeek, duration);
   const rewardValue = Math.round(betAmount * odds);
   const reward = getRewardTier(rewardValue);
   const totalSessions = sessionsPerWeek * duration * 4;
+
+  const handleSubmit = async () => {
+    try {
+      await createChallenge.mutateAsync({
+        sessions_per_week: sessionsPerWeek,
+        duration_months: duration,
+        bet_per_month: betAmount,
+        odds,
+      });
+      toast.success("Défi créé avec succès !");
+      navigate("/dashboard");
+    } catch (error) {
+      toast.error("Erreur lors de la création du défi");
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-8">
@@ -147,10 +165,15 @@ const CreateChallenge = () => {
 
       {/* CTA */}
       <Button
-        onClick={() => navigate("/dashboard")}
+        onClick={handleSubmit}
+        disabled={createChallenge.isPending}
         className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity shadow-glow rounded-xl mt-6"
       >
-        <Flame className="w-5 h-5 mr-2" />
+        {createChallenge.isPending ? (
+          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+        ) : (
+          <Flame className="w-5 h-5 mr-2" />
+        )}
         Valider le défi
       </Button>
     </div>
