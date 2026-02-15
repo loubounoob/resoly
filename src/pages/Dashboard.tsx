@@ -1,8 +1,10 @@
 import { Flame, TrendingUp, Camera, Calendar, Trophy, ChevronRight, Plus, Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import BottomNav from "@/components/BottomNav";
 import { useActiveChallenge, useCheckIns } from "@/hooks/useChallenge";
+import { supabase } from "@/integrations/supabase/client";
 import { differenceInDays, startOfWeek, endOfWeek, isWithinInterval, format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -18,6 +20,7 @@ const getRewardTier = (value: number) => {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: challenge, isLoading: loadingChallenge } = useActiveChallenge();
   const { data: checkIns, isLoading: loadingCheckIns } = useCheckIns(challenge?.id);
 
@@ -30,6 +33,7 @@ const Dashboard = () => {
   }
 
   if (!challenge) {
+    // Check if challenge was completed (progress = 100%)
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6 pb-24 gap-6">
         <div className="text-center space-y-3">
@@ -53,6 +57,7 @@ const Dashboard = () => {
   const completedSessions = verifiedCheckIns.length;
   const totalSessions = challenge.total_sessions;
   const progress = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
+  const isChallengeComplete = completedSessions >= totalSessions && totalSessions > 0;
 
   const startDate = parseISO(challenge.started_at);
   const endDate = new Date(startDate);
@@ -196,25 +201,47 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Quick actions */}
-      <Button
-        onClick={() => navigate("/verify")}
-        className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
-      >
-        <Camera className="w-5 h-5 mr-2" />
-        Check-in maintenant
-      </Button>
-
-      <button
-        onClick={() => navigate("/rewards")}
-        className="flex items-center justify-between w-full mt-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <Trophy className="w-5 h-5 text-accent" />
-          <span className="text-sm font-medium">Voir mes récompenses</span>
+      {isChallengeComplete ? (
+        <div className="space-y-3">
+          <div className="bg-gradient-card rounded-2xl border border-accent/30 p-5 text-center shadow-card">
+            <span className="text-4xl mb-2 block">🎉</span>
+            <h3 className="text-xl font-display font-bold mb-1">Défi terminé !</h3>
+            <p className="text-sm text-muted-foreground">Bravo, tu as complété toutes tes séances !</p>
+          </div>
+          <Button
+            onClick={async () => {
+              await supabase.from("challenges").update({ status: "completed" }).eq("id", challenge.id);
+              queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
+              navigate("/create");
+            }}
+            className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Lancer un nouveau défi
+          </Button>
         </div>
-        <ChevronRight className="w-4 h-4 text-muted-foreground" />
-      </button>
+      ) : (
+        <>
+          <Button
+            onClick={() => navigate("/verify")}
+            className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
+          >
+            <Camera className="w-5 h-5 mr-2" />
+            Check-in maintenant
+          </Button>
+
+          <button
+            onClick={() => navigate("/rewards")}
+            className="flex items-center justify-between w-full mt-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-accent" />
+              <span className="text-sm font-medium">Voir mes récompenses</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </>
+      )}
 
       <BottomNav />
     </div>

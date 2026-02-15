@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, Flame, TrendingUp, Gift, Loader2 } from "lucide-react";
-import { useCreateChallenge } from "@/hooks/useChallenge";
+import { useCreateChallenge, useActiveChallenge } from "@/hooks/useChallenge";
 import { toast } from "sonner";
 
 const DURATION_OPTIONS = [1, 2, 3, 6, 12];
@@ -26,10 +26,25 @@ const getRewardTier = (value: number) => {
 
 const CreateChallenge = () => {
   const navigate = useNavigate();
+  const { data: activeChallenge, isLoading: loadingActive } = useActiveChallenge();
   const [betAmount, setBetAmount] = useState(50);
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
   const createChallenge = useCreateChallenge();
+
+  useEffect(() => {
+    if (!loadingActive && activeChallenge) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [loadingActive, activeChallenge, navigate]);
+
+  if (loadingActive) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    );
+  }
 
   const odds = calculateOdds(sessionsPerWeek, duration);
   const rewardValue = Math.round(betAmount * odds);
