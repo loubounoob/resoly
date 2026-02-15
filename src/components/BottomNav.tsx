@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, PlusCircle, Camera, Trophy } from "lucide-react";
+import { Home, Camera, Trophy } from "lucide-react";
 
 const BottomNav = () => {
   const location = useLocation();
@@ -7,7 +7,6 @@ const BottomNav = () => {
 
   const links = [
     { to: "/dashboard", icon: Home, label: "Accueil" },
-    { to: "/create", icon: PlusCircle, label: "Défi" },
     { to: "/verify", icon: Camera, label: "Check-in" },
     { to: "/rewards", icon: Trophy, label: "Récompenses" },
   ];
