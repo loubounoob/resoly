@@ -17,39 +17,48 @@ export type Database = {
       challenges: {
         Row: {
           bet_per_month: number
+          coins_awarded: number
           created_at: string
           duration_months: number
           id: string
           odds: number
+          payment_status: string
           sessions_per_week: number
           started_at: string
           status: string
+          stripe_payment_intent_id: string | null
           total_sessions: number
           updated_at: string
           user_id: string
         }
         Insert: {
           bet_per_month?: number
+          coins_awarded?: number
           created_at?: string
           duration_months?: number
           id?: string
           odds?: number
+          payment_status?: string
           sessions_per_week?: number
           started_at?: string
           status?: string
+          stripe_payment_intent_id?: string | null
           total_sessions?: number
           updated_at?: string
           user_id: string
         }
         Update: {
           bet_per_month?: number
+          coins_awarded?: number
           created_at?: string
           duration_months?: number
           id?: string
           odds?: number
+          payment_status?: string
           sessions_per_week?: number
           started_at?: string
           status?: string
+          stripe_payment_intent_id?: string | null
           total_sessions?: number
           updated_at?: string
           user_id?: string
@@ -97,6 +106,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          coins: number
           created_at: string
           display_name: string | null
           id: string
@@ -105,6 +115,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          coins?: number
           created_at?: string
           display_name?: string | null
           id?: string
@@ -113,6 +124,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          coins?: number
           created_at?: string
           display_name?: string | null
           id?: string

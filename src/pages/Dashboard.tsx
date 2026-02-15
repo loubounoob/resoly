@@ -1,28 +1,23 @@
-import { Flame, TrendingUp, Camera, Calendar, Trophy, ChevronRight, Plus, Loader2 } from "lucide-react";
+import { Flame, TrendingUp, Camera, Calendar, Coins, ChevronRight, Plus, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import BottomNav from "@/components/BottomNav";
-import { useActiveChallenge, useCheckIns } from "@/hooks/useChallenge";
+import { useActiveChallenge, useCheckIns, useUserCoins } from "@/hooks/useChallenge";
 import { supabase } from "@/integrations/supabase/client";
-import { differenceInDays, startOfWeek, endOfWeek, isWithinInterval, format, parseISO } from "date-fns";
-import { fr } from "date-fns/locale";
+import { calculateCoins } from "@/lib/coins";
+import { differenceInDays, startOfWeek, endOfWeek, isWithinInterval, parseISO } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
 
 const weekDayLabels = ["L", "M", "M", "J", "V", "S", "D"];
 
-const getRewardTier = (value: number) => {
-  if (value >= 500) return "Tenue complète 🏆";
-  if (value >= 300) return "Chaussures de sport 👟";
-  if (value >= 150) return "Ensemble sportif 🎽";
-  if (value >= 80) return "T-shirt premium 👕";
-  return "Accessoire sport 🧢";
-};
-
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: challenge, isLoading: loadingChallenge } = useActiveChallenge();
   const { data: checkIns, isLoading: loadingCheckIns } = useCheckIns(challenge?.id);
+  const { data: coins } = useUserCoins();
 
   if (loadingChallenge) {
     return (
@@ -33,13 +28,12 @@ const Dashboard = () => {
   }
 
   if (!challenge) {
-    // Check if challenge was completed (progress = 100%)
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6 pb-24 gap-6">
         <div className="text-center space-y-3">
           <Flame className="w-12 h-12 text-primary mx-auto" />
           <h2 className="text-2xl font-display font-bold">Aucun défi actif</h2>
-          <p className="text-muted-foreground text-sm">Crée ton premier défi fitness et commence à gagner des récompenses !</p>
+          <p className="text-muted-foreground text-sm">Crée ton premier défi fitness et commence à gagner des pièces !</p>
         </div>
         <Button
           onClick={() => navigate("/create")}
@@ -68,14 +62,12 @@ const Dashboard = () => {
   let currentStreak = 0;
   if (verifiedCheckIns.length > 0) {
     const sorted = [...verifiedCheckIns].sort((a, b) => new Date(b.checked_in_at).getTime() - new Date(a.checked_in_at).getTime());
-    const today = new Date();
-    let checkDay = new Date(today);
+    const checkDay = new Date();
     for (const ci of sorted) {
       const ciDate = new Date(ci.checked_in_at);
       const diff = differenceInDays(checkDay, ciDate);
       if (diff <= 1) {
         currentStreak++;
-        checkDay = ciDate;
       } else break;
     }
   }
@@ -90,16 +82,32 @@ const Dashboard = () => {
   const checkedDays = new Set(thisWeekCheckIns.map(ci => new Date(ci.checked_in_at).getDay()));
 
   const weekStatus = Array.from({ length: 7 }, (_, i) => {
-    const dayIndex = i === 6 ? 0 : i + 1; // Mon=1..Sun=0
+    const dayIndex = i === 6 ? 0 : i + 1;
     const dayDate = new Date(weekStart);
     dayDate.setDate(dayDate.getDate() + i);
-    if (dayDate > now) return null; // upcoming
+    if (dayDate > now) return null;
     return checkedDays.has(dayIndex) ? true : false;
   });
 
-  const rewardValue = Math.round(challenge.bet_per_month * Number(challenge.odds));
-  const rewardTier = getRewardTier(rewardValue);
   const totalBet = challenge.bet_per_month * challenge.duration_months;
+  const coinsToEarn = calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week);
+
+  const handleCompleteChallenge = async () => {
+    // Award coins to user profile
+    await supabase
+      .from("profiles")
+      .update({ coins: (coins ?? 0) + coinsToEarn } as any)
+      .eq("user_id", user!.id);
+
+    // Mark challenge as completed with coins
+    await supabase
+      .from("challenges")
+      .update({ status: "completed", coins_awarded: coinsToEarn } as any)
+      .eq("id", challenge.id);
+
+    queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
+    queryClient.invalidateQueries({ queryKey: ["user-coins"] });
+  };
 
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
@@ -109,9 +117,15 @@ const Dashboard = () => {
           <Flame className="w-6 h-6 text-primary" />
           <span className="font-display font-bold text-xl">FitBet</span>
         </div>
-        <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
-          <Flame className="w-4 h-4 text-accent" />
-          <span className="text-sm font-bold">{currentStreak}j</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
+            <span className="text-sm">🪙</span>
+            <span className="text-sm font-bold">{coins ?? 0}</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
+            <Flame className="w-4 h-4 text-accent" />
+            <span className="text-sm font-bold">{currentStreak}j</span>
+          </div>
         </div>
       </div>
 
@@ -187,7 +201,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Mise & reward */}
+      {/* Mise & coins */}
       <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card mb-4">
         <div className="flex items-center justify-between">
           <div>
@@ -195,8 +209,8 @@ const Dashboard = () => {
             <span className="text-xl font-display font-bold">{totalBet}€</span>
           </div>
           <div className="text-right">
-            <span className="text-xs text-muted-foreground block">Récompense visée</span>
-            <span className="text-lg font-display font-bold text-gradient-gold">{rewardTier}</span>
+            <span className="text-xs text-muted-foreground block">Pièces à gagner</span>
+            <span className="text-lg font-display font-bold text-gradient-gold">🪙 {coinsToEarn}</span>
           </div>
         </div>
       </div>
@@ -206,18 +220,15 @@ const Dashboard = () => {
           <div className="bg-gradient-card rounded-2xl border border-accent/30 p-5 text-center shadow-card">
             <span className="text-4xl mb-2 block">🎉</span>
             <h3 className="text-xl font-display font-bold mb-1">Défi terminé !</h3>
-            <p className="text-sm text-muted-foreground">Bravo, tu as complété toutes tes séances !</p>
+            <p className="text-sm text-muted-foreground mb-2">Bravo ! Tu récupères ta mise de {totalBet}€</p>
+            <p className="text-lg font-display font-bold text-gradient-gold">+ 🪙 {coinsToEarn} pièces</p>
           </div>
           <Button
-            onClick={async () => {
-              await supabase.from("challenges").update({ status: "completed" }).eq("id", challenge.id);
-              queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
-              navigate("/create");
-            }}
+            onClick={handleCompleteChallenge}
             className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
             <Plus className="w-5 h-5 mr-2" />
-            Lancer un nouveau défi
+            Récupérer et lancer un nouveau défi
           </Button>
         </div>
       ) : (
@@ -235,8 +246,8 @@ const Dashboard = () => {
             className="flex items-center justify-between w-full mt-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-accent" />
-              <span className="text-sm font-medium">Voir mes récompenses</span>
+              <Coins className="w-5 h-5 text-accent" />
+              <span className="text-sm font-medium">Mes pièces</span>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </button>

@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { ArrowLeft, Flame, TrendingUp, Gift, Loader2 } from "lucide-react";
+import { ArrowLeft, Flame, TrendingUp, Coins, Loader2 } from "lucide-react";
 import { useCreateChallenge, useActiveChallenge } from "@/hooks/useChallenge";
+import { calculateCoins } from "@/lib/coins";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const DURATION_OPTIONS = [1, 2, 3, 6, 12];
+const DURATION_OPTIONS = [1, 2, 3];
 const SESSIONS_OPTIONS = [2, 3, 4, 5, 6, 7];
 
 const calculateOdds = (sessionsPerWeek: number, months: number): number => {
@@ -16,20 +18,13 @@ const calculateOdds = (sessionsPerWeek: number, months: number): number => {
   return Math.round((base + sessionMultiplier + durationMultiplier) * 100) / 100;
 };
 
-const getRewardTier = (value: number) => {
-  if (value >= 500) return { label: "Tenue complète", emoji: "🏆", color: "text-gradient-gold" };
-  if (value >= 300) return { label: "Chaussures de sport", emoji: "👟", color: "text-gradient-gold" };
-  if (value >= 150) return { label: "Ensemble sportif", emoji: "🎽", color: "text-primary" };
-  if (value >= 80) return { label: "T-shirt premium", emoji: "👕", color: "text-primary" };
-  return { label: "Accessoire sport", emoji: "🧢", color: "text-muted-foreground" };
-};
-
 const CreateChallenge = () => {
   const navigate = useNavigate();
   const { data: activeChallenge, isLoading: loadingActive } = useActiveChallenge();
   const [betAmount, setBetAmount] = useState(50);
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
+  const [isProcessing, setIsProcessing] = useState(false);
   const createChallenge = useCreateChallenge();
 
   useEffect(() => {
@@ -47,22 +42,40 @@ const CreateChallenge = () => {
   }
 
   const odds = calculateOdds(sessionsPerWeek, duration);
-  const rewardValue = Math.round(betAmount * odds);
-  const reward = getRewardTier(rewardValue);
+  const totalBet = betAmount * duration;
   const totalSessions = sessionsPerWeek * duration * 4;
+  const coinsPreview = calculateCoins(totalBet, duration, sessionsPerWeek);
 
   const handleSubmit = async () => {
+    setIsProcessing(true);
     try {
-      await createChallenge.mutateAsync({
+      // 1. Create challenge in DB (pending payment)
+      const challenge = await createChallenge.mutateAsync({
         sessions_per_week: sessionsPerWeek,
         duration_months: duration,
         bet_per_month: betAmount,
         odds,
       });
-      toast.success("Défi créé avec succès !");
-      navigate("/dashboard");
+
+      // 2. Create Stripe checkout session
+      const { data, error } = await supabase.functions.invoke("create-challenge-payment", {
+        body: {
+          challengeId: challenge.id,
+          amount: totalBet,
+          description: `Mise FitBet — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("No checkout URL returned");
+      }
     } catch (error) {
-      toast.error("Erreur lors de la création du défi");
+      console.error(error);
+      toast.error("Erreur lors du paiement");
+      setIsProcessing(false);
     }
   };
 
@@ -121,7 +134,7 @@ const CreateChallenge = () => {
         {/* Duration */}
         <section>
           <label className="text-sm text-muted-foreground mb-3 block">Durée d'engagement</label>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {DURATION_OPTIONS.map((d) => (
               <button
                 key={d}
@@ -132,7 +145,7 @@ const CreateChallenge = () => {
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
-                {d}<span className="text-xs font-normal ml-0.5">m</span>
+                {d}<span className="text-xs font-normal ml-0.5">mois</span>
               </button>
             ))}
           </div>
@@ -153,7 +166,7 @@ const CreateChallenge = () => {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground block">Mise totale</span>
-              <span className="font-bold text-lg">{betAmount * duration}€</span>
+              <span className="font-bold text-lg">{totalBet}€</span>
             </div>
             <div>
               <span className="text-muted-foreground block">Séances totales</span>
@@ -165,15 +178,15 @@ const CreateChallenge = () => {
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Gift className="w-5 h-5 text-accent" />
-              <span className="text-sm text-muted-foreground">Récompense</span>
+              <Coins className="w-5 h-5 text-accent" />
+              <span className="text-sm text-muted-foreground">Pièces à gagner</span>
             </div>
-            <span className={`font-display font-bold text-lg ${reward.color}`}>
-              {reward.emoji} {reward.label}
+            <span className="font-display font-bold text-lg text-gradient-gold">
+              🪙 {coinsPreview}
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Valeur estimée du cadeau : ~{rewardValue}€
+            Tu récupères ta mise de {totalBet}€ + {coinsPreview} pièces si tu réussis le défi
           </p>
         </div>
       </div>
@@ -181,15 +194,15 @@ const CreateChallenge = () => {
       {/* CTA */}
       <Button
         onClick={handleSubmit}
-        disabled={createChallenge.isPending}
+        disabled={isProcessing || createChallenge.isPending}
         className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity shadow-glow rounded-xl mt-6"
       >
-        {createChallenge.isPending ? (
+        {isProcessing ? (
           <Loader2 className="w-5 h-5 mr-2 animate-spin" />
         ) : (
           <Flame className="w-5 h-5 mr-2" />
         )}
-        Valider le défi
+        Payer {totalBet}€ et lancer le défi
       </Button>
     </div>
   );
