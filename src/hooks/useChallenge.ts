@@ -14,6 +14,9 @@ export interface Challenge {
   started_at: string;
   created_at: string;
   updated_at: string;
+  payment_status: string;
+  stripe_payment_intent_id: string | null;
+  coins_awarded: number;
 }
 
 export interface CheckIn {
@@ -36,6 +39,7 @@ export const useActiveChallenge = () => {
         .select("*")
         .eq("user_id", user!.id)
         .eq("status", "active")
+        .eq("payment_status", "paid")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -66,7 +70,6 @@ export const useCheckIns = (challengeId: string | undefined) => {
 
 export const useCreateChallenge = () => {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (params: {
       sessions_per_week: number;
@@ -88,28 +91,25 @@ export const useCreateChallenge = () => {
         .select()
         .single();
       if (error) throw error;
-
-      // Seed rewards for this challenge
-      const rewardValue = Math.round(params.bet_per_month * params.odds);
-      const targetTier = getTargetTier(rewardValue);
-      const rewards = REWARD_TIERS.map((r) => ({
-        user_id: user!.id,
-        challenge_id: data.id,
-        name: r.name,
-        description: r.description,
-        value: r.value,
-        emoji: r.emoji,
-        tier: r.tier,
-        unlocked: false,
-      }));
-      await supabase.from("rewards").insert(rewards);
-
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
-      queryClient.invalidateQueries({ queryKey: ["rewards"] });
+  });
+};
+
+export const useUserCoins = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["user-coins", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("coins")
+        .eq("user_id", user!.id)
+        .single();
+      if (error) throw error;
+      return data?.coins ?? 0;
     },
+    enabled: !!user,
   });
 };
 
@@ -129,22 +129,6 @@ export const useRewards = (challengeId: string | undefined) => {
     },
     enabled: !!challengeId && !!user,
   });
-};
-
-const REWARD_TIERS = [
-  { tier: 1, name: "Accessoire sport", description: "Casquette ou serre-poignet", value: "~30€", emoji: "🧢" },
-  { tier: 2, name: "T-shirt premium", description: "T-shirt d'une marque sportive", value: "~80€", emoji: "👕" },
-  { tier: 3, name: "Ensemble sportif", description: "Short + haut de qualité", value: "~150€", emoji: "🎽" },
-  { tier: 4, name: "Chaussures de sport", description: "Paire de chaussures running ou training", value: "~300€", emoji: "👟" },
-  { tier: 5, name: "Tenue complète", description: "Équipement complet d'une marque premium", value: "~500€+", emoji: "🏆" },
-];
-
-const getTargetTier = (rewardValue: number) => {
-  if (rewardValue >= 500) return 5;
-  if (rewardValue >= 300) return 4;
-  if (rewardValue >= 150) return 3;
-  if (rewardValue >= 80) return 2;
-  return 1;
 };
 
 export const useCreateCheckIn = () => {
