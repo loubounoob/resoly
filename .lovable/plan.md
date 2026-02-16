@@ -1,54 +1,70 @@
 
 
-## Plan : Achats en pieces identiques aux achats en euros + variantes
+## Achats en pieces avec formulaire de livraison + commandes Shopify
 
-### 1. Donner 100 000 pieces a l'utilisateur
-- Mettre a jour le profil de l'utilisateur `930c1035-5920-4aab-b102-c53b8412cdeb` avec `coins = 100000`
+### Probleme actuel
+Quand un utilisateur achete avec des pieces, la commande n'apparait pas dans Shopify car le `SHOPIFY_ACCESS_TOKEN` n'a pas le scope `write_orders`. De plus, aucune information de livraison (nom, prenom, adresse) n'est collectee, donc meme si la commande etait creee, elle serait incomplete.
 
-### 2. Ajouter la selection de variantes (tailles, couleurs) sur la page detail produit
-- `ShopifyProductDetail.tsx` : ajouter un selecteur pour chaque option du produit (ex: Taille S/M/L/XL, Couleur)
-- Le variant selectionne determine le prix, la disponibilite, et l'ID utilise pour l'ajout au panier ou l'achat en pieces
-- Afficher les options sous forme de boutons cliquables (style "chip")
+### Solution proposee
 
-### 3. Rendre l'achat en pieces identique a l'achat en euros
-Actuellement, l'achat en pieces appelle directement une edge function qui deduit les pieces et tente de creer une commande Shopify (echoue a cause des scopes). Pour que ce soit "pareil" :
+Ajouter un **formulaire de livraison** (nom, prenom, adresse, ville, code postal, pays, telephone) qui s'affiche quand l'utilisateur clique sur "Acheter avec pieces". Ce formulaire collecte les memes informations qu'un checkout Shopify classique. Les donnees sont envoyees a l'edge function qui cree une vraie commande Shopify avec toutes les infos client.
 
-**Approche : achat en pieces via le panier Shopify (meme flow que l'argent reel)**
-- Quand l'utilisateur clique "Acheter avec pieces" :
-  1. Verifier le solde de pieces cote serveur (edge function)
-  2. Deduire les pieces
-  3. Creer un panier Shopify via l'API Storefront (cote client, meme methode que l'ajout au panier classique)
-  4. Mais au lieu d'envoyer vers le checkout Shopify (qui demande un vrai paiement), on cree une commande directement via l'Admin API dans l'edge function
+### Flow utilisateur
 
-**Probleme identifie** : Le `SHOPIFY_ACCESS_TOKEN` actuel n'a pas le scope `write_orders`, ce qui empeche la creation de commandes Shopify. L'edge function continuera a deduire les pieces et a tenter la creation de commande. Si le scope est ajoute plus tard, les commandes apparaitront automatiquement.
+1. L'utilisateur selectionne un produit et ses options (taille, couleur)
+2. Il clique sur "Acheter avec X pieces"
+3. Un **drawer/modal** s'ouvre avec un formulaire d'adresse de livraison (prenom, nom, adresse, complement, ville, code postal, pays, telephone)
+4. L'utilisateur remplit et valide
+5. L'edge function verifie le solde, deduit les pieces, et cree la commande Shopify avec les infos de livraison
+6. Toast de confirmation
 
-**Solution pragmatique retenue** :
-- L'edge function `purchase-with-coins` reste le point central pour l'achat en pieces
-- Elle deduit les pieces + cree la commande Shopify (quand le scope sera actif)
-- On ajoute le passage du **variant selectionne** (avec taille/couleur) dans l'appel
-- On enregistre egalement la commande dans la table `shop_orders` de la base de donnees pour garder une trace locale
+### Changements prevus
 
-### 4. Modifications de fichiers
+**1. Nouveau composant `src/components/ShippingFormDrawer.tsx`**
+- Drawer avec formulaire : prenom, nom, adresse ligne 1, adresse ligne 2 (optionnel), ville, code postal, pays (defaut France), telephone
+- Bouton "Confirmer et payer avec X pieces"
+- Validation des champs obligatoires
 
-**`src/pages/ShopifyProductDetail.tsx`** :
-- Ajouter un state `selectedVariantIndex` pour gerer la selection de variante
-- Afficher les options du produit (tailles, couleurs) sous forme de boutons selectionnables
-- Mettre a jour le prix affiche (EUR et pieces) selon le variant selectionne
-- Passer le variant selectionne dans les appels `addItem` et `handleBuyWithCoins`
+**2. Modification de `src/pages/ShopifyProductDetail.tsx`**
+- Le bouton "Acheter avec pieces" ouvre le drawer au lieu d'appeler directement l'edge function
+- Le drawer passe les infos de livraison au `handleBuyWithCoins`
+- La fonction envoie les infos shipping dans le body de la requete a l'edge function
 
-**`src/pages/Shop.tsx`** :
-- Pas de changement majeur (les cartes produit restent simples, la selection de variante se fait sur la page detail)
+**3. Modification de `supabase/functions/purchase-with-coins/index.ts`**
+- Accepter les champs `shipping` dans le body : `firstName`, `lastName`, `address1`, `address2`, `city`, `zip`, `country`, `phone`
+- Creer la commande Shopify avec `shipping_address` et `customer` complets :
 
-**`supabase/functions/purchase-with-coins/index.ts`** :
-- Ajouter le support d'options selectionnees dans le body de la requete
-- Inclure les options dans la note de la commande Shopify
+```
+order: {
+  line_items: [{ variant_id, quantity: 1 }],
+  financial_status: "paid",
+  shipping_address: {
+    first_name, last_name, address1, address2, city, zip, country, phone
+  },
+  customer: { first_name, last_name, email },
+  email: user.email,
+  note: "Paye avec X pieces",
+  tags: "coins-purchase",
+  transactions: [{ kind: "sale", status: "success", amount, gateway: "Pieces" }]
+}
+```
 
-**Base de donnees** :
-- UPDATE du profil utilisateur pour mettre `coins = 100000`
+- Cela produira une commande complete dans Shopify Admin, identique a une commande classique
 
-### 5. Tests a effectuer
-- Naviguer vers un produit, selectionner une taille, acheter avec pieces
-- Verifier que les pieces sont bien deduites
-- Verifier le solde mis a jour dans l'interface
-- Comparer le flow avec l'ajout au panier classique
+**4. Sauvegarder l'adresse dans le profil (optionnel mais recommande)**
+- Ajouter des colonnes `first_name`, `last_name`, `address1`, `city`, `zip`, `country`, `phone` dans la table `profiles` pour pre-remplir le formulaire lors des achats suivants
 
+### Details techniques
+
+**Fichiers crees** :
+- `src/components/ShippingFormDrawer.tsx` - Formulaire de livraison dans un drawer
+
+**Fichiers modifies** :
+- `src/pages/ShopifyProductDetail.tsx` - Integrer le drawer + passer shipping a l'edge function
+- `supabase/functions/purchase-with-coins/index.ts` - Accepter et utiliser les donnees de livraison dans la commande Shopify
+
+**Migration base de donnees** :
+- Ajouter les colonnes d'adresse a la table `profiles` pour pre-remplissage futur
+
+### Note importante
+La creation de commande Shopify depend du scope `write_orders` du `SHOPIFY_ACCESS_TOKEN`. Si le scope n'est pas encore actif, les pieces seront deduites et les infos sauvegardees localement, mais la commande Shopify ne sera pas creee tant que le token n'est pas mis a jour. Le systeme est concu pour fonctionner dans les deux cas.
