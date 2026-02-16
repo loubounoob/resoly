@@ -6,6 +6,7 @@ import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 import { useCartStore } from "@/stores/cartStore";
 import { useUserCoins } from "@/hooks/useChallenge";
 import { CartDrawer } from "@/components/CartDrawer";
+import { ShippingFormDrawer, ShippingInfo } from "@/components/ShippingFormDrawer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -19,6 +20,7 @@ const ShopifyProductDetail = () => {
   const [product, setProduct] = useState<ShopifyProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
+  const [shippingOpen, setShippingOpen] = useState(false);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const { data: coins, isLoading: coinsLoading, refetch: refetchCoins } = useUserCoins();
 
@@ -80,7 +82,7 @@ const ShopifyProductDetail = () => {
     toast.success("Ajouté au panier !");
   };
 
-  const handleBuyWithCoins = async () => {
+  const handleBuyWithCoins = async (shipping: ShippingInfo) => {
     if (!selectedVariant) return;
     setPurchasing(true);
     try {
@@ -94,6 +96,7 @@ const ShopifyProductDetail = () => {
           priceAmount: variantPrice.amount,
           priceCurrency: variantPrice.currencyCode,
           selectedOptions: selectedVariant.selectedOptions,
+          shipping,
         },
       });
 
@@ -101,6 +104,7 @@ const ShopifyProductDetail = () => {
       const data = res.data;
       if (data?.error) throw new Error(data.error);
 
+      setShippingOpen(false);
       toast.success(`Acheté avec ${data.coinsSpent} pièces !`, {
         description: `Il vous reste ${data.remainingCoins} pièces.`,
       });
@@ -176,7 +180,7 @@ const ShopifyProductDetail = () => {
           <Button className="w-full h-12 text-base" disabled={isLoading || !selectedVariant?.availableForSale} onClick={handleAdd}>
             {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : selectedVariant?.availableForSale ? `🛒 Ajouter au panier — ${parseFloat(variantPrice.amount).toFixed(2)} ${variantPrice.currencyCode}` : "Indisponible"}
           </Button>
-          <Button variant="secondary" className="w-full h-12 text-base" disabled={purchasing || (coins ?? 0) < coinsPrice || !selectedVariant?.availableForSale} onClick={handleBuyWithCoins}>
+          <Button variant="secondary" className="w-full h-12 text-base" disabled={purchasing || (coins ?? 0) < coinsPrice || !selectedVariant?.availableForSale} onClick={() => setShippingOpen(true)}>
             {purchasing ? <Loader2 className="w-5 h-5 animate-spin" /> : `🪙 Acheter avec ${coinsPrice} pièces`}
           </Button>
           {(coins ?? 0) < coinsPrice && (
@@ -184,6 +188,13 @@ const ShopifyProductDetail = () => {
           )}
         </div>
       </div>
+      <ShippingFormDrawer
+        open={shippingOpen}
+        onOpenChange={setShippingOpen}
+        coinsPrice={coinsPrice}
+        onConfirm={handleBuyWithCoins}
+        isPurchasing={purchasing}
+      />
     </div>
   );
 };
