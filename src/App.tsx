@@ -11,6 +11,7 @@ import CreateChallenge from "./pages/CreateChallenge";
 import PhotoVerify from "./pages/PhotoVerify";
 import Rewards from "./pages/Rewards";
 import PaymentSuccess from "./pages/PaymentSuccess";
+import ProductDetail from "./pages/ProductDetail";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -50,6 +51,7 @@ const AppRoutes = () => {
       <Route path="/create" element={<ProtectedRoute><CreateChallenge /></ProtectedRoute>} />
       <Route path="/verify" element={<ProtectedRoute><PhotoVerify /></ProtectedRoute>} />
       <Route path="/rewards" element={<ProtectedRoute><Rewards /></ProtectedRoute>} />
+      <Route path="/shop/:productId" element={<ProtectedRoute><ProductDetail /></ProtectedRoute>} />
       <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
