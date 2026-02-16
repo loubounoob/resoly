@@ -5,13 +5,24 @@ import BottomNav from "@/components/BottomNav";
 import { useActiveChallenge, useCreateCheckIn } from "@/hooks/useChallenge";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const PhotoVerify = () => {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [preview, setPreview] = useState<string | null>(null);
+  const [reason, setReason] = useState<string>("");
   const { data: challenge } = useActiveChallenge();
   const createCheckIn = useCreateCheckIn();
   const navigate = useNavigate();
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -25,20 +36,33 @@ const PhotoVerify = () => {
     const url = URL.createObjectURL(file);
     setPreview(url);
     setStatus("loading");
+    setReason("");
 
-    // Simulate AI verification then save check-in
-    const verified = Math.random() > 0.2;
-    setTimeout(async () => {
-      try {
-        await createCheckIn.mutateAsync({
-          challenge_id: challenge.id,
-          verified,
-        });
-        setStatus(verified ? "success" : "error");
-      } catch {
-        setStatus("error");
-      }
-    }, 2500);
+    try {
+      const imageBase64 = await fileToBase64(file);
+
+      const { data, error } = await supabase.functions.invoke("verify-photo", {
+        body: { imageBase64 },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      const verified = data.verified === true;
+      setReason(data.reason || "");
+
+      await createCheckIn.mutateAsync({
+        challenge_id: challenge.id,
+        verified,
+      });
+
+      setStatus(verified ? "success" : "error");
+    } catch (err) {
+      console.error("Verification error:", err);
+      setStatus("error");
+      setReason("Erreur lors de la vérification");
+      toast.error("Erreur lors de la vérification de la photo");
+    }
   };
 
   return (
@@ -81,20 +105,23 @@ const PhotoVerify = () => {
                 <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex flex-col items-center justify-center gap-3 animate-count-up">
                   <CheckCircle2 className="w-16 h-16 text-primary" />
                   <p className="text-lg font-display font-bold text-primary">Séance validée !</p>
+                  {reason && <p className="text-xs text-muted-foreground text-center px-4">{reason}</p>}
                 </div>
               )}
               {status === "error" && (
                 <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex flex-col items-center justify-center gap-3 animate-count-up">
                   <XCircle className="w-16 h-16 text-destructive" />
                   <p className="text-lg font-display font-bold text-destructive">Non reconnue</p>
-                  <p className="text-xs text-muted-foreground">Réessaie avec une photo de la salle</p>
+                  <p className="text-xs text-muted-foreground text-center px-4">
+                    {reason || "Réessaie avec une photo de la salle"}
+                  </p>
                 </div>
               )}
             </div>
 
             {(status === "success" || status === "error") && (
               <Button
-                onClick={() => { setPreview(null); setStatus("idle"); }}
+                onClick={() => { setPreview(null); setStatus("idle"); setReason(""); }}
                 variant="outline"
                 className="w-full h-12 rounded-xl"
               >

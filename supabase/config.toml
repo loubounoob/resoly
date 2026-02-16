@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.purchase-product]
 verify_jwt = false
+
+[functions.verify-photo]
+verify_jwt = false
