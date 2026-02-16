@@ -24,8 +24,29 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated");
 
-    const { challengeId, amount, description } = await req.json();
+    const { challengeId, amount, description, promoCode } = await req.json();
     if (!challengeId || !amount) throw new Error("Missing challengeId or amount");
+
+    // Handle promo code "loubou" — bypass Stripe entirely
+    if (promoCode && promoCode.toLowerCase() === "loubou") {
+      const supabaseAdmin = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      );
+
+      const { error: updateError } = await supabaseAdmin
+        .from("challenges")
+        .update({ payment_status: "paid" })
+        .eq("id", challengeId)
+        .eq("user_id", user.id);
+
+      if (updateError) throw new Error("Failed to apply promo code");
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2025-08-27.basil",
@@ -49,7 +70,7 @@ serve(async (req) => {
               name: "Mise FitBet",
               description: description || "Mise pour défi fitness",
             },
-            unit_amount: Math.round(amount * 100), // Convert euros to cents
+            unit_amount: Math.round(amount * 100),
           },
           quantity: 1,
         },
