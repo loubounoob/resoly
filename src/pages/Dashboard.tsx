@@ -242,7 +242,7 @@ const Dashboard = () => {
           </Button>
 
           <button
-            onClick={() => navigate("/rewards")}
+            onClick={() => navigate("/shop")}
             className="flex items-center justify-between w-full mt-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
           >
             <div className="flex items-center gap-2">

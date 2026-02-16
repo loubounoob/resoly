@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.verify-photo]
 verify_jwt = false
+
+[functions.purchase-with-coins]
+verify_jwt = false

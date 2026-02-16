@@ -10,9 +10,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import CreateChallenge from "./pages/CreateChallenge";
 import PhotoVerify from "./pages/PhotoVerify";
-import Rewards from "./pages/Rewards";
 import PaymentSuccess from "./pages/PaymentSuccess";
-import ProductDetail from "./pages/ProductDetail";
 import Shop from "./pages/Shop";
 import ShopifyProductDetail from "./pages/ShopifyProductDetail";
 import NotFound from "./pages/NotFound";
@@ -53,8 +51,6 @@ const AppRoutes = () => {
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/create" element={<ProtectedRoute><CreateChallenge /></ProtectedRoute>} />
       <Route path="/verify" element={<ProtectedRoute><PhotoVerify /></ProtectedRoute>} />
-      <Route path="/rewards" element={<ProtectedRoute><Rewards /></ProtectedRoute>} />
-      <Route path="/shop/:productId" element={<ProtectedRoute><ProductDetail /></ProtectedRoute>} />
       <Route path="/shop" element={<ProtectedRoute><Shop /></ProtectedRoute>} />
       <Route path="/shopify/:handle" element={<ProtectedRoute><ShopifyProductDetail /></ProtectedRoute>} />
       <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
