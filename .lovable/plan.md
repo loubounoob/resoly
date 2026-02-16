@@ -1,106 +1,62 @@
 
 
-# Plan : Code promo Stripe "loubou" + Boutique de sport avec pieces
+## Fusionner la boutique : paiement en pieces ou en euros
 
-## 1. Code promo Stripe "loubou" (-100%)
+### Objectif
+Supprimer l'onglet "Pieces" de la navigation, fusionner tout dans le Shop, et permettre aux utilisateurs de payer les produits Shopify soit en euros (checkout Shopify classique), soit en pieces (1EUR = 50 pieces). Les achats en pieces doivent aussi creer une commande dans Shopify pour apparaitre dans l'admin.
 
-Creer un coupon Stripe "loubou" qui offre 100% de reduction, puis l'activer dans le checkout.
+### Changements prevus
 
-### Actions :
-- **Creer le coupon Stripe** via l'outil Stripe avec `percent_off: 100` et le nom "loubou"
-- **Modifier l'edge function `create-challenge-payment`** pour activer le champ `allow_promotion_codes: true` dans la session Checkout Stripe, ce qui permet a l'utilisateur de saisir le code promo directement sur la page de paiement Stripe
+**1. Navigation - Supprimer l'onglet Pieces**
+- `BottomNav.tsx` : retirer le lien `/rewards` (Trophy/Pieces)
+- `App.tsx` : supprimer la route `/rewards` et la route `/shop/:productId` (ancien detail interne)
+- Supprimer ou archiver `src/pages/Rewards.tsx` et `src/pages/ProductDetail.tsx`
 
-## 2. Nouvelle table `shop_products` en base de donnees
+**2. Page Shop - Afficher le solde de pieces + double option de paiement**
+- `Shop.tsx` : ajouter l'affichage du solde de pieces dans le header
+- Chaque carte produit affiche le prix en EUR et en pieces (prix EUR x 50)
+- Ajouter un bouton "Acheter avec pieces" en plus du bouton "Ajouter au panier"
 
-Creer une table pour stocker les produits de la boutique, achetables avec des pieces.
+**3. Page detail produit Shopify - Double paiement**
+- `ShopifyProductDetail.tsx` : ajouter un bouton "Payer avec X pieces" sous le bouton "Ajouter au panier"
+- Afficher la conversion : ex. "25,00 EUR ou 1250 pieces"
+- Desactiver le bouton pieces si solde insuffisant
 
-### Schema :
-- `id` (uuid, PK)
-- `name` (text)
-- `description` (text)
-- `image_url` (text)
-- `price_coins` (integer) -- prix en pieces
-- `category` (text) -- ex: "vetements", "accessoires", "equipement"
-- `stock` (integer, default -1 pour illimite)
-- `active` (boolean, default true)
-- `created_at` (timestamptz)
+**4. Nouvelle Edge Function `purchase-with-coins`**
+- Verifier l'authentification et le solde de pieces
+- Deduire les pieces du profil utilisateur
+- Creer une commande dans Shopify via l'Admin API (avec le secret `SHOPIFY_ACCESS_TOKEN` deja configure) pour que la commande apparaisse dans l'admin Shopify
+- La commande sera marquee comme "paid" avec une note indiquant le paiement en pieces
+- Retourner la confirmation
 
-RLS : SELECT ouvert a tous les utilisateurs authentifies (catalogue public), pas d'INSERT/UPDATE/DELETE cote client.
+**5. Dashboard - Mettre a jour le lien "Mes pieces"**
+- Le bouton "Mes pieces" redirigera vers `/shop` au lieu de `/rewards`
 
-## 3. Table `shop_orders` pour les achats
+### Details techniques
 
-- `id` (uuid, PK)
-- `user_id` (uuid)
-- `product_id` (uuid, FK -> shop_products)
-- `coins_spent` (integer)
-- `status` (text, default 'pending')
-- `created_at` (timestamptz)
+**Conversion** : `prixEnPieces = Math.ceil(parseFloat(price.amount) * 50)`
 
-RLS : SELECT et INSERT pour l'utilisateur lui-meme.
+**Edge Function `purchase-with-coins`** :
+```
+POST { variantId, productTitle, priceAmount, priceCurrency }
+```
+- Authentifie l'utilisateur
+- Calcule le cout en pieces (montant x 50)
+- Verifie le solde suffisant
+- Deduit les pieces via Supabase Admin
+- Cree un draft order Shopify via Admin API (`POST /admin/api/2025-01/draft_orders.json`) avec `financial_status: paid` et une note "Paye avec pieces"
+- Complete le draft order pour le transformer en commande reelle
 
-## 4. Seed de produits de sport
+**Fichiers modifies** :
+- `src/components/BottomNav.tsx` - retirer onglet Pieces
+- `src/pages/Shop.tsx` - ajouter solde pieces + bouton achat pieces
+- `src/pages/ShopifyProductDetail.tsx` - ajouter option paiement pieces
+- `src/pages/Dashboard.tsx` - rediriger lien pieces vers /shop
+- `src/App.tsx` - supprimer routes /rewards et /shop/:productId
+- `supabase/functions/purchase-with-coins/index.ts` (nouveau) - achat Shopify via pieces
+- `supabase/config.toml` - enregistrer la nouvelle fonction
 
-Inserer ~8 produits de sport directement dans la migration :
-- Bande de resistance (150 pieces)
-- Shaker proteine (200 pieces)
-- Gants de musculation (350 pieces)
-- Serviette microfibre (250 pieces)
-- Corde a sauter (300 pieces)
-- Tapis de yoga (500 pieces)
-- Sac de sport (800 pieces)
-- Ecouteurs sport Bluetooth (1200 pieces)
-
-## 5. Edge function `purchase-product`
-
-Nouvelle edge function pour gerer l'achat securise :
-- Verifie l'authentification
-- Verifie que le produit existe et est actif
-- Verifie que l'utilisateur a assez de pieces
-- Deduit les pieces du profil
-- Cree une commande dans `shop_orders`
-- Utilise le service role pour la transaction
-
-## 6. Refonte de la page Rewards -> Boutique
-
-Transformer `src/pages/Rewards.tsx` en une boutique avec :
-- **Header** : solde de pieces en haut
-- **Grille de produits** : cards avec image, nom, prix en pieces, bouton "Acheter"
-- **Filtres par categorie** (optionnel, via tabs)
-
-## 7. Page fiche produit (`/shop/:productId`)
-
-Nouvelle page `src/pages/ProductDetail.tsx` :
-- Image du produit en grand
-- Nom, description, prix en pieces
-- Bouton "Acheter avec X pieces"
-- Retour a la boutique
-
-## 8. Hooks et routing
-
-- Nouveau hook `useShopProducts` pour lister les produits
-- Nouveau hook `usePurchaseProduct` (mutation) pour acheter
-- Ajouter la route `/shop/:productId` dans `App.tsx`
-
----
-
-## Sections techniques
-
-### Fichiers crees :
-- `supabase/functions/purchase-product/index.ts`
+**Fichiers supprimes** :
+- `src/pages/Rewards.tsx`
 - `src/pages/ProductDetail.tsx`
-
-### Fichiers modifies :
-- `supabase/functions/create-challenge-payment/index.ts` (ajout `allow_promotion_codes: true`)
-- `supabase/config.toml` (ajout config pour `purchase-product`)
-- `src/pages/Rewards.tsx` (refonte complete en boutique)
-- `src/hooks/useChallenge.ts` (ajout hooks shop)
-- `src/App.tsx` (nouvelle route `/shop/:productId`)
-
-### Migration SQL :
-- Creation table `shop_products` + RLS
-- Creation table `shop_orders` + RLS
-- Seed des 8 produits
-
-### Note sur Shopify :
-Shopify n'est pas connecte au projet. Les produits seront geres en interne dans la base de donnees. Si tu souhaites connecter Shopify plus tard, on pourra l'ajouter.
 
