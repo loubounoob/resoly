@@ -4,7 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { useCartSync } from "@/hooks/useCartSync";
+
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -59,10 +59,6 @@ const AppRoutes = () => {
   );
 };
 
-const CartSyncWrapper = ({ children }: { children: React.ReactNode }) => {
-  useCartSync();
-  return <>{children}</>;
-};
 
 const App = () => {
   return (
@@ -72,11 +68,9 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <CartSyncWrapper>
               <div className="min-h-screen bg-background max-w-md mx-auto relative">
                 <AppRoutes />
               </div>
-            </CartSyncWrapper>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
