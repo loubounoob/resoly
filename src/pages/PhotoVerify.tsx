@@ -2,18 +2,24 @@ import { Camera, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import BottomNav from "@/components/BottomNav";
-import { useActiveChallenge, useCreateCheckIn } from "@/hooks/useChallenge";
+import { useActiveChallenge, useCheckIns, useCreateCheckIn } from "@/hooks/useChallenge";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { startOfDay, isToday } from "date-fns";
 
 const PhotoVerify = () => {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [preview, setPreview] = useState<string | null>(null);
   const [reason, setReason] = useState<string>("");
   const { data: challenge } = useActiveChallenge();
+  const { data: checkIns } = useCheckIns(challenge?.id);
   const createCheckIn = useCreateCheckIn();
   const navigate = useNavigate();
+
+  const hasCheckedInToday = checkIns?.some(
+    (ci) => ci.verified && isToday(new Date(ci.checked_in_at))
+  ) ?? false;
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -74,7 +80,18 @@ const PhotoVerify = () => {
 
       {/* Camera Area */}
       <div className="flex-1 flex flex-col items-center justify-center">
-        {!preview ? (
+        {hasCheckedInToday ? (
+          <div className="w-full max-w-xs text-center space-y-4">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-10 h-10 text-primary" />
+            </div>
+            <h2 className="text-lg font-display font-bold">Déjà validé aujourd'hui !</h2>
+            <p className="text-sm text-muted-foreground">Reviens demain pour ton prochain check-in 💪</p>
+            <Button onClick={() => navigate("/dashboard")} variant="outline" className="w-full h-12 rounded-xl">
+              Retour au dashboard
+            </Button>
+          </div>
+        ) : !preview ? (
           <label className="w-full aspect-square max-w-xs rounded-2xl border-2 border-dashed border-border bg-secondary/50 flex flex-col items-center justify-center gap-4 cursor-pointer hover:border-primary/50 transition-colors">
             <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
               <Camera className="w-10 h-10 text-primary" />

@@ -1,4 +1,4 @@
-import { Flame, TrendingUp, Camera, Calendar, Coins, ChevronRight, Plus, Loader2 } from "lucide-react";
+import { Flame, Camera, Calendar, Coins, ChevronRight, Plus, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -184,33 +184,20 @@ const Dashboard = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="bg-gradient-card rounded-xl border border-border p-4 shadow-card">
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="w-4 h-4 text-accent" />
-            <span className="text-xs text-muted-foreground">Cote</span>
-          </div>
-          <span className="text-2xl font-display font-bold text-gradient-gold">x{Number(challenge.odds)}</span>
+      <div className="bg-gradient-card rounded-xl border border-border p-4 shadow-card mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Calendar className="w-4 h-4 text-primary" />
+          <span className="text-xs text-muted-foreground">Jours restants</span>
         </div>
-        <div className="bg-gradient-card rounded-xl border border-border p-4 shadow-card">
-          <div className="flex items-center gap-2 mb-2">
-            <Calendar className="w-4 h-4 text-primary" />
-            <span className="text-xs text-muted-foreground">Restant</span>
-          </div>
-          <span className="text-2xl font-display font-bold">{daysRemaining}j</span>
-        </div>
+        <span className="text-2xl font-display font-bold">{daysRemaining}j</span>
       </div>
 
       {/* Mise & coins */}
       <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card mb-4">
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-xs text-muted-foreground block">Mise totale</span>
-            <span className="text-xl font-display font-bold">{totalBet}€</span>
-          </div>
-          <div className="text-right">
             <span className="text-xs text-muted-foreground block">Pièces à gagner</span>
-            <span className="text-lg font-display font-bold text-gradient-gold">🪙 {coinsToEarn}</span>
+            <span className="text-xl font-display font-bold text-gradient-gold">🪙 {coinsToEarn}</span>
           </div>
         </div>
       </div>
@@ -220,7 +207,7 @@ const Dashboard = () => {
           <div className="bg-gradient-card rounded-2xl border border-accent/30 p-5 text-center shadow-card">
             <span className="text-4xl mb-2 block">🎉</span>
             <h3 className="text-xl font-display font-bold mb-1">Défi terminé !</h3>
-            <p className="text-sm text-muted-foreground mb-2">Bravo ! Tu récupères ta mise de {totalBet}€</p>
+            <p className="text-sm text-muted-foreground mb-2">Bravo ! Tu as réussi ton défi !</p>
             <p className="text-lg font-display font-bold text-gradient-gold">+ 🪙 {coinsToEarn} pièces</p>
           </div>
           <Button

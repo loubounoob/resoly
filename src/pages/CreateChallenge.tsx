@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { ArrowLeft, Flame, TrendingUp, Coins, Loader2 } from "lucide-react";
+import { ArrowLeft, Flame, Coins, Loader2 } from "lucide-react";
 import { useCreateChallenge, useActiveChallenge } from "@/hooks/useChallenge";
 import { calculateCoins } from "@/lib/coins";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,12 +11,6 @@ import { toast } from "sonner";
 const DURATION_OPTIONS = [1, 2, 3];
 const SESSIONS_OPTIONS = [2, 3, 4, 5, 6, 7];
 
-const calculateOdds = (sessionsPerWeek: number, months: number): number => {
-  const base = 1.0;
-  const sessionMultiplier = sessionsPerWeek <= 2 ? 0.3 : sessionsPerWeek <= 4 ? 0.6 : 1.0;
-  const durationMultiplier = months <= 1 ? 0.2 : months <= 3 ? 0.5 : months <= 6 ? 0.8 : 1.2;
-  return Math.round((base + sessionMultiplier + durationMultiplier) * 100) / 100;
-};
 
 const CreateChallenge = () => {
   const navigate = useNavigate();
@@ -42,7 +36,6 @@ const CreateChallenge = () => {
     );
   }
 
-  const odds = calculateOdds(sessionsPerWeek, duration);
   const totalBet = betAmount * duration;
   const totalSessions = sessionsPerWeek * duration * 4;
   const coinsPreview = calculateCoins(totalBet, duration, sessionsPerWeek);
@@ -55,7 +48,7 @@ const CreateChallenge = () => {
         sessions_per_week: sessionsPerWeek,
         duration_months: duration,
         bet_per_month: betAmount,
-        odds,
+        odds: 1,
       });
 
       // 2. Create Stripe checkout session (with optional promo code)
@@ -159,24 +152,14 @@ const CreateChallenge = () => {
 
         {/* Summary Card */}
         <div className="bg-gradient-card rounded-2xl border border-border p-5 space-y-4 shadow-card">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-accent" />
-              <span className="text-sm text-muted-foreground">Ta cote</span>
-            </div>
-            <span className="text-2xl font-display font-bold text-gradient-gold">x{odds}</span>
-          </div>
-
-          <div className="h-px bg-border" />
-
           <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground block">Mise totale</span>
-              <span className="font-bold text-lg">{totalBet}€</span>
-            </div>
             <div>
               <span className="text-muted-foreground block">Séances totales</span>
               <span className="font-bold text-lg">{totalSessions}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground block">Durée</span>
+              <span className="font-bold text-lg">{duration} mois</span>
             </div>
           </div>
 
@@ -192,7 +175,7 @@ const CreateChallenge = () => {
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Tu récupères ta mise de {totalBet}€ + {coinsPreview} pièces si tu réussis le défi
+            Tu gagnes {coinsPreview} pièces si tu réussis le défi
           </p>
         </div>
       </div>
@@ -220,7 +203,7 @@ const CreateChallenge = () => {
         ) : (
           <Flame className="w-5 h-5 mr-2" />
         )}
-        Payer {totalBet}€ et lancer le défi
+        Lancer le défi
       </Button>
     </div>
   );
