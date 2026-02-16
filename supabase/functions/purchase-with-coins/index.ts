@@ -31,7 +31,7 @@ serve(async (req) => {
     const user = data.user;
     if (!user) throw new Error("User not authenticated");
 
-    const { variantId, productTitle, priceAmount, priceCurrency, selectedOptions } = await req.json();
+    const { variantId, productTitle, priceAmount, priceCurrency, selectedOptions, shipping } = await req.json();
     if (!variantId || !priceAmount) throw new Error("Missing required fields");
 
     const coinsNeeded = Math.ceil(parseFloat(priceAmount) * COINS_PER_EURO);
@@ -52,6 +52,23 @@ serve(async (req) => {
       .eq("user_id", user.id);
     if (updateError) throw new Error("Failed to deduct coins");
 
+    // Save shipping info to profile for future pre-fill
+    if (shipping) {
+      await supabaseAdmin
+        .from("profiles")
+        .update({
+          first_name: shipping.firstName,
+          last_name: shipping.lastName,
+          address1: shipping.address1,
+          address2: shipping.address2 || null,
+          city: shipping.city,
+          zip: shipping.zip,
+          country: shipping.country,
+          phone: shipping.phone || null,
+        })
+        .eq("user_id", user.id);
+    }
+
     // Build options note
     const optionsNote = selectedOptions?.length
       ? selectedOptions.map((o: { name: string; value: string }) => `${o.name}: ${o.value}`).join(", ")
@@ -60,8 +77,46 @@ serve(async (req) => {
     // Try to create Shopify order via Admin API
     let shopifyOrderId = null;
     const shopifyToken = Deno.env.get("SHOPIFY_ACCESS_TOKEN");
-    if (shopifyToken) {
+    if (shopifyToken && shipping) {
       try {
+        const orderPayload: Record<string, unknown> = {
+          order: {
+            line_items: [
+              {
+                variant_id: parseInt(variantId.replace("gid://shopify/ProductVariant/", "")),
+                quantity: 1,
+              },
+            ],
+            financial_status: "paid",
+            shipping_address: {
+              first_name: shipping.firstName,
+              last_name: shipping.lastName,
+              address1: shipping.address1,
+              address2: shipping.address2 || "",
+              city: shipping.city,
+              zip: shipping.zip,
+              country: shipping.country,
+              phone: shipping.phone || "",
+            },
+            customer: {
+              first_name: shipping.firstName,
+              last_name: shipping.lastName,
+              email: user.email,
+            },
+            email: user.email,
+            note: `Payé avec ${coinsNeeded} pièces${optionsNote ? ` — ${optionsNote}` : ""}`,
+            tags: "coins-purchase",
+            transactions: [
+              {
+                kind: "sale",
+                status: "success",
+                amount: priceAmount,
+                gateway: "Pièces",
+              },
+            ],
+          },
+        };
+
         const orderRes = await fetch(
           `https://${SHOPIFY_DOMAIN}/admin/api/2025-01/orders.json`,
           {
@@ -70,28 +125,7 @@ serve(async (req) => {
               "Content-Type": "application/json",
               "X-Shopify-Access-Token": shopifyToken,
             },
-            body: JSON.stringify({
-              order: {
-                line_items: [
-                  {
-                    variant_id: parseInt(variantId.replace("gid://shopify/ProductVariant/", "")),
-                    quantity: 1,
-                  },
-                ],
-                financial_status: "paid",
-                note: `Payé avec ${coinsNeeded} pièces${optionsNote ? ` — ${optionsNote}` : ""}`,
-                tags: "coins-purchase",
-                email: user.email || undefined,
-                transactions: [
-                  {
-                    kind: "sale",
-                    status: "success",
-                    amount: priceAmount,
-                    gateway: "Pièces",
-                  },
-                ],
-              },
-            }),
+            body: JSON.stringify(orderPayload),
           }
         );
 
