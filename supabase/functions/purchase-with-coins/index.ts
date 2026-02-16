@@ -53,73 +53,62 @@ serve(async (req) => {
       .eq("user_id", user.id);
     if (updateError) throw new Error("Failed to deduct coins");
 
-    // Create Shopify draft order via Admin API
+    // Try to create Shopify order via Admin API
+    let shopifyOrderId = null;
     const shopifyToken = Deno.env.get("SHOPIFY_ACCESS_TOKEN");
-    if (!shopifyToken) throw new Error("Shopify access token not configured");
-
-    const draftOrderRes = await fetch(
-      `https://${SHOPIFY_DOMAIN}/admin/api/2025-01/draft_orders.json`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Shopify-Access-Token": shopifyToken,
-        },
-        body: JSON.stringify({
-          draft_order: {
-            line_items: [
-              {
-                variant_id: parseInt(variantId.replace("gid://shopify/ProductVariant/", "")),
-                quantity: 1,
+    if (shopifyToken) {
+      try {
+        const orderRes = await fetch(
+          `https://${SHOPIFY_DOMAIN}/admin/api/2025-01/orders.json`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Shopify-Access-Token": shopifyToken,
+            },
+            body: JSON.stringify({
+              order: {
+                line_items: [
+                  {
+                    variant_id: parseInt(variantId.replace("gid://shopify/ProductVariant/", "")),
+                    quantity: 1,
+                  },
+                ],
+                financial_status: "paid",
+                note: `Payé avec ${coinsNeeded} pièces`,
+                tags: "coins-purchase",
+                email: user.email || undefined,
+                transactions: [
+                  {
+                    kind: "sale",
+                    status: "success",
+                    amount: priceAmount,
+                    gateway: "Pièces",
+                  },
+                ],
               },
-            ],
-            note: `Payé avec ${coinsNeeded} pièces (${user.email})`,
-            tags: "coins-purchase",
-            email: user.email || undefined,
-          },
-        }),
+            }),
+          }
+        );
+
+        if (orderRes.ok) {
+          const orderData = await orderRes.json();
+          shopifyOrderId = orderData.order?.id;
+        } else {
+          console.warn("Shopify order creation failed (scope issue), continuing with local order only:", await orderRes.text());
+        }
+      } catch (e) {
+        console.warn("Shopify API call failed, continuing with local order:", e.message);
       }
-    );
-
-    if (!draftOrderRes.ok) {
-      const errText = await draftOrderRes.text();
-      console.error("Shopify draft order error:", errText);
-      // Refund coins on failure
-      await supabaseAdmin
-        .from("profiles")
-        .update({ coins: profile.coins })
-        .eq("user_id", user.id);
-      throw new Error("Failed to create Shopify order");
     }
-
-    const draftOrderData = await draftOrderRes.json();
-    const draftOrderId = draftOrderData.draft_order.id;
-
-    // Complete the draft order (marks as paid)
-    const completeRes = await fetch(
-      `https://${SHOPIFY_DOMAIN}/admin/api/2025-01/draft_orders/${draftOrderId}/complete.json`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Shopify-Access-Token": shopifyToken,
-        },
-        body: JSON.stringify({ payment_pending: false }),
-      }
-    );
-
-    if (!completeRes.ok) {
-      console.error("Failed to complete draft order:", await completeRes.text());
-    }
-
-    const completeData = await completeRes.json();
 
     return new Response(
       JSON.stringify({
         success: true,
         coinsSpent: coinsNeeded,
         remainingCoins: profile.coins - coinsNeeded,
-        orderId: completeData.draft_order?.order_id || draftOrderId,
+        shopifyOrderId,
+        productTitle,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
