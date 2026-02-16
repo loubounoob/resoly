@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { useCartSync } from "@/hooks/useCartSync";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -12,6 +13,8 @@ import PhotoVerify from "./pages/PhotoVerify";
 import Rewards from "./pages/Rewards";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import ProductDetail from "./pages/ProductDetail";
+import Shop from "./pages/Shop";
+import ShopifyProductDetail from "./pages/ShopifyProductDetail";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -52,10 +55,17 @@ const AppRoutes = () => {
       <Route path="/verify" element={<ProtectedRoute><PhotoVerify /></ProtectedRoute>} />
       <Route path="/rewards" element={<ProtectedRoute><Rewards /></ProtectedRoute>} />
       <Route path="/shop/:productId" element={<ProtectedRoute><ProductDetail /></ProtectedRoute>} />
+      <Route path="/shop" element={<ProtectedRoute><Shop /></ProtectedRoute>} />
+      <Route path="/shopify/:handle" element={<ProtectedRoute><ShopifyProductDetail /></ProtectedRoute>} />
       <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
+};
+
+const CartSyncWrapper = ({ children }: { children: React.ReactNode }) => {
+  useCartSync();
+  return <>{children}</>;
 };
 
 const App = () => {
@@ -66,9 +76,11 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <div className="min-h-screen bg-background max-w-md mx-auto relative">
-              <AppRoutes />
-            </div>
+            <CartSyncWrapper>
+              <div className="min-h-screen bg-background max-w-md mx-auto relative">
+                <AppRoutes />
+              </div>
+            </CartSyncWrapper>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
