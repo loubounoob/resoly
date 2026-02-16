@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const SHOPIFY_DOMAIN = "sbqb12-w0.myshopify.com";
@@ -33,7 +33,6 @@ serve(async (req) => {
   try {
     const action = url.searchParams.get("action");
 
-    // Step 1: Initiate OAuth — redirect user to Shopify authorization page
     if (action === "install") {
       const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/shopify-oauth?action=callback`;
       const nonce = crypto.randomUUID();
@@ -45,7 +44,6 @@ serve(async (req) => {
       });
     }
 
-    // Step 2: Handle callback — exchange code for access token
     if (action === "callback") {
       const code = url.searchParams.get("code");
       const shop = url.searchParams.get("shop") || SHOPIFY_DOMAIN;
@@ -57,15 +55,10 @@ serve(async (req) => {
         });
       }
 
-      // Exchange code for permanent access token
       const tokenRes = await fetch(`https://${shop}/admin/oauth/access_token`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          client_id: clientId,
-          client_secret: clientSecret,
-          code,
-        }),
+        body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code }),
       });
 
       if (!tokenRes.ok) {
@@ -81,15 +74,10 @@ serve(async (req) => {
       const accessToken = tokenData.access_token;
       const scopes = tokenData.scope;
 
-      // Upsert token in database
       const { error: dbError } = await supabaseAdmin
         .from("shopify_tokens")
         .upsert(
-          {
-            shop_domain: shop,
-            access_token: accessToken,
-            scopes: scopes,
-          },
+          { shop_domain: shop, access_token: accessToken, scopes: scopes },
           { onConflict: "shop_domain" }
         );
 
@@ -112,7 +100,6 @@ serve(async (req) => {
       );
     }
 
-    // Status check
     if (action === "status") {
       const { data, error } = await supabaseAdmin
         .from("shopify_tokens")
