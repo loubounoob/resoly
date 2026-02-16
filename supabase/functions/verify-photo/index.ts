@@ -12,9 +12,9 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
+    if (!GOOGLE_AI_API_KEY) {
+      throw new Error("GOOGLE_AI_API_KEY is not configured");
     }
 
     const { imageBase64 } = await req.json();
@@ -25,72 +25,60 @@ serve(async (req) => {
       );
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are a gym check-in verification assistant. Your job is to analyze photos and determine if they show a gym or fitness environment.
+    // Extract pure base64 data (remove data:image/...;base64, prefix if present)
+    const base64Data = imageBase64.includes(",")
+      ? imageBase64.split(",")[1]
+      : imageBase64;
 
-Respond ONLY with a JSON object (no markdown, no code blocks):
-{"verified": true/false, "reason": "brief explanation in French"}
+    const mimeMatch = imageBase64.match(/^data:(image\/\w+);base64,/);
+    const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
 
-A photo is verified (true) if it shows ANY of: gym equipment, workout machines, weights, treadmills, exercise bikes, yoga mats, a gym interior, locker rooms, swimming pools, sports facilities, or a person clearly in a gym/fitness setting.
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_AI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `Tu es un assistant de vérification de check-in en salle de sport. Analyse cette photo et détermine si elle montre un environnement de gym/fitness.
 
-A photo is NOT verified (false) if it shows: home environments, offices, outdoor non-sport locations, food, or anything clearly unrelated to fitness.
+Réponds UNIQUEMENT avec un objet JSON (pas de markdown, pas de blocs de code) :
+{"verified": true/false, "reason": "explication brève en français"}
 
-Be lenient — if there's reasonable evidence of a gym/sport environment, verify it.`,
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Is this photo taken at a gym or fitness facility? Analyze and respond with JSON only.",
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: imageBase64.startsWith("data:")
-                    ? imageBase64
-                    : `data:image/jpeg;base64,${imageBase64}`,
+La photo est validée (true) si elle montre : équipements de gym, machines de musculation, haltères, tapis de course, vélos d'exercice, tapis de yoga, intérieur de salle de sport, vestiaires, piscines, installations sportives, ou une personne clairement dans un environnement gym/fitness.
+
+La photo n'est PAS validée (false) si elle montre : environnement domestique, bureaux, lieux extérieurs non sportifs, nourriture, ou tout ce qui n'est clairement pas lié au fitness.
+
+Sois indulgent — s'il y a des indices raisonnables d'un environnement gym/sport, valide-la.`,
                 },
-              },
-            ],
+                {
+                  inlineData: {
+                    mimeType,
+                    data: base64Data,
+                  },
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            maxOutputTokens: 200,
           },
-        ],
-        max_tokens: 200,
-      }),
-    });
+        }),
+      }
+    );
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Trop de requêtes, réessaie dans un instant." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Crédits IA épuisés." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
       const text = await response.text();
-      console.error("AI gateway error:", response.status, text);
-      throw new Error("AI verification failed");
+      console.error("Google AI error:", response.status, text);
+      throw new Error(`Google AI API error: ${response.status}`);
     }
 
     const aiData = await response.json();
-    const content = aiData.choices?.[0]?.message?.content ?? "";
+    const content = aiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
-    // Parse AI response
     let verified = false;
     let reason = "Impossible d'analyser la photo";
 
@@ -101,8 +89,7 @@ Be lenient — if there's reasonable evidence of a gym/sport environment, verify
       reason = parsed.reason || reason;
     } catch {
       console.error("Failed to parse AI response:", content);
-      // Fallback: check if the text contains positive indicators
-      verified = content.toLowerCase().includes('"verified": true') || 
+      verified = content.toLowerCase().includes('"verified": true') ||
                  content.toLowerCase().includes('"verified":true');
     }
 
