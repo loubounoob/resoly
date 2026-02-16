@@ -1,70 +1,105 @@
 
 
-## Achats en pieces avec formulaire de livraison + commandes Shopify
+# Boutique 100% Pieces -- Shopify = Catalogue uniquement
 
-### Probleme actuel
-Quand un utilisateur achete avec des pieces, la commande n'apparait pas dans Shopify car le `SHOPIFY_ACCESS_TOKEN` n'a pas le scope `write_orders`. De plus, aucune information de livraison (nom, prenom, adresse) n'est collectee, donc meme si la commande etait creee, elle serait incomplete.
+## Objectif
+Utiliser Shopify uniquement comme source de produits (catalogue). Tous les achats se font exclusivement en pieces virtuelles. Les commandes sont enregistrees dans la base de donnees de l'application avec toutes les informations necessaires (produit, variante, adresse, client).
 
-### Solution proposee
+## Ce qui change
 
-Ajouter un **formulaire de livraison** (nom, prenom, adresse, ville, code postal, pays, telephone) qui s'affiche quand l'utilisateur clique sur "Acheter avec pieces". Ce formulaire collecte les memes informations qu'un checkout Shopify classique. Les donnees sont envoyees a l'edge function qui cree une vraie commande Shopify avec toutes les infos client.
+### 1. Nouvelle table `coin_orders` dans la base de donnees
+Remplace la logique Shopify Admin API. Stocke toutes les commandes :
+- `user_id`, `product_title`, `variant_title`, `variant_id`
+- `selected_options` (JSON : taille, couleur, etc.)
+- `coins_spent`, `price_amount`, `price_currency`
+- `shipping_first_name`, `shipping_last_name`, `shipping_address1`, `shipping_address2`, `shipping_city`, `shipping_zip`, `shipping_country`, `shipping_phone`
+- `email`
+- `status` (pending, confirmed, shipped, delivered)
+- Protection RLS : les utilisateurs voient uniquement leurs propres commandes
 
-### Flow utilisateur
+### 2. Simplification de la Edge Function `purchase-with-coins`
+- Suppression de tout appel a l'API Admin Shopify (plus besoin de token)
+- Deduction des pieces du profil utilisateur
+- Insertion de la commande dans `coin_orders`
+- Sauvegarde des infos de livraison dans le profil pour pre-remplissage futur
 
-1. L'utilisateur selectionne un produit et ses options (taille, couleur)
-2. Il clique sur "Acheter avec X pieces"
-3. Un **drawer/modal** s'ouvre avec un formulaire d'adresse de livraison (prenom, nom, adresse, complement, ville, code postal, pays, telephone)
-4. L'utilisateur remplit et valide
-5. L'edge function verifie le solde, deduit les pieces, et cree la commande Shopify avec les infos de livraison
-6. Toast de confirmation
+### 3. Simplification du panier (cart)
+- Le panier devient 100% local (Zustand sans appels Shopify Cart API)
+- Plus de `cartId`, `checkoutUrl`, `lineId`, ni de sync avec Shopify
+- Le panier stocke simplement les articles avec produit, variante, quantite
+- Le bouton "Commander" ouvre le formulaire de livraison puis paye en pieces
 
-### Changements prevus
+### 4. Mise a jour du CartDrawer
+- Remplacement du bouton "Payer avec Shopify" par "Payer en pieces"
+- Affichage du total en pieces au lieu d'euros
+- Clic sur "Payer" ouvre le `ShippingFormDrawer`, puis appelle `purchase-with-coins` pour chaque article
 
-**1. Nouveau composant `src/components/ShippingFormDrawer.tsx`**
-- Drawer avec formulaire : prenom, nom, adresse ligne 1, adresse ligne 2 (optionnel), ville, code postal, pays (defaut France), telephone
-- Bouton "Confirmer et payer avec X pieces"
-- Validation des champs obligatoires
+### 5. Mise a jour des pages Shop et ProductDetail
+- Suppression du bouton "Ajouter au panier" pour paiement euros
+- Un seul bouton "Ajouter au panier" (qui ajoute pour paiement en pieces)
+- Affichage du prix en pieces en priorite (le prix euros peut rester a titre indicatif)
+- Le bouton "Acheter maintenant en pieces" reste sur la page detail
 
-**2. Modification de `src/pages/ShopifyProductDetail.tsx`**
-- Le bouton "Acheter avec pieces" ouvre le drawer au lieu d'appeler directement l'edge function
-- Le drawer passe les infos de livraison au `handleBuyWithCoins`
-- La fonction envoie les infos shipping dans le body de la requete a l'edge function
+### 6. Nettoyage
+- Suppression des mutations Shopify Cart (cartCreate, cartLinesAdd, etc.) de `lib/shopify.ts` -- on garde uniquement `fetchShopifyProducts` et `storefrontApiRequest`
+- Suppression du hook `useCartSync` (plus de sync Shopify)
+- Suppression du `CartSyncWrapper` dans `App.tsx`
+- Suppression de la Edge Function `shopify-oauth` et de la table `shopify_tokens` (plus necessaires)
 
-**3. Modification de `supabase/functions/purchase-with-coins/index.ts`**
-- Accepter les champs `shipping` dans le body : `firstName`, `lastName`, `address1`, `address2`, `city`, `zip`, `country`, `phone`
-- Creer la commande Shopify avec `shipping_address` et `customer` complets :
+## Details techniques
 
+### Schema `coin_orders`
+```text
+coin_orders
++-----------------------+-----------+
+| user_id               | uuid      |
+| product_title         | text      |
+| variant_title         | text      |
+| variant_id            | text      |
+| selected_options      | jsonb     |
+| coins_spent           | integer   |
+| price_amount          | numeric   |
+| price_currency        | text      |
+| shipping_first_name   | text      |
+| shipping_last_name    | text      |
+| shipping_address1     | text      |
+| shipping_address2     | text      |
+| shipping_city         | text      |
+| shipping_zip          | text      |
+| shipping_country      | text      |
+| shipping_phone        | text      |
+| email                 | text      |
+| status                | text      |
+| created_at            | timestamp |
++-----------------------+-----------+
+RLS: SELECT/INSERT pour user_id = auth.uid()
 ```
-order: {
-  line_items: [{ variant_id, quantity: 1 }],
-  financial_status: "paid",
-  shipping_address: {
-    first_name, last_name, address1, address2, city, zip, country, phone
-  },
-  customer: { first_name, last_name, email },
-  email: user.email,
-  note: "Paye avec X pieces",
-  tags: "coins-purchase",
-  transactions: [{ kind: "sale", status: "success", amount, gateway: "Pieces" }]
-}
+
+### Nouveau cartStore simplifie
+```text
+CartItem = { product, variantId, variantTitle, price, quantity, selectedOptions }
+CartStore = { items[], addItem, updateQuantity, removeItem, clearCart }
+(plus de cartId, checkoutUrl, lineId, isLoading async, syncCart)
 ```
 
-- Cela produira une commande complete dans Shopify Admin, identique a une commande classique
+### Flux d'achat
+```text
+1. Utilisateur ajoute au panier (local)
+2. Clic "Commander" dans le panier
+3. Formulaire de livraison s'ouvre
+4. Confirmation → appel purchase-with-coins pour chaque article
+5. Pieces deduites, commande enregistree dans coin_orders
+6. Panier vide
+```
 
-**4. Sauvegarder l'adresse dans le profil (optionnel mais recommande)**
-- Ajouter des colonnes `first_name`, `last_name`, `address1`, `city`, `zip`, `country`, `phone` dans la table `profiles` pour pre-remplir le formulaire lors des achats suivants
+## Fichiers modifies
+- `src/stores/cartStore.ts` -- simplifie (local uniquement)
+- `src/lib/shopify.ts` -- suppression mutations cart, garde catalogue
+- `src/components/CartDrawer.tsx` -- paiement en pieces
+- `src/pages/Shop.tsx` -- un seul bouton "ajouter au panier"
+- `src/pages/ShopifyProductDetail.tsx` -- simplifie
+- `src/hooks/useCartSync.ts` -- supprime
+- `src/App.tsx` -- supprime CartSyncWrapper
+- `supabase/functions/purchase-with-coins/index.ts` -- supprime Shopify API, ajoute insert coin_orders
+- Migration SQL -- creation table `coin_orders`
 
-### Details techniques
-
-**Fichiers crees** :
-- `src/components/ShippingFormDrawer.tsx` - Formulaire de livraison dans un drawer
-
-**Fichiers modifies** :
-- `src/pages/ShopifyProductDetail.tsx` - Integrer le drawer + passer shipping a l'edge function
-- `supabase/functions/purchase-with-coins/index.ts` - Accepter et utiliser les donnees de livraison dans la commande Shopify
-
-**Migration base de donnees** :
-- Ajouter les colonnes d'adresse a la table `profiles` pour pre-remplissage futur
-
-### Note importante
-La creation de commande Shopify depend du scope `write_orders` du `SHOPIFY_ACCESS_TOKEN`. Si le scope n'est pas encore actif, les pieces seront deduites et les infos sauvegardees localement, mais la commande Shopify ne sera pas creee tant que le token n'est pas mis a jour. Le systeme est concu pour fonctionner dans les deux cas.
