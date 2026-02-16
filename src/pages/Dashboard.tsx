@@ -1,7 +1,8 @@
-import { Flame, Camera, Calendar, Coins, ChevronRight, Plus, Loader2 } from "lucide-react";
+import { Flame, Camera, Coins, ChevronRight, Plus, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import BottomNav from "@/components/BottomNav";
 import { useActiveChallenge, useCheckIns, useUserCoins } from "@/hooks/useChallenge";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,13 +51,7 @@ const Dashboard = () => {
   const verifiedCheckIns = checkIns?.filter(c => c.verified) ?? [];
   const completedSessions = verifiedCheckIns.length;
   const totalSessions = challenge.total_sessions;
-  const progress = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
   const isChallengeComplete = completedSessions >= totalSessions && totalSessions > 0;
-
-  const startDate = parseISO(challenge.started_at);
-  const endDate = new Date(startDate);
-  endDate.setMonth(endDate.getMonth() + challenge.duration_months);
-  const daysRemaining = Math.max(0, differenceInDays(endDate, new Date()));
 
   // Current streak
   let currentStreak = 0;
@@ -80,6 +75,9 @@ const Dashboard = () => {
     isWithinInterval(new Date(ci.checked_in_at), { start: weekStart, end: weekEnd })
   );
   const checkedDays = new Set(thisWeekCheckIns.map(ci => new Date(ci.checked_in_at).getDay()));
+  const weeklyDone = thisWeekCheckIns.length;
+  const weeklyGoal = challenge.sessions_per_week;
+  const weeklyProgress = weeklyGoal > 0 ? Math.min(100, Math.round((weeklyDone / weeklyGoal) * 100)) : 0;
 
   const weekStatus = Array.from({ length: 7 }, (_, i) => {
     const dayIndex = i === 6 ? 0 : i + 1;
@@ -89,22 +87,27 @@ const Dashboard = () => {
     return checkedDays.has(dayIndex) ? true : false;
   });
 
+  // Motivation message
+  const remaining = weeklyGoal - weeklyDone;
+  const motivationMessage =
+    weeklyDone === 0
+      ? "C'est le moment de commencer ! 💪"
+      : weeklyDone >= weeklyGoal
+      ? "Objectif de la semaine atteint ! 🎉"
+      : `Continue comme ça, plus que ${remaining} ! 🔥`;
+
   const totalBet = challenge.bet_per_month * challenge.duration_months;
   const coinsToEarn = calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week);
 
   const handleCompleteChallenge = async () => {
-    // Award coins to user profile
     await supabase
       .from("profiles")
       .update({ coins: (coins ?? 0) + coinsToEarn } as any)
       .eq("user_id", user!.id);
-
-    // Mark challenge as completed with coins
     await supabase
       .from("challenges")
       .update({ status: "completed", coins_awarded: coinsToEarn } as any)
       .eq("id", challenge.id);
-
     queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
     queryClient.invalidateQueries({ queryKey: ["user-coins"] });
   };
@@ -129,8 +132,8 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Progress Ring */}
-      <div className="flex flex-col items-center mb-8">
+      {/* Weekly Progress Ring */}
+      <div className="flex flex-col items-center mb-6">
         <div className="relative w-44 h-44">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
             <circle cx="60" cy="60" r="52" fill="none" stroke="hsl(220, 15%, 18%)" strokeWidth="8" />
@@ -140,7 +143,7 @@ const Dashboard = () => {
               strokeWidth="8"
               strokeLinecap="round"
               strokeDasharray={`${2 * Math.PI * 52}`}
-              strokeDashoffset={`${2 * Math.PI * 52 * (1 - progress / 100)}`}
+              strokeDashoffset={`${2 * Math.PI * 52 * (1 - weeklyProgress / 100)}`}
               className="transition-all duration-1000"
             />
             <defs>
@@ -151,19 +154,20 @@ const Dashboard = () => {
             </defs>
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-4xl font-display font-bold">{progress}%</span>
-            <span className="text-xs text-muted-foreground">{completedSessions}/{totalSessions} séances</span>
+            <span className="text-4xl font-display font-bold">{weeklyDone}/{weeklyGoal}</span>
+            <span className="text-xs text-muted-foreground">cette semaine</span>
           </div>
         </div>
+        <p className="text-sm font-medium mt-3 text-center">{motivationMessage}</p>
       </div>
 
       {/* Week tracker */}
       <div className="bg-gradient-card rounded-2xl border border-border p-4 mb-4 shadow-card">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-medium">Cette semaine</span>
-          <span className="text-xs text-muted-foreground">Obj: {challenge.sessions_per_week} séances</span>
+          <span className="text-sm font-medium">🗓️ Ta semaine</span>
+          <span className="text-xs text-muted-foreground">{weeklyDone}/{weeklyGoal} séances</span>
         </div>
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-2 mb-3">
           {weekDayLabels.map((day, i) => (
             <div key={i} className="flex flex-col items-center gap-1.5">
               <span className="text-[10px] text-muted-foreground">{day}</span>
@@ -181,26 +185,34 @@ const Dashboard = () => {
             </div>
           ))}
         </div>
+        <Progress value={weeklyProgress} className="h-2" />
       </div>
 
-      {/* Stats */}
-      <div className="bg-gradient-card rounded-xl border border-border p-4 shadow-card mb-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Calendar className="w-4 h-4 text-primary" />
-          <span className="text-xs text-muted-foreground">Jours restants</span>
+      {/* Streak block */}
+      <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card mb-4 flex items-center gap-4">
+        <div className="w-14 h-14 rounded-full bg-accent/20 flex items-center justify-center">
+          <Flame className="w-7 h-7 text-accent" />
         </div>
-        <span className="text-2xl font-display font-bold">{daysRemaining}j</span>
+        <div>
+          <span className="text-2xl font-display font-bold">{currentStreak} jour{currentStreak > 1 ? "s" : ""}</span>
+          <p className="text-xs text-muted-foreground">
+            {currentStreak > 0 ? `${currentStreak} jour${currentStreak > 1 ? "s" : ""} d'affilée ! Continue !` : "Commence ta série aujourd'hui !"}
+          </p>
+        </div>
       </div>
 
-      {/* Mise & coins */}
-      <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card mb-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-xs text-muted-foreground block">Pièces à gagner</span>
-            <span className="text-xl font-display font-bold text-gradient-gold">🪙 {coinsToEarn}</span>
-          </div>
+      {/* Coins to earn */}
+      <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card mb-4 flex items-center justify-between">
+        <div>
+          <span className="text-xl font-display font-bold text-gradient-gold">🪙 {coinsToEarn}</span>
+          <p className="text-xs text-muted-foreground">Termine ton défi pour les débloquer</p>
         </div>
       </div>
+
+      {/* Discrete global progress */}
+      <p className="text-xs text-muted-foreground text-center mb-4">
+        Progression globale : {completedSessions}/{totalSessions} séances
+      </p>
 
       {isChallengeComplete ? (
         <div className="space-y-3">
