@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import CoinIcon from "@/components/CoinIcon";
 import { Button } from "@/components/ui/button";
 import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 import { useCartStore } from "@/stores/cartStore";
@@ -122,7 +123,7 @@ const ShopifyProductDetail = () => {
         </button>
         <div className="absolute top-4 right-4 flex items-center gap-2">
           <div className="flex items-center gap-1 bg-background/80 backdrop-blur rounded-full px-2.5 py-1">
-            <span className="text-sm">🪙</span>
+            <CoinIcon size={14} />
             <span className="font-bold text-xs">{coins ?? 0}</span>
           </div>
           <CartDrawer />
@@ -131,7 +132,7 @@ const ShopifyProductDetail = () => {
       <div className="px-5 pt-5 flex-1 flex flex-col">
         <h1 className="text-2xl font-bold">{product.node.title}</h1>
         <div className="flex items-center gap-3 mt-2">
-          <span className="text-2xl font-bold text-primary">🪙 {coinsPrice} pièces</span>
+          <span className="text-2xl font-bold text-primary flex items-center gap-1"><CoinIcon size={20} /> {coinsPrice} pièces</span>
           <span className="text-muted-foreground text-sm">{parseFloat(variantPrice.amount).toFixed(2)} {variantPrice.currencyCode}</span>
         </div>
 
@@ -176,7 +177,7 @@ const ShopifyProductDetail = () => {
             {selectedVariant?.availableForSale ? "🛒 Ajouter au panier" : "Indisponible"}
           </Button>
           <Button variant="secondary" className="w-full h-12 text-base" disabled={purchasing || (coins ?? 0) < coinsPrice || !selectedVariant?.availableForSale} onClick={() => setShippingOpen(true)}>
-            {purchasing ? <Loader2 className="w-5 h-5 animate-spin" /> : `🪙 Acheter maintenant — ${coinsPrice} pièces`}
+            {purchasing ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CoinIcon size={16} /> Acheter — {coinsPrice} pièces</>}
           </Button>
           {(coins ?? 0) < coinsPrice && (
             <p className="text-xs text-destructive text-center">Solde insuffisant ({coins ?? 0}/{coinsPrice} pièces)</p>

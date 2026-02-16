@@ -1,4 +1,5 @@
 import { Flame, Camera, Coins, ChevronRight, Plus, Loader2 } from "lucide-react";
+import CoinIcon from "@/components/CoinIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -122,7 +123,7 @@ const Dashboard = () => {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
-            <span className="text-sm">🪙</span>
+            <CoinIcon size={14} />
             <span className="text-sm font-bold">{coins ?? 0}</span>
           </div>
           <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
@@ -204,7 +205,7 @@ const Dashboard = () => {
       {/* Coins to earn */}
       <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card mb-4 flex items-center justify-between">
         <div>
-          <span className="text-xl font-display font-bold text-gradient-gold">🪙 {coinsToEarn}</span>
+          <span className="text-xl font-display font-bold text-gradient-gold flex items-center gap-1"><CoinIcon size={18} /> {coinsToEarn}</span>
           <p className="text-xs text-muted-foreground">Termine ton défi pour les débloquer</p>
         </div>
       </div>
@@ -220,7 +221,7 @@ const Dashboard = () => {
             <span className="text-4xl mb-2 block">🎉</span>
             <h3 className="text-xl font-display font-bold mb-1">Défi terminé !</h3>
             <p className="text-sm text-muted-foreground mb-2">Bravo ! Tu as réussi ton défi !</p>
-            <p className="text-lg font-display font-bold text-gradient-gold">+ 🪙 {coinsToEarn} pièces</p>
+            <p className="text-lg font-display font-bold text-gradient-gold flex items-center justify-center gap-1">+ <CoinIcon size={16} /> {coinsToEarn} pièces</p>
           </div>
           <Button
             onClick={handleCompleteChallenge}

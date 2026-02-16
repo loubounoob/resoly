@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, Flame, Coins, Loader2 } from "lucide-react";
+import CoinIcon from "@/components/CoinIcon";
 import { useCreateChallenge, useActiveChallenge } from "@/hooks/useChallenge";
 import { calculateCoins } from "@/lib/coins";
 import { supabase } from "@/integrations/supabase/client";
@@ -171,7 +172,7 @@ const CreateChallenge = () => {
               <span className="text-sm text-muted-foreground">Pièces à gagner</span>
             </div>
             <span className="font-display font-bold text-lg text-gradient-gold">
-              🪙 {coinsPreview}
+              <span className="inline-flex items-center gap-1"><CoinIcon size={18} /> {coinsPreview}</span>
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
