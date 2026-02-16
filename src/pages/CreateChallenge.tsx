@@ -25,6 +25,7 @@ const CreateChallenge = () => {
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
   const createChallenge = useCreateChallenge();
 
   useEffect(() => {
@@ -57,17 +58,22 @@ const CreateChallenge = () => {
         odds,
       });
 
-      // 2. Create Stripe checkout session
+      // 2. Create Stripe checkout session (with optional promo code)
       const { data, error } = await supabase.functions.invoke("create-challenge-payment", {
         body: {
           challengeId: challenge.id,
           amount: totalBet,
           description: `Mise FitBet — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
+          promoCode: promoCode.trim() || undefined,
         },
       });
 
       if (error) throw error;
-      if (data?.url) {
+      if (data?.success) {
+        // Promo code applied — payment bypassed
+        toast.success("Code promo appliqué ! Défi lancé 🎉");
+        navigate("/dashboard");
+      } else if (data?.url) {
         window.location.href = data.url;
       } else {
         throw new Error("No checkout URL returned");
@@ -189,6 +195,18 @@ const CreateChallenge = () => {
             Tu récupères ta mise de {totalBet}€ + {coinsPreview} pièces si tu réussis le défi
           </p>
         </div>
+      </div>
+
+      {/* Promo Code */}
+      <div className="mt-4">
+        <label className="text-sm text-muted-foreground mb-2 block">Code promo (optionnel)</label>
+        <input
+          type="text"
+          value={promoCode}
+          onChange={(e) => setPromoCode(e.target.value)}
+          placeholder="Entrer un code promo"
+          className="w-full h-12 rounded-xl border border-border bg-secondary px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        />
       </div>
 
       {/* CTA */}
