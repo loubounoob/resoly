@@ -1,62 +1,54 @@
 
 
-## Fusionner la boutique : paiement en pieces ou en euros
+## Plan : Achats en pieces identiques aux achats en euros + variantes
 
-### Objectif
-Supprimer l'onglet "Pieces" de la navigation, fusionner tout dans le Shop, et permettre aux utilisateurs de payer les produits Shopify soit en euros (checkout Shopify classique), soit en pieces (1EUR = 50 pieces). Les achats en pieces doivent aussi creer une commande dans Shopify pour apparaitre dans l'admin.
+### 1. Donner 100 000 pieces a l'utilisateur
+- Mettre a jour le profil de l'utilisateur `930c1035-5920-4aab-b102-c53b8412cdeb` avec `coins = 100000`
 
-### Changements prevus
+### 2. Ajouter la selection de variantes (tailles, couleurs) sur la page detail produit
+- `ShopifyProductDetail.tsx` : ajouter un selecteur pour chaque option du produit (ex: Taille S/M/L/XL, Couleur)
+- Le variant selectionne determine le prix, la disponibilite, et l'ID utilise pour l'ajout au panier ou l'achat en pieces
+- Afficher les options sous forme de boutons cliquables (style "chip")
 
-**1. Navigation - Supprimer l'onglet Pieces**
-- `BottomNav.tsx` : retirer le lien `/rewards` (Trophy/Pieces)
-- `App.tsx` : supprimer la route `/rewards` et la route `/shop/:productId` (ancien detail interne)
-- Supprimer ou archiver `src/pages/Rewards.tsx` et `src/pages/ProductDetail.tsx`
+### 3. Rendre l'achat en pieces identique a l'achat en euros
+Actuellement, l'achat en pieces appelle directement une edge function qui deduit les pieces et tente de creer une commande Shopify (echoue a cause des scopes). Pour que ce soit "pareil" :
 
-**2. Page Shop - Afficher le solde de pieces + double option de paiement**
-- `Shop.tsx` : ajouter l'affichage du solde de pieces dans le header
-- Chaque carte produit affiche le prix en EUR et en pieces (prix EUR x 50)
-- Ajouter un bouton "Acheter avec pieces" en plus du bouton "Ajouter au panier"
+**Approche : achat en pieces via le panier Shopify (meme flow que l'argent reel)**
+- Quand l'utilisateur clique "Acheter avec pieces" :
+  1. Verifier le solde de pieces cote serveur (edge function)
+  2. Deduire les pieces
+  3. Creer un panier Shopify via l'API Storefront (cote client, meme methode que l'ajout au panier classique)
+  4. Mais au lieu d'envoyer vers le checkout Shopify (qui demande un vrai paiement), on cree une commande directement via l'Admin API dans l'edge function
 
-**3. Page detail produit Shopify - Double paiement**
-- `ShopifyProductDetail.tsx` : ajouter un bouton "Payer avec X pieces" sous le bouton "Ajouter au panier"
-- Afficher la conversion : ex. "25,00 EUR ou 1250 pieces"
-- Desactiver le bouton pieces si solde insuffisant
+**Probleme identifie** : Le `SHOPIFY_ACCESS_TOKEN` actuel n'a pas le scope `write_orders`, ce qui empeche la creation de commandes Shopify. L'edge function continuera a deduire les pieces et a tenter la creation de commande. Si le scope est ajoute plus tard, les commandes apparaitront automatiquement.
 
-**4. Nouvelle Edge Function `purchase-with-coins`**
-- Verifier l'authentification et le solde de pieces
-- Deduire les pieces du profil utilisateur
-- Creer une commande dans Shopify via l'Admin API (avec le secret `SHOPIFY_ACCESS_TOKEN` deja configure) pour que la commande apparaisse dans l'admin Shopify
-- La commande sera marquee comme "paid" avec une note indiquant le paiement en pieces
-- Retourner la confirmation
+**Solution pragmatique retenue** :
+- L'edge function `purchase-with-coins` reste le point central pour l'achat en pieces
+- Elle deduit les pieces + cree la commande Shopify (quand le scope sera actif)
+- On ajoute le passage du **variant selectionne** (avec taille/couleur) dans l'appel
+- On enregistre egalement la commande dans la table `shop_orders` de la base de donnees pour garder une trace locale
 
-**5. Dashboard - Mettre a jour le lien "Mes pieces"**
-- Le bouton "Mes pieces" redirigera vers `/shop` au lieu de `/rewards`
+### 4. Modifications de fichiers
 
-### Details techniques
+**`src/pages/ShopifyProductDetail.tsx`** :
+- Ajouter un state `selectedVariantIndex` pour gerer la selection de variante
+- Afficher les options du produit (tailles, couleurs) sous forme de boutons selectionnables
+- Mettre a jour le prix affiche (EUR et pieces) selon le variant selectionne
+- Passer le variant selectionne dans les appels `addItem` et `handleBuyWithCoins`
 
-**Conversion** : `prixEnPieces = Math.ceil(parseFloat(price.amount) * 50)`
+**`src/pages/Shop.tsx`** :
+- Pas de changement majeur (les cartes produit restent simples, la selection de variante se fait sur la page detail)
 
-**Edge Function `purchase-with-coins`** :
-```
-POST { variantId, productTitle, priceAmount, priceCurrency }
-```
-- Authentifie l'utilisateur
-- Calcule le cout en pieces (montant x 50)
-- Verifie le solde suffisant
-- Deduit les pieces via Supabase Admin
-- Cree un draft order Shopify via Admin API (`POST /admin/api/2025-01/draft_orders.json`) avec `financial_status: paid` et une note "Paye avec pieces"
-- Complete le draft order pour le transformer en commande reelle
+**`supabase/functions/purchase-with-coins/index.ts`** :
+- Ajouter le support d'options selectionnees dans le body de la requete
+- Inclure les options dans la note de la commande Shopify
 
-**Fichiers modifies** :
-- `src/components/BottomNav.tsx` - retirer onglet Pieces
-- `src/pages/Shop.tsx` - ajouter solde pieces + bouton achat pieces
-- `src/pages/ShopifyProductDetail.tsx` - ajouter option paiement pieces
-- `src/pages/Dashboard.tsx` - rediriger lien pieces vers /shop
-- `src/App.tsx` - supprimer routes /rewards et /shop/:productId
-- `supabase/functions/purchase-with-coins/index.ts` (nouveau) - achat Shopify via pieces
-- `supabase/config.toml` - enregistrer la nouvelle fonction
+**Base de donnees** :
+- UPDATE du profil utilisateur pour mettre `coins = 100000`
 
-**Fichiers supprimes** :
-- `src/pages/Rewards.tsx`
-- `src/pages/ProductDetail.tsx`
+### 5. Tests a effectuer
+- Naviguer vers un produit, selectionner une taille, acheter avec pieces
+- Verifier que les pieces sont bien deduites
+- Verifier le solde mis a jour dans l'interface
+- Comparer le flow avec l'ajout au panier classique
 
