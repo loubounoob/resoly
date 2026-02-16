@@ -25,14 +25,13 @@ serve(async (req) => {
   );
 
   try {
-    // Auth
     const authHeader = req.headers.get("Authorization")!;
     const token = authHeader.replace("Bearer ", "");
     const { data } = await supabaseClient.auth.getUser(token);
     const user = data.user;
     if (!user) throw new Error("User not authenticated");
 
-    const { variantId, productTitle, priceAmount, priceCurrency } = await req.json();
+    const { variantId, productTitle, priceAmount, priceCurrency, selectedOptions } = await req.json();
     if (!variantId || !priceAmount) throw new Error("Missing required fields");
 
     const coinsNeeded = Math.ceil(parseFloat(priceAmount) * COINS_PER_EURO);
@@ -52,6 +51,11 @@ serve(async (req) => {
       .update({ coins: profile.coins - coinsNeeded })
       .eq("user_id", user.id);
     if (updateError) throw new Error("Failed to deduct coins");
+
+    // Build options note
+    const optionsNote = selectedOptions?.length
+      ? selectedOptions.map((o: { name: string; value: string }) => `${o.name}: ${o.value}`).join(", ")
+      : "";
 
     // Try to create Shopify order via Admin API
     let shopifyOrderId = null;
@@ -75,7 +79,7 @@ serve(async (req) => {
                   },
                 ],
                 financial_status: "paid",
-                note: `Payé avec ${coinsNeeded} pièces`,
+                note: `Payé avec ${coinsNeeded} pièces${optionsNote ? ` — ${optionsNote}` : ""}`,
                 tags: "coins-purchase",
                 email: user.email || undefined,
                 transactions: [
@@ -95,10 +99,10 @@ serve(async (req) => {
           const orderData = await orderRes.json();
           shopifyOrderId = orderData.order?.id;
         } else {
-          console.warn("Shopify order creation failed (scope issue), continuing with local order only:", await orderRes.text());
+          console.warn("Shopify order creation failed:", await orderRes.text());
         }
       } catch (e) {
-        console.warn("Shopify API call failed, continuing with local order:", e.message);
+        console.warn("Shopify API call failed:", e.message);
       }
     }
 
