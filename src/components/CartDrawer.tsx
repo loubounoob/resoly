@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ShoppingCart, Minus, Plus, Trash2, Loader2 } from "lucide-react";
+import CoinIcon from "@/components/CoinIcon";
 import { useCartStore } from "@/stores/cartStore";
 import { useUserCoins } from "@/hooks/useChallenge";
 import { ShippingFormDrawer, ShippingInfo } from "@/components/ShippingFormDrawer";
@@ -100,7 +101,7 @@ export const CartDrawer = () => {
                           <div className="flex-1 min-w-0">
                             <h4 className="font-medium truncate">{item.product.node.title}</h4>
                             <p className="text-sm text-muted-foreground">{item.selectedOptions.map(o => o.value).join(' • ')}</p>
-                            <p className="font-semibold">🪙 {itemCoins * item.quantity} pièces</p>
+                            <p className="font-semibold flex items-center gap-1"><CoinIcon size={14} /> {itemCoins * item.quantity} pièces</p>
                           </div>
                           <div className="flex flex-col items-end gap-2 flex-shrink-0">
                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(item.variantId)}>
@@ -124,13 +125,13 @@ export const CartDrawer = () => {
                 <div className="flex-shrink-0 space-y-4 pt-4 border-t">
                   <div className="flex justify-between items-center">
                     <span className="text-lg font-semibold">Total</span>
-                    <span className="text-xl font-bold">🪙 {totalCoins} pièces</span>
+                    <span className="text-xl font-bold flex items-center gap-1"><CoinIcon size={16} /> {totalCoins} pièces</span>
                   </div>
                   {(coins ?? 0) < totalCoins && (
                     <p className="text-xs text-destructive text-center">Solde insuffisant ({coins ?? 0}/{totalCoins} pièces)</p>
                   )}
                   <Button onClick={() => setShippingOpen(true)} className="w-full" size="lg" disabled={items.length === 0 || (coins ?? 0) < totalCoins}>
-                    🪙 Commander — {totalCoins} pièces
+                    <CoinIcon size={16} /> Commander — {totalCoins} pièces
                   </Button>
                 </div>
               </>

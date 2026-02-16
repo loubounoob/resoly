@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import CoinIcon from "@/components/CoinIcon";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface ShippingInfo {
@@ -114,7 +115,7 @@ export const ShippingFormDrawer = ({ open, onOpenChange, coinsPrice, onConfirm, 
         </div>
         <DrawerFooter>
           <Button className="w-full h-12 text-base" disabled={!isValid || isPurchasing} onClick={() => onConfirm(form)}>
-            {isPurchasing ? <Loader2 className="w-5 h-5 animate-spin" /> : `🪙 Confirmer — ${coinsPrice} pièces`}
+            {isPurchasing ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CoinIcon size={16} /> Confirmer — {coinsPrice} pièces</>}
           </Button>
         </DrawerFooter>
       </DrawerContent>

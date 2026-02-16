@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, Camera, ShoppingBag } from "lucide-react";
+import { Home, Camera, ShoppingBag, ClipboardList } from "lucide-react";
 
 const BottomNav = () => {
   const location = useLocation();
@@ -9,6 +9,7 @@ const BottomNav = () => {
     { to: "/dashboard", icon: Home, label: "Accueil" },
     { to: "/verify", icon: Camera, label: "Check-in" },
     { to: "/shop", icon: ShoppingBag, label: "Shop" },
+    { to: "/orders", icon: ClipboardList, label: "Commandes" },
   ];
 
   return (

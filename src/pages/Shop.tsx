@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, ShoppingBag } from "lucide-react";
+import CoinIcon from "@/components/CoinIcon";
 import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 import { useCartStore } from "@/stores/cartStore";
 import { useUserCoins } from "@/hooks/useChallenge";
@@ -42,7 +43,7 @@ const ShopifyProductCard = ({ product }: { product: ShopifyProduct }) => {
       <CardContent className="p-3">
         <h3 className="font-semibold text-sm truncate">{product.node.title}</h3>
         <div className="flex items-center gap-1 mt-1">
-          <span className="font-bold text-primary text-sm">🪙 {coinsPrice} pièces</span>
+          <span className="font-bold text-primary text-sm flex items-center gap-1"><CoinIcon size={14} /> {coinsPrice} pièces</span>
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">{parseFloat(price.amount).toFixed(2)} {price.currencyCode}</p>
         <Button size="sm" className="w-full text-xs h-7 mt-2" onClick={handleAdd} disabled={!variant?.availableForSale}>
@@ -82,7 +83,7 @@ const Shop = () => {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 bg-gradient-card border border-border rounded-full px-3 py-1.5 shadow-card">
-            <span className="text-base">🪙</span>
+            <CoinIcon size={16} />
             <span className="font-bold text-sm">{coins ?? 0}</span>
           </div>
           <CartDrawer />
