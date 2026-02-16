@@ -76,7 +76,16 @@ serve(async (req) => {
 
     // Try to create Shopify order via Admin API
     let shopifyOrderId = null;
-    const shopifyToken = Deno.env.get("SHOPIFY_ACCESS_TOKEN");
+    // Read token from DB (OAuth flow) or fallback to env
+    let shopifyToken = Deno.env.get("SHOPIFY_ACCESS_TOKEN");
+    const { data: tokenRow } = await supabaseAdmin
+      .from("shopify_tokens")
+      .select("access_token")
+      .eq("shop_domain", SHOPIFY_DOMAIN)
+      .single();
+    if (tokenRow?.access_token) {
+      shopifyToken = tokenRow.access_token;
+    }
     if (shopifyToken && shipping) {
       try {
         const orderPayload: Record<string, unknown> = {
