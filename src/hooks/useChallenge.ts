@@ -131,6 +131,71 @@ export const useRewards = (challengeId: string | undefined) => {
   });
 };
 
+export interface ShopProduct {
+  id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  price_coins: number;
+  category: string;
+  stock: number;
+  active: boolean;
+  created_at: string;
+}
+
+export const useShopProducts = (category?: string) => {
+  return useQuery({
+    queryKey: ["shop-products", category],
+    queryFn: async () => {
+      let query = supabase
+        .from("shop_products")
+        .select("*")
+        .eq("active", true)
+        .order("price_coins", { ascending: true });
+      if (category && category !== "all") {
+        query = query.eq("category", category);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as ShopProduct[];
+    },
+  });
+};
+
+export const useShopProduct = (productId: string | undefined) => {
+  return useQuery({
+    queryKey: ["shop-product", productId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("shop_products")
+        .select("*")
+        .eq("id", productId!)
+        .single();
+      if (error) throw error;
+      return data as ShopProduct;
+    },
+    enabled: !!productId,
+  });
+};
+
+export const usePurchaseProduct = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (productId: string) => {
+      const { data, error } = await supabase.functions.invoke("purchase-product", {
+        body: { productId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-coins"] });
+      queryClient.invalidateQueries({ queryKey: ["shop-products"] });
+    },
+  });
+};
+
 export const useCreateCheckIn = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();

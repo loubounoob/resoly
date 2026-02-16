@@ -180,6 +180,77 @@ export type Database = {
           },
         ]
       }
+      shop_orders: {
+        Row: {
+          coins_spent: number
+          created_at: string
+          id: string
+          product_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          coins_spent: number
+          created_at?: string
+          id?: string
+          product_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          coins_spent?: number
+          created_at?: string
+          id?: string
+          product_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "shop_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_products: {
+        Row: {
+          active: boolean
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          name: string
+          price_coins: number
+          stock: number
+        }
+        Insert: {
+          active?: boolean
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          price_coins: number
+          stock?: number
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          price_coins?: number
+          stock?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
