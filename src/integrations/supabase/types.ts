@@ -103,6 +103,75 @@ export type Database = {
           },
         ]
       }
+      coin_orders: {
+        Row: {
+          coins_spent: number
+          created_at: string
+          email: string | null
+          id: string
+          price_amount: number | null
+          price_currency: string | null
+          product_title: string
+          selected_options: Json | null
+          shipping_address1: string | null
+          shipping_address2: string | null
+          shipping_city: string | null
+          shipping_country: string | null
+          shipping_first_name: string | null
+          shipping_last_name: string | null
+          shipping_phone: string | null
+          shipping_zip: string | null
+          status: string
+          user_id: string
+          variant_id: string
+          variant_title: string | null
+        }
+        Insert: {
+          coins_spent: number
+          created_at?: string
+          email?: string | null
+          id?: string
+          price_amount?: number | null
+          price_currency?: string | null
+          product_title: string
+          selected_options?: Json | null
+          shipping_address1?: string | null
+          shipping_address2?: string | null
+          shipping_city?: string | null
+          shipping_country?: string | null
+          shipping_first_name?: string | null
+          shipping_last_name?: string | null
+          shipping_phone?: string | null
+          shipping_zip?: string | null
+          status?: string
+          user_id: string
+          variant_id: string
+          variant_title?: string | null
+        }
+        Update: {
+          coins_spent?: number
+          created_at?: string
+          email?: string | null
+          id?: string
+          price_amount?: number | null
+          price_currency?: string | null
+          product_title?: string
+          selected_options?: Json | null
+          shipping_address1?: string | null
+          shipping_address2?: string | null
+          shipping_city?: string | null
+          shipping_country?: string | null
+          shipping_first_name?: string | null
+          shipping_last_name?: string | null
+          shipping_phone?: string | null
+          shipping_zip?: string | null
+          status?: string
+          user_id?: string
+          variant_id?: string
+          variant_title?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           address1: string | null

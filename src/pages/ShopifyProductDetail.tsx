@@ -16,7 +16,6 @@ const ShopifyProductDetail = () => {
   const { handle } = useParams<{ handle: string }>();
   const navigate = useNavigate();
   const addItem = useCartStore(state => state.addItem);
-  const isLoading = useCartStore(state => state.isLoading);
   const [product, setProduct] = useState<ShopifyProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
@@ -28,21 +27,17 @@ const ShopifyProductDetail = () => {
     fetchShopifyProducts(50).then(products => {
       const found = products.find(p => p.node.handle === handle);
       setProduct(found || null);
-      // Initialize selected options with first variant's options
       if (found) {
         const firstVariant = found.node.variants.edges[0]?.node;
         if (firstVariant?.selectedOptions) {
           const initial: Record<string, string> = {};
-          firstVariant.selectedOptions.forEach(opt => {
-            initial[opt.name] = opt.value;
-          });
+          firstVariant.selectedOptions.forEach(opt => { initial[opt.name] = opt.value; });
           setSelectedOptions(initial);
         }
       }
     }).catch(console.error).finally(() => setLoading(false));
   }, [handle]);
 
-  // Find the variant matching selected options
   const selectedVariant = product?.node.variants.edges.find(v =>
     v.node.selectedOptions.every(opt => selectedOptions[opt.name] === opt.value)
   )?.node ?? product?.node.variants.edges[0]?.node;
@@ -69,9 +64,9 @@ const ShopifyProductDetail = () => {
     setSelectedOptions(prev => ({ ...prev, [optionName]: value }));
   };
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (!selectedVariant) return;
-    await addItem({
+    addItem({
       product,
       variantId: selectedVariant.id,
       variantTitle: selectedVariant.title,
@@ -93,9 +88,11 @@ const ShopifyProductDetail = () => {
         body: {
           variantId: selectedVariant.id,
           productTitle: product.node.title,
+          variantTitle: selectedVariant.title,
           priceAmount: variantPrice.amount,
           priceCurrency: variantPrice.currencyCode,
           selectedOptions: selectedVariant.selectedOptions,
+          quantity: 1,
           shipping,
         },
       });
@@ -134,11 +131,10 @@ const ShopifyProductDetail = () => {
       <div className="px-5 pt-5 flex-1 flex flex-col">
         <h1 className="text-2xl font-bold">{product.node.title}</h1>
         <div className="flex items-center gap-3 mt-2">
-          <span className="text-2xl font-bold text-primary">{parseFloat(variantPrice.amount).toFixed(2)} {variantPrice.currencyCode}</span>
-          <span className="text-muted-foreground text-sm">ou 🪙 {coinsPrice} pièces</span>
+          <span className="text-2xl font-bold text-primary">🪙 {coinsPrice} pièces</span>
+          <span className="text-muted-foreground text-sm">{parseFloat(variantPrice.amount).toFixed(2)} {variantPrice.currencyCode}</span>
         </div>
 
-        {/* Variant options */}
         {options.length > 0 && (
           <div className="mt-4 space-y-3">
             {options.map(option => (
@@ -147,7 +143,6 @@ const ShopifyProductDetail = () => {
                 <div className="flex flex-wrap gap-2">
                   {option.values.map(value => {
                     const isSelected = selectedOptions[option.name] === value;
-                    // Check if this value is available in any variant
                     const isAvailable = product.node.variants.edges.some(v =>
                       v.node.availableForSale &&
                       v.node.selectedOptions.some(o => o.name === option.name && o.value === value)
@@ -177,11 +172,11 @@ const ShopifyProductDetail = () => {
 
         <p className="text-muted-foreground text-sm mt-4 leading-relaxed">{product.node.description}</p>
         <div className="mt-auto pt-6 flex flex-col gap-3">
-          <Button className="w-full h-12 text-base" disabled={isLoading || !selectedVariant?.availableForSale} onClick={handleAdd}>
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : selectedVariant?.availableForSale ? `🛒 Ajouter au panier — ${parseFloat(variantPrice.amount).toFixed(2)} ${variantPrice.currencyCode}` : "Indisponible"}
+          <Button className="w-full h-12 text-base" disabled={!selectedVariant?.availableForSale} onClick={handleAdd}>
+            {selectedVariant?.availableForSale ? "🛒 Ajouter au panier" : "Indisponible"}
           </Button>
           <Button variant="secondary" className="w-full h-12 text-base" disabled={purchasing || (coins ?? 0) < coinsPrice || !selectedVariant?.availableForSale} onClick={() => setShippingOpen(true)}>
-            {purchasing ? <Loader2 className="w-5 h-5 animate-spin" /> : `🪙 Acheter avec ${coinsPrice} pièces`}
+            {purchasing ? <Loader2 className="w-5 h-5 animate-spin" /> : `🪙 Acheter maintenant — ${coinsPrice} pièces`}
           </Button>
           {(coins ?? 0) < coinsPrice && (
             <p className="text-xs text-destructive text-center">Solde insuffisant ({coins ?? 0}/{coinsPrice} pièces)</p>

@@ -6,7 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SHOPIFY_DOMAIN = "sbqb12-w0.myshopify.com";
 const COINS_PER_EURO = 50;
 
 serve(async (req) => {
@@ -31,10 +30,11 @@ serve(async (req) => {
     const user = data.user;
     if (!user) throw new Error("User not authenticated");
 
-    const { variantId, productTitle, priceAmount, priceCurrency, selectedOptions, shipping } = await req.json();
+    const { variantId, productTitle, variantTitle, priceAmount, priceCurrency, selectedOptions, quantity, shipping } = await req.json();
     if (!variantId || !priceAmount) throw new Error("Missing required fields");
 
-    const coinsNeeded = Math.ceil(parseFloat(priceAmount) * COINS_PER_EURO);
+    const qty = quantity || 1;
+    const coinsNeeded = Math.ceil(parseFloat(priceAmount) * COINS_PER_EURO) * qty;
 
     // Get user coins
     const { data: profile, error: profileError } = await supabaseAdmin
@@ -69,84 +69,32 @@ serve(async (req) => {
         .eq("user_id", user.id);
     }
 
-    // Build options note
-    const optionsNote = selectedOptions?.length
-      ? selectedOptions.map((o: { name: string; value: string }) => `${o.name}: ${o.value}`).join(", ")
-      : "";
-
-    // Try to create Shopify order via Admin API
-    let shopifyOrderId = null;
-    // Read token from DB (OAuth flow) or fallback to env
-    let shopifyToken = Deno.env.get("SHOPIFY_ACCESS_TOKEN");
-    const { data: tokenRow } = await supabaseAdmin
-      .from("shopify_tokens")
-      .select("access_token")
-      .eq("shop_domain", SHOPIFY_DOMAIN)
-      .single();
-    if (tokenRow?.access_token) {
-      shopifyToken = tokenRow.access_token;
-    }
-    if (shopifyToken && shipping) {
-      try {
-        const orderPayload: Record<string, unknown> = {
-          order: {
-            line_items: [
-              {
-                variant_id: parseInt(variantId.replace("gid://shopify/ProductVariant/", "")),
-                quantity: 1,
-              },
-            ],
-            financial_status: "paid",
-            shipping_address: {
-              first_name: shipping.firstName,
-              last_name: shipping.lastName,
-              address1: shipping.address1,
-              address2: shipping.address2 || "",
-              city: shipping.city,
-              zip: shipping.zip,
-              country: shipping.country,
-              phone: shipping.phone || "",
-            },
-            customer: {
-              first_name: shipping.firstName,
-              last_name: shipping.lastName,
-              email: user.email,
-            },
-            email: user.email,
-            note: `Payé avec ${coinsNeeded} pièces${optionsNote ? ` — ${optionsNote}` : ""}`,
-            tags: "coins-purchase",
-            transactions: [
-              {
-                kind: "sale",
-                status: "success",
-                amount: priceAmount,
-                gateway: "Pièces",
-              },
-            ],
-          },
-        };
-
-        const orderRes = await fetch(
-          `https://${SHOPIFY_DOMAIN}/admin/api/2025-01/orders.json`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Shopify-Access-Token": shopifyToken,
-            },
-            body: JSON.stringify(orderPayload),
-          }
-        );
-
-        if (orderRes.ok) {
-          const orderData = await orderRes.json();
-          shopifyOrderId = orderData.order?.id;
-        } else {
-          console.warn("Shopify order creation failed:", await orderRes.text());
-        }
-      } catch (e) {
-        console.warn("Shopify API call failed:", e.message);
-      }
+    // Insert coin_order
+    const { error: orderError } = await supabaseAdmin
+      .from("coin_orders")
+      .insert({
+        user_id: user.id,
+        product_title: productTitle,
+        variant_title: variantTitle || null,
+        variant_id: variantId,
+        selected_options: selectedOptions || [],
+        coins_spent: coinsNeeded,
+        price_amount: parseFloat(priceAmount) * qty,
+        price_currency: priceCurrency || "EUR",
+        shipping_first_name: shipping?.firstName || null,
+        shipping_last_name: shipping?.lastName || null,
+        shipping_address1: shipping?.address1 || null,
+        shipping_address2: shipping?.address2 || null,
+        shipping_city: shipping?.city || null,
+        shipping_zip: shipping?.zip || null,
+        shipping_country: shipping?.country || "FR",
+        shipping_phone: shipping?.phone || null,
+        email: user.email,
+        status: "pending",
+      });
+    if (orderError) {
+      console.error("Order insert error:", orderError);
+      throw new Error("Failed to create order");
     }
 
     return new Response(
@@ -154,7 +102,6 @@ serve(async (req) => {
         success: true,
         coinsSpent: coinsNeeded,
         remainingCoins: profile.coins - coinsNeeded,
-        shopifyOrderId,
         productTitle,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
