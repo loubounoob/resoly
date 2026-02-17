@@ -105,7 +105,7 @@ const Dashboard = () => {
       ? "Objectif de la semaine atteint ! 🎉"
       : `Continue comme ça, plus que ${remaining} ! 🔥`;
 
-  const totalBet = challenge.bet_per_month * challenge.duration_months;
+  const totalBet = challenge.bet_per_month;
   const coinsToEarn = calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week);
 
   const handleCompleteChallenge = async () => {
