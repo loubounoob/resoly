@@ -175,6 +175,86 @@ export type Database = {
         }
         Relationships: []
       }
+      friendships: {
+        Row: {
+          created_at: string
+          friend_id: string
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          friend_id: string
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          friend_id?: string
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      group_members: {
+        Row: {
+          group_id: string
+          id: string
+          joined_at: string
+          user_id: string
+        }
+        Insert: {
+          group_id: string
+          id?: string
+          joined_at?: string
+          user_id: string
+        }
+        Update: {
+          group_id?: string
+          id?: string
+          joined_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          photo_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          photo_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          photo_url?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           address1: string | null
@@ -187,10 +267,12 @@ export type Database = {
           display_name: string | null
           first_name: string | null
           id: string
+          invite_code: string | null
           last_name: string | null
           phone: string | null
           updated_at: string
           user_id: string
+          username: string | null
           zip: string | null
         }
         Insert: {
@@ -204,10 +286,12 @@ export type Database = {
           display_name?: string | null
           first_name?: string | null
           id?: string
+          invite_code?: string | null
           last_name?: string | null
           phone?: string | null
           updated_at?: string
           user_id: string
+          username?: string | null
           zip?: string | null
         }
         Update: {
@@ -221,10 +305,12 @@ export type Database = {
           display_name?: string | null
           first_name?: string | null
           id?: string
+          invite_code?: string | null
           last_name?: string | null
           phone?: string | null
           updated_at?: string
           user_id?: string
+          username?: string | null
           zip?: string | null
         }
         Relationships: []
@@ -374,12 +460,111 @@ export type Database = {
         }
         Relationships: []
       }
+      social_challenge_members: {
+        Row: {
+          bet_amount: number
+          challenge_id: string | null
+          created_at: string
+          id: string
+          social_challenge_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          bet_amount?: number
+          challenge_id?: string | null
+          created_at?: string
+          id?: string
+          social_challenge_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          bet_amount?: number
+          challenge_id?: string | null
+          created_at?: string
+          id?: string
+          social_challenge_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_challenge_members_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_challenge_members_social_challenge_id_fkey"
+            columns: ["social_challenge_id"]
+            isOneToOne: false
+            referencedRelation: "social_challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_challenges: {
+        Row: {
+          bet_amount: number
+          created_at: string
+          created_by: string
+          duration_months: number
+          group_id: string | null
+          id: string
+          sessions_per_week: number
+          status: string
+          target_user_id: string | null
+          type: string
+        }
+        Insert: {
+          bet_amount?: number
+          created_at?: string
+          created_by: string
+          duration_months?: number
+          group_id?: string | null
+          id?: string
+          sessions_per_week?: number
+          status?: string
+          target_user_id?: string | null
+          type: string
+        }
+        Update: {
+          bet_amount?: number
+          created_at?: string
+          created_by?: string
+          duration_months?: number
+          group_id?: string | null
+          id?: string
+          sessions_per_week?: number
+          status?: string
+          target_user_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_challenges_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_group_member: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_social_challenge_member: {
+        Args: { _challenge_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
