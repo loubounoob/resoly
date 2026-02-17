@@ -9,6 +9,8 @@ import { calculateCoins } from "@/lib/coins";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getDay } from "date-fns";
+import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -36,12 +38,14 @@ function computeFirstWeekGoal(sessionsPerWeek: number): { firstWeekGoal: number;
 const CreateChallenge = () => {
   const navigate = useNavigate();
   const { data: activeChallenge, isLoading: loadingActive } = useActiveChallenge();
-  const [betAmount, setBetAmount] = useState(50);
+  const [betAmount, setBetAmount] = useState(100);
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
   const [isProcessing, setIsProcessing] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [showFirstWeekDialog, setShowFirstWeekDialog] = useState(false);
+  const [shopProducts, setShopProducts] = useState<ShopifyProduct[]>([]);
+
   const createChallenge = useCreateChallenge();
 
   useEffect(() => {
@@ -49,6 +53,12 @@ const CreateChallenge = () => {
       navigate("/dashboard", { replace: true });
     }
   }, [loadingActive, activeChallenge, navigate]);
+
+  useEffect(() => {
+    fetchShopifyProducts(20)
+      .then(setShopProducts)
+      .catch(console.error);
+  }, []);
 
   if (loadingActive) {
     return (
@@ -135,13 +145,13 @@ const CreateChallenge = () => {
             value={[betAmount]}
             onValueChange={(v) => setBetAmount(v[0])}
             min={10}
-            max={5000}
+            max={1000}
             step={10}
             className="w-full"
           />
           <div className="flex justify-between text-xs text-muted-foreground mt-1">
             <span>10€</span>
-            <span>5 000€</span>
+            <span>1 000€</span>
           </div>
         </section>
 
@@ -214,6 +224,47 @@ const CreateChallenge = () => {
           </p>
         </div>
       </div>
+
+      {/* Produits accessibles */}
+      {shopProducts.length > 0 && (
+        <section className="mt-2">
+          <label className="text-sm text-muted-foreground mb-3 block">Ce que tu pourras acheter</label>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+            {shopProducts.map((product) => {
+              const price = product.node.priceRange.minVariantPrice;
+              const coinsPrice = Math.ceil(parseFloat(price.amount) * 50);
+              const isAccessible = coinsPreview >= coinsPrice;
+              return (
+                <div
+                  key={product.node.id}
+                  className={`flex-shrink-0 w-[120px] rounded-xl border border-border bg-gradient-card overflow-hidden transition-opacity ${
+                    isAccessible ? "opacity-100" : "opacity-50"
+                  }`}
+                >
+                  <div className="w-full aspect-square bg-secondary">
+                    <img
+                      src={product.node.images.edges[0]?.node?.url || "/placeholder.svg"}
+                      alt={product.node.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="p-2 space-y-1">
+                    <p className="text-xs font-medium truncate">{product.node.title}</p>
+                    <div className="flex items-center gap-1 text-xs font-bold text-primary">
+                      <CoinIcon size={12} /> {coinsPrice}
+                    </div>
+                    {isAccessible && (
+                      <Badge className="text-[10px] px-1.5 py-0 bg-green-500/20 text-green-400 border-green-500/30">
+                        Accessible
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Promo Code */}
       <div className="mt-4">
