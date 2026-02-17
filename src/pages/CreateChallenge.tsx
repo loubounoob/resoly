@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 
 const DURATION_OPTIONS = [1, 2, 3];
-const SESSIONS_OPTIONS = [2, 3, 4, 5, 6, 7];
+const SESSIONS_OPTIONS = [2, 3, 4, 5, 6];
 
 const DAY_NAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
@@ -28,7 +28,7 @@ function computeFirstWeekGoal(sessionsPerWeek: number): { firstWeekGoal: number;
   const dayOfWeek = getDay(today); // 0=Sun, 1=Mon...
   // Days left in the week (Mon=1 to Sun=0): Mon→7, Tue→6, Wed→5, Thu→4, Fri→3, Sat→2, Sun→1
   const daysLeft = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
-  const firstWeekGoal = Math.ceil(sessionsPerWeek * daysLeft / 7);
+  const firstWeekGoal = Math.max(1, Math.floor(sessionsPerWeek * daysLeft / 7));
   const needsAdjustment = dayOfWeek !== 1; // not Monday
   return { firstWeekGoal, daysLeft, dayName: DAY_NAMES[dayOfWeek], needsAdjustment };
 }
@@ -58,9 +58,8 @@ const CreateChallenge = () => {
     );
   }
 
-  const totalBet = betAmount * duration;
   const totalSessions = sessionsPerWeek * duration * 4;
-  const coinsPreview = calculateCoins(totalBet, duration, sessionsPerWeek);
+  const coinsPreview = calculateCoins(betAmount, duration, sessionsPerWeek);
   const { firstWeekGoal, dayName, needsAdjustment } = computeFirstWeekGoal(sessionsPerWeek);
 
   const handleSubmit = () => {
@@ -93,8 +92,8 @@ const CreateChallenge = () => {
       const { data, error } = await supabase.functions.invoke("create-challenge-payment", {
         body: {
           challengeId: challenge.id,
-          amount: totalBet,
-          description: `Mise Resoly — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
+          amount: betAmount,
+          description: `Mise Resoly — ${betAmount}€ — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
           promoCode: promoCode.trim() || undefined,
         },
       });
@@ -128,29 +127,28 @@ const CreateChallenge = () => {
       <div className="flex-1 space-y-8">
         {/* Bet Amount */}
         <section>
-          <label className="text-sm text-muted-foreground mb-3 block">Mise mensuelle</label>
+          <label className="text-sm text-muted-foreground mb-3 block">Ta mise</label>
           <div className="text-center mb-4">
             <span className="text-5xl font-display font-bold text-gradient-primary">{betAmount}€</span>
-            <span className="text-muted-foreground text-sm block mt-1">/mois</span>
           </div>
           <Slider
             value={[betAmount]}
             onValueChange={(v) => setBetAmount(v[0])}
             min={10}
-            max={200}
-            step={5}
+            max={5000}
+            step={10}
             className="w-full"
           />
           <div className="flex justify-between text-xs text-muted-foreground mt-1">
             <span>10€</span>
-            <span>200€</span>
+            <span>5 000€</span>
           </div>
         </section>
 
         {/* Sessions per week */}
         <section>
           <label className="text-sm text-muted-foreground mb-3 block">Séances par semaine</label>
-          <div className="grid grid-cols-6 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             {SESSIONS_OPTIONS.map((s) => (
               <button
                 key={s}

@@ -1,4 +1,4 @@
-import { Flame, Camera, Coins, ChevronRight, Plus, Loader2 } from "lucide-react";
+import { Flame, Camera, Plus, Loader2 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -8,7 +8,7 @@ import BottomNav from "@/components/BottomNav";
 import { useActiveChallenge, useCheckIns, useUserCoins } from "@/hooks/useChallenge";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateCoins } from "@/lib/coins";
-import { startOfWeek, endOfWeek, isWithinInterval, format, startOfDay, subDays, isSameDay, getDay } from "date-fns";
+import { startOfWeek, endOfWeek, isWithinInterval, format, startOfDay, getDay } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 
 const weekDayLabels = ["L", "M", "M", "J", "V", "S", "D"];
@@ -53,31 +53,6 @@ const Dashboard = () => {
   const completedSessions = verifiedCheckIns.length;
   const totalSessions = challenge.total_sessions;
   const isChallengeComplete = completedSessions >= totalSessions && totalSessions > 0;
-
-  // Current streak — count unique calendar days consecutively from today
-  let currentStreak = 0;
-  if (verifiedCheckIns.length > 0) {
-    const uniqueDays = Array.from(
-      new Set(verifiedCheckIns.map(ci => format(new Date(ci.checked_in_at), "yyyy-MM-dd")))
-    ).sort().reverse(); // most recent first
-
-    const today = startOfDay(new Date());
-    let checkDate = today;
-
-    // If no check-in today, start from yesterday
-    if (uniqueDays.length > 0 && !isSameDay(new Date(uniqueDays[0]), today)) {
-      checkDate = subDays(today, 1);
-    }
-
-    for (const dayStr of uniqueDays) {
-      if (isSameDay(new Date(dayStr), checkDate)) {
-        currentStreak++;
-        checkDate = subDays(checkDate, 1);
-      } else if (new Date(dayStr) < checkDate) {
-        break;
-      }
-    }
-  }
 
   // Week tracker
   const now = new Date();
@@ -158,10 +133,6 @@ const Dashboard = () => {
           <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
             <CoinIcon size={14} />
             <span className="text-sm font-bold">{coins ?? 0}</span>
-          </div>
-          <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
-            <Flame className="w-4 h-4 text-accent" />
-            <span className="text-sm font-bold">{currentStreak}j</span>
           </div>
         </div>
       </div>
@@ -256,12 +227,8 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Discrete global progress */}
-      <p className="text-xs text-muted-foreground text-center mb-4">
-        Progression globale : {completedSessions}/{totalSessions} séances
-      </p>
 
-      {isChallengeComplete ? (
+      {isChallengeComplete && (
         <div className="space-y-3">
           <div className="bg-gradient-card rounded-2xl border border-accent/30 p-5 text-center shadow-card">
             <span className="text-4xl mb-2 block">🎉</span>
@@ -277,19 +244,6 @@ const Dashboard = () => {
             Récupérer et lancer un nouveau défi
           </Button>
         </div>
-      ) : (
-        <>
-          <button
-            onClick={() => navigate("/shop")}
-            className="flex items-center justify-between w-full p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <Coins className="w-5 h-5 text-accent" />
-              <span className="text-sm font-medium">Mes pièces</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          </button>
-        </>
       )}
 
       <BottomNav />
