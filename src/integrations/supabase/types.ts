@@ -20,6 +20,7 @@ export type Database = {
           coins_awarded: number
           created_at: string
           duration_months: number
+          first_week_sessions: number | null
           id: string
           odds: number
           payment_status: string
@@ -36,6 +37,7 @@ export type Database = {
           coins_awarded?: number
           created_at?: string
           duration_months?: number
+          first_week_sessions?: number | null
           id?: string
           odds?: number
           payment_status?: string
@@ -52,6 +54,7 @@ export type Database = {
           coins_awarded?: number
           created_at?: string
           duration_months?: number
+          first_week_sessions?: number | null
           id?: string
           odds?: number
           payment_status?: string
