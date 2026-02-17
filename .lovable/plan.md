@@ -1,36 +1,61 @@
 
 
-# Trois modifications
+# Deux corrections
 
-## 1. Slider de mise : max 1 000 euros, defaut 100 euros
+## 1. Montant remboursé sur le Dashboard
 
-Dans `src/pages/CreateChallenge.tsx` :
-- Changer la valeur initiale de `betAmount` de 50 a 100
-- Changer le `max` du Slider de 5000 a 1000
-- Mettre a jour le label de borne droite de "5 000 euros" a "1 000 euros"
+Le Dashboard calcule actuellement `totalBet = challenge.bet_per_month * challenge.duration_months`, ce qui donne un montant erroné (ex: 800 x 3 = 2400). Puisque la mise est désormais unique (one-time), le montant affiché doit simplement être `challenge.bet_per_month` (qui contient la mise fixe).
 
-## 2. Enlever le prix EUR des fiches produits dans le Shop
+**Fichier** : `src/pages/Dashboard.tsx` (ligne 108)
+- Remplacer `const totalBet = challenge.bet_per_month * challenge.duration_months;` par `const totalBet = challenge.bet_per_month;`
+- Le calcul des coins reste : `calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week)`
 
-Dans `src/pages/Shop.tsx` :
-- Supprimer la ligne qui affiche `{parseFloat(price.amount).toFixed(2)} {price.currencyCode}` (ligne 48) dans le composant `ShopifyProductCard`
-- Garder uniquement le prix en pieces
+## 2. Flux de check-in : retour IA puis félicitations avant "Déjà validé"
 
-## 3. Afficher les produits du shop dans la page de creation du defi
+Actuellement, après validation d'une photo, la query `checkIns` se rafraîchit et `hasCheckedInToday` devient `true` immédiatement, ce qui affiche directement "Déjà validé aujourd'hui". Le flux souhaité est :
 
-Dans `src/pages/CreateChallenge.tsx` :
-- Importer `fetchShopifyProducts` et le type `ShopifyProduct` depuis `@/lib/shopify`
-- Charger les produits au montage avec un `useEffect` + `useState`
-- Calculer le prix en pieces de chaque produit (prix EUR x 50)
-- Ajouter une section "Ce que tu pourras acheter" entre le summary card et le code promo
-- Afficher un carrousel horizontal (scroll) de cartes produits compactes : image, nom, prix en pieces
-- Mettre en evidence les produits accessibles avec les pieces calculees (opacite reduite ou badge "accessible" selon que `coinsPreview >= coinsPrice`)
-- L'utilisateur peut ainsi ajuster sa mise / duree / sessions pour atteindre le nombre de pieces qu'il souhaite
+1. L'utilisateur prend une photo
+2. L'IA analyse (loader)
+3. Résultat IA affiché (validé ou non) avec la raison
+4. Si validé : bouton "Continuer" mène à un écran de félicitations (avec confettis/message motivant et bouton retour dashboard)
+5. Seulement si l'utilisateur revient sur la page `/verify` après avoir déjà validé, il voit "Déjà validé aujourd'hui"
 
-### Details techniques
+**Fichier** : `src/pages/PhotoVerify.tsx`
 
-**Fichiers modifies** :
-- `src/pages/CreateChallenge.tsx` : slider max 1000, defaut 100, section produits
-- `src/pages/Shop.tsx` : suppression prix EUR
+- Ajouter un état `sessionStatus` avec les valeurs : `"idle" | "capturing" | "ai-result" | "congrats"`
+- Ne plus utiliser `hasCheckedInToday` pour bloquer la prise de photo pendant la session en cours
+- Utiliser `hasCheckedInToday` uniquement au chargement initial (si l'utilisateur arrive sur la page et a déjà validé avant)
+- Après que le status passe à `"success"` :
+  - Afficher le résultat IA (checkmark + raison) avec un bouton "Continuer"
+  - Au clic sur "Continuer", passer à l'écran de félicitations avec un message motivant et un bouton "Retour au dashboard"
+- Si `status === "error"` : garder le comportement actuel (bouton "Réessayer")
 
-La section produits sera un scroll horizontal avec des cartes de ~120px de large, affichant l'image en carre, le nom tronque et le prix en pieces. Les produits dont le prix en pieces est inferieur ou egal a `coinsPreview` auront un badge vert "Accessible", les autres seront legerement estompes pour inciter l'utilisateur a augmenter sa mise.
+Le flux complet sera :
+
+```text
+Arrivee sur /verify
+     |
+     v
+hasCheckedInToday? --oui--> "Deja valide aujourd'hui"
+     |
+    non
+     |
+     v
+  Camera (prise de photo)
+     |
+     v
+  Analyse IA (loader)
+     |
+     v
+  Resultat IA (succes ou echec)
+     |           |
+   succes      echec --> "Reessayer"
+     |
+     v
+  Bouton "Continuer"
+     |
+     v
+  Ecran felicitations
+  (message + bouton retour dashboard)
+```
 
