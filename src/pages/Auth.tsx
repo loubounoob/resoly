@@ -34,10 +34,7 @@ const Auth = () => {
           },
         });
         if (error) throw error;
-        toast({
-          title: "Inscription réussie !",
-          description: "Vérifie ton email pour confirmer ton compte.",
-        });
+        navigate("/dashboard");
       }
     } catch (error: any) {
       toast({
