@@ -45,7 +45,7 @@ const ShopifyProductCard = ({ product }: { product: ShopifyProduct }) => {
         <div className="flex items-center gap-1 mt-1">
           <span className="font-bold text-primary text-sm flex items-center gap-1"><CoinIcon size={14} /> {coinsPrice} pièces</span>
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5">{parseFloat(price.amount).toFixed(2)} {price.currencyCode}</p>
+        
         <Button size="sm" className="w-full text-xs h-7 mt-2" onClick={handleAdd} disabled={!variant?.availableForSale}>
           {variant?.availableForSale ? "🛒 Ajouter au panier" : "Indisponible"}
         </Button>
