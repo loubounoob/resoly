@@ -96,6 +96,9 @@ const Friends = () => {
                     <p className="text-sm font-medium truncate">
                       {friend.profile?.display_name || friend.profile?.first_name || "Ami"}
                     </p>
+                    {friend.profile?.username && (
+                      <p className="text-[11px] text-muted-foreground">@{friend.profile.username}</p>
+                    )}
                     <p className={`text-xs ${status.color}`}>{status.text}</p>
                   </div>
                   {friend.hasChallenge && (
@@ -191,6 +194,9 @@ const Friends = () => {
                   <p className="text-sm font-medium truncate">
                     {entry.isMe ? "Toi" : entry.profile?.display_name || entry.profile?.first_name || "—"}
                   </p>
+                  {entry.profile?.username && (
+                    <p className="text-[10px] text-muted-foreground">@{entry.profile.username}</p>
+                   )}
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold">{entry.totalSessions}</p>
@@ -268,6 +274,9 @@ const Friends = () => {
                       </Avatar>
                       <p className="flex-1 text-sm font-medium truncate">
                         {req.profile?.display_name || req.profile?.first_name || "Inconnu"}
+                        {req.profile?.username && (
+                          <span className="text-xs text-muted-foreground ml-1">@{req.profile.username}</span>
+                        )}
                       </p>
                       <button
                         onClick={() => respondRequest.mutate({ id: req.id, accept: true })}

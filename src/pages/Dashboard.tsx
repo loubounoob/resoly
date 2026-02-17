@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import BottomNav from "@/components/BottomNav";
 import { useActiveChallenge, useCheckIns, useUserCoins } from "@/hooks/useChallenge";
+import { useMyProfile } from "@/hooks/useFriends";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateCoins } from "@/lib/coins";
 import { startOfWeek, endOfWeek, isWithinInterval, format, startOfDay, getDay } from "date-fns";
@@ -20,6 +21,7 @@ const Dashboard = () => {
   const { data: challenge, isLoading: loadingChallenge } = useActiveChallenge();
   const { data: checkIns, isLoading: loadingCheckIns } = useCheckIns(challenge?.id);
   const { data: coins } = useUserCoins();
+  const { data: myProfile } = useMyProfile();
 
   if (loadingChallenge) {
     return (
@@ -127,7 +129,12 @@ const Dashboard = () => {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <Flame className="w-6 h-6 text-primary" />
-          <span className="font-display font-bold text-xl">Resoly</span>
+          <div>
+            <span className="font-display font-bold text-xl">Resoly</span>
+            {myProfile?.username && (
+              <p className="text-xs text-muted-foreground">@{myProfile.username}</p>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
