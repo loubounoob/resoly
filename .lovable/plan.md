@@ -1,37 +1,36 @@
 
-# Modifications multiples
 
-## 1. Desactiver la verification email a l'inscription
-- Utiliser l'outil configure-auth pour activer l'auto-confirm des emails
-- Modifier `Auth.tsx` : apres un `signUp` reussi, naviguer directement vers `/dashboard` au lieu d'afficher le message "verifie ton email"
+# Trois modifications
 
-## 2. Mise fixe (pas mensuelle) dans CreateChallenge
-- Renommer le label "Mise mensuelle" en "Ta mise" et supprimer le "/mois"
-- Changer le max du slider de 200 a 5000, step de 10
-- Changer les bornes affichees (10 euros / 5 000 euros)
-- Le `totalBet` devient simplement `betAmount` (plus de multiplication par la duree)
-- Adapter le summary card : afficher la mise totale = betAmount directement
-- Adapter l'appel a `create-challenge-payment` avec `amount: betAmount`
-- Adapter le calcul des coins : `calculateCoins(betAmount, duration, sessionsPerWeek)`
+## 1. Slider de mise : max 1 000 euros, defaut 100 euros
 
-## 3. Sessions max 6 par semaine
-- Changer `SESSIONS_OPTIONS` de `[2, 3, 4, 5, 6, 7]` a `[2, 3, 4, 5, 6]`
-- Ajuster la grille de `grid-cols-6` a `grid-cols-5`
+Dans `src/pages/CreateChallenge.tsx` :
+- Changer la valeur initiale de `betAmount` de 50 a 100
+- Changer le `max` du Slider de 5000 a 1000
+- Mettre a jour le label de borne droite de "5 000 euros" a "1 000 euros"
 
-## 4. Premiere semaine plus genereuse
-- Changer la formule de `Math.ceil(sessions * daysLeft / 7)` a `Math.floor(sessions * daysLeft / 7)` pour arrondir a l'inferieur (moins de sessions exigees)
-- Si le resultat est 0 et qu'il reste au moins 1 jour, le mettre a 1
+## 2. Enlever le prix EUR des fiches produits dans le Shop
 
-## 5. Dashboard : supprimer elements
-- Supprimer le compteur de jours consecutifs (badge `{currentStreak}j` en haut a droite)
-- Supprimer la ligne "Progression globale : X/Y seances"
-- Supprimer le bouton "Mes pieces"
-- Tout le code de calcul du streak peut etre supprime aussi
+Dans `src/pages/Shop.tsx` :
+- Supprimer la ligne qui affiche `{parseFloat(price.amount).toFixed(2)} {price.currencyCode}` (ligne 48) dans le composant `ShopifyProductCard`
+- Garder uniquement le prix en pieces
 
-## Details techniques
+## 3. Afficher les produits du shop dans la page de creation du defi
+
+Dans `src/pages/CreateChallenge.tsx` :
+- Importer `fetchShopifyProducts` et le type `ShopifyProduct` depuis `@/lib/shopify`
+- Charger les produits au montage avec un `useEffect` + `useState`
+- Calculer le prix en pieces de chaque produit (prix EUR x 50)
+- Ajouter une section "Ce que tu pourras acheter" entre le summary card et le code promo
+- Afficher un carrousel horizontal (scroll) de cartes produits compactes : image, nom, prix en pieces
+- Mettre en evidence les produits accessibles avec les pieces calculees (opacite reduite ou badge "accessible" selon que `coinsPreview >= coinsPrice`)
+- L'utilisateur peut ainsi ajuster sa mise / duree / sessions pour atteindre le nombre de pieces qu'il souhaite
+
+### Details techniques
 
 **Fichiers modifies** :
-- `src/pages/Auth.tsx` : navigation directe apres signup
-- `src/pages/CreateChallenge.tsx` : mise fixe, max 5000, sessions max 6, premiere semaine genereuse
-- `src/pages/Dashboard.tsx` : suppression streak badge, progression globale, bouton mes pieces
-- Configuration auth : auto-confirm email
+- `src/pages/CreateChallenge.tsx` : slider max 1000, defaut 100, section produits
+- `src/pages/Shop.tsx` : suppression prix EUR
+
+La section produits sera un scroll horizontal avec des cartes de ~120px de large, affichant l'image en carre, le nom tronque et le prix en pieces. Les produits dont le prix en pieces est inferieur ou egal a `coinsPreview` auront un badge vert "Accessible", les autres seront legerement estompes pour inciter l'utilisateur a augmenter sa mise.
+
