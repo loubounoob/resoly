@@ -1,44 +1,37 @@
 
+# Modifications multiples
 
-# Cercle de progression interactif avec couleurs dynamiques
+## 1. Desactiver la verification email a l'inscription
+- Utiliser l'outil configure-auth pour activer l'auto-confirm des emails
+- Modifier `Auth.tsx` : apres un `signUp` reussi, naviguer directement vers `/dashboard` au lieu d'afficher le message "verifie ton email"
 
-## Changements sur le Dashboard
+## 2. Mise fixe (pas mensuelle) dans CreateChallenge
+- Renommer le label "Mise mensuelle" en "Ta mise" et supprimer le "/mois"
+- Changer le max du slider de 200 a 5000, step de 10
+- Changer les bornes affichees (10 euros / 5 000 euros)
+- Le `totalBet` devient simplement `betAmount` (plus de multiplication par la duree)
+- Adapter le summary card : afficher la mise totale = betAmount directement
+- Adapter l'appel a `create-challenge-payment` avec `amount: betAmount`
+- Adapter le calcul des coins : `calculateCoins(betAmount, duration, sessionsPerWeek)`
 
-### 1. Le cercle devient cliquable
-Le cercle SVG de progression hebdomadaire devient un bouton qui navigue vers `/verify` (la page de check-in photo). On ajoute un curseur pointer, une icone Camera au centre quand l'objectif n'est pas encore atteint, et un effet de pulsation subtil pour attirer l'attention.
+## 3. Sessions max 6 par semaine
+- Changer `SESSIONS_OPTIONS` de `[2, 3, 4, 5, 6, 7]` a `[2, 3, 4, 5, 6]`
+- Ajuster la grille de `grid-cols-6` a `grid-cols-5`
 
-### 2. Couleurs dynamiques du cercle
+## 4. Premiere semaine plus genereuse
+- Changer la formule de `Math.ceil(sessions * daysLeft / 7)` a `Math.floor(sessions * daysLeft / 7)` pour arrondir a l'inferieur (moins de sessions exigees)
+- Si le resultat est 0 et qu'il reste au moins 1 jour, le mettre a 1
 
-Trois etats de couleur :
+## 5. Dashboard : supprimer elements
+- Supprimer le compteur de jours consecutifs (badge `{currentStreak}j` en haut a droite)
+- Supprimer la ligne "Progression globale : X/Y seances"
+- Supprimer le bouton "Mes pieces"
+- Tout le code de calcul du streak peut etre supprime aussi
 
-```text
-VERT  : weeklyDone >= weeklyGoal (objectif atteint)
-ORANGE : en cours, il reste encore du temps
-ROUGE  : remaining sessions >= remaining days in week
-         (situation critique ou impossible)
-```
+## Details techniques
 
-Calcul des jours restants dans la semaine :
-- On compte les jours entre aujourd'hui (inclus) et dimanche
-- Si `sessionsRestantes > joursRestants` → rouge (impossible de rattraper)
-- Si `sessionsRestantes == joursRestants` → rouge aussi (aucune marge)
-
-### 3. Suppression du bouton "Check-in maintenant"
-Le bouton vert classique en bas est supprime. Le cercle le remplace entierement comme point d'entree principal pour le check-in.
-
-### Details techniques
-
-**Fichier modifie** : `src/pages/Dashboard.tsx`
-
-- Ajout d'un calcul `daysLeftInWeek` (nombre de jours restants dimanche inclus)
-- Calcul de `sessionsRemaining = weeklyGoal - weeklyDone`
-- Logique de couleur :
-  - `isGoalMet = weeklyDone >= weeklyGoal` → gradient vert (actuel)
-  - `isUrgent = sessionsRemaining >= daysLeftInWeek && !isGoalMet` → gradient rouge
-  - Sinon → gradient orange
-- Le `linearGradient` du SVG change dynamiquement ses `stopColor` selon l'etat
-- Le conteneur du cercle est enveloppe dans un `<button onClick={() => navigate("/verify")}>`  avec `cursor-pointer` et une animation `hover:scale-105`
-- Au centre du cercle, sous le compteur `X/Y`, ajout d'une petite icone Camera avec le texte "Check-in" quand l'objectif n'est pas atteint
-- Suppression du `<Button>` "Check-in maintenant" (lignes 256-262)
-- Le lien "Mes pieces" reste en bas
-
+**Fichiers modifies** :
+- `src/pages/Auth.tsx` : navigation directe apres signup
+- `src/pages/CreateChallenge.tsx` : mise fixe, max 5000, sessions max 6, premiere semaine genereuse
+- `src/pages/Dashboard.tsx` : suppression streak badge, progression globale, bouton mes pieces
+- Configuration auth : auto-confirm email
