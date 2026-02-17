@@ -1,25 +1,31 @@
-import { Camera, CheckCircle2, XCircle, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { Camera, CheckCircle2, XCircle, Loader2, PartyPopper } from "lucide-react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import BottomNav from "@/components/BottomNav";
 import { useActiveChallenge, useCheckIns, useCreateCheckIn } from "@/hooks/useChallenge";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { startOfDay, isToday } from "date-fns";
+import { isToday } from "date-fns";
+
+type SessionPhase = "idle" | "loading" | "ai-result" | "congrats";
 
 const PhotoVerify = () => {
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [phase, setPhase] = useState<SessionPhase>("idle");
+  const [aiStatus, setAiStatus] = useState<"success" | "error" | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [reason, setReason] = useState<string>("");
+  const didValidateThisSession = useRef(false);
+
   const { data: challenge } = useActiveChallenge();
   const { data: checkIns } = useCheckIns(challenge?.id);
   const createCheckIn = useCreateCheckIn();
   const navigate = useNavigate();
 
-  const hasCheckedInToday = checkIns?.some(
-    (ci) => ci.verified && isToday(new Date(ci.checked_in_at))
-  ) ?? false;
+  // Only used on initial load — not during active session
+  const hasCheckedInToday =
+    !didValidateThisSession.current &&
+    (checkIns?.some((ci) => ci.verified && isToday(new Date(ci.checked_in_at))) ?? false);
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -41,8 +47,9 @@ const PhotoVerify = () => {
 
     const url = URL.createObjectURL(file);
     setPreview(url);
-    setStatus("loading");
+    setPhase("loading");
     setReason("");
+    setAiStatus(null);
 
     try {
       const imageBase64 = await fileToBase64(file);
@@ -62,25 +69,37 @@ const PhotoVerify = () => {
         verified,
       });
 
-      setStatus(verified ? "success" : "error");
+      if (verified) {
+        didValidateThisSession.current = true;
+      }
+
+      setAiStatus(verified ? "success" : "error");
+      setPhase("ai-result");
     } catch (err) {
       console.error("Verification error:", err);
-      setStatus("error");
+      setAiStatus("error");
       setReason("Erreur lors de la vérification");
+      setPhase("ai-result");
       toast.error("Erreur lors de la vérification de la photo");
     }
   };
 
-  return (
-    <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
-      <h1 className="text-2xl font-bold mb-2">Check-in salle</h1>
-      <p className="text-muted-foreground text-sm mb-8">
-        Prends une photo pour prouver ta présence à la salle
-      </p>
+  const handleRetry = () => {
+    setPreview(null);
+    setPhase("idle");
+    setReason("");
+    setAiStatus(null);
+  };
 
-      {/* Camera Area */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        {hasCheckedInToday ? (
+  // --- Already validated today (initial load only) ---
+  if (hasCheckedInToday && phase === "idle") {
+    return (
+      <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
+        <h1 className="text-2xl font-bold mb-2">Check-in salle</h1>
+        <p className="text-muted-foreground text-sm mb-8">
+          Prends une photo pour prouver ta présence à la salle
+        </p>
+        <div className="flex-1 flex flex-col items-center justify-center">
           <div className="w-full max-w-xs text-center space-y-4">
             <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-10 h-10 text-primary" />
@@ -91,7 +110,48 @@ const PhotoVerify = () => {
               Retour au dashboard
             </Button>
           </div>
-        ) : !preview ? (
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  // --- Congrats screen ---
+  if (phase === "congrats") {
+    return (
+      <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <div className="w-full max-w-xs text-center space-y-5">
+            <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              <PartyPopper className="w-12 h-12 text-primary" />
+            </div>
+            <h2 className="text-2xl font-display font-bold">Bravo ! 🎉</h2>
+            <p className="text-muted-foreground">
+              Ta séance a été validée avec succès. Continue comme ça, tu es sur la bonne voie !
+            </p>
+            <Button
+              onClick={() => navigate("/dashboard")}
+              className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
+            >
+              Retour au dashboard
+            </Button>
+          </div>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
+      <h1 className="text-2xl font-bold mb-2">Check-in salle</h1>
+      <p className="text-muted-foreground text-sm mb-8">
+        Prends une photo pour prouver ta présence à la salle
+      </p>
+
+      <div className="flex-1 flex flex-col items-center justify-center">
+        {/* Camera */}
+        {phase === "idle" && !preview && (
           <label className="w-full aspect-square max-w-xs rounded-2xl border-2 border-dashed border-border bg-secondary/50 flex flex-col items-center justify-center gap-4 cursor-pointer hover:border-primary/50 transition-colors">
             <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
               <Camera className="w-10 h-10 text-primary" />
@@ -108,24 +168,27 @@ const PhotoVerify = () => {
               className="hidden"
             />
           </label>
-        ) : (
+        )}
+
+        {/* Loading / AI Result */}
+        {preview && (phase === "loading" || phase === "ai-result") && (
           <div className="w-full max-w-xs space-y-6">
             <div className="relative rounded-2xl overflow-hidden aspect-square shadow-card">
               <img src={preview} alt="Vérification" className="w-full h-full object-cover" />
-              {status === "loading" && (
+              {phase === "loading" && (
                 <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
                   <Loader2 className="w-10 h-10 text-primary animate-spin" />
                   <p className="text-sm font-medium">Analyse IA en cours...</p>
                 </div>
               )}
-              {status === "success" && (
+              {phase === "ai-result" && aiStatus === "success" && (
                 <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex flex-col items-center justify-center gap-3 animate-count-up">
                   <CheckCircle2 className="w-16 h-16 text-primary" />
                   <p className="text-lg font-display font-bold text-primary">Séance validée !</p>
                   {reason && <p className="text-xs text-muted-foreground text-center px-4">{reason}</p>}
                 </div>
               )}
-              {status === "error" && (
+              {phase === "ai-result" && aiStatus === "error" && (
                 <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex flex-col items-center justify-center gap-3 animate-count-up">
                   <XCircle className="w-16 h-16 text-destructive" />
                   <p className="text-lg font-display font-bold text-destructive">Non reconnue</p>
@@ -136,13 +199,17 @@ const PhotoVerify = () => {
               )}
             </div>
 
-            {(status === "success" || status === "error") && (
+            {phase === "ai-result" && aiStatus === "success" && (
               <Button
-                onClick={() => { setPreview(null); setStatus("idle"); setReason(""); }}
-                variant="outline"
-                className="w-full h-12 rounded-xl"
+                onClick={() => setPhase("congrats")}
+                className="w-full h-12 rounded-xl bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow font-display font-bold"
               >
-                {status === "error" ? "Réessayer" : "Nouvelle photo"}
+                Continuer
+              </Button>
+            )}
+            {phase === "ai-result" && aiStatus === "error" && (
+              <Button onClick={handleRetry} variant="outline" className="w-full h-12 rounded-xl">
+                Réessayer
               </Button>
             )}
           </div>
