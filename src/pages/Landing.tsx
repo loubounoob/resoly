@@ -19,7 +19,7 @@ const Landing = () => {
         {/* Logo */}
         <div className="flex items-center gap-2 mb-auto">
           <Flame className="w-8 h-8 text-primary" />
-          <span className="text-2xl font-display font-bold">FitBet</span>
+          <span className="text-2xl font-display font-bold">Resoly</span>
         </div>
 
         {/* Hero Text */}
@@ -37,7 +37,7 @@ const Landing = () => {
         {/* Features */}
         <div className="space-y-3 mb-8" style={{ animationDelay: "0.2s" }}>
           {[
-            { icon: TrendingUp, text: "Cote variable selon la difficulté" },
+            { icon: TrendingUp, text: "Objectif ajusté intelligemment à ton rythme" },
             { icon: Shield, text: "Photo vérifiée par IA à chaque séance" },
             { icon: Flame, text: "Récompenses crescendo si tu gagnes" },
           ].map(({ icon: Icon, text }, i) => (

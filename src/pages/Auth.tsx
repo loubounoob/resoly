@@ -55,7 +55,7 @@ const Auth = () => {
       {/* Logo */}
       <div className="flex items-center gap-2 mb-12">
         <Flame className="w-8 h-8 text-primary" />
-        <span className="text-2xl font-display font-bold">FitBet</span>
+        <span className="text-2xl font-display font-bold">Resoly</span>
       </div>
 
       <h1 className="text-3xl font-bold mb-2">

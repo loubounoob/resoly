@@ -67,7 +67,7 @@ serve(async (req) => {
           price_data: {
             currency: "eur",
             product_data: {
-              name: "Mise FitBet",
+              name: "Mise Resoly",
               description: description || "Mise pour défi fitness",
             },
             unit_amount: Math.round(amount * 100),

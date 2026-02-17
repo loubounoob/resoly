@@ -8,10 +8,30 @@ import { useCreateChallenge, useActiveChallenge } from "@/hooks/useChallenge";
 import { calculateCoins } from "@/lib/coins";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getDay } from "date-fns";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 const DURATION_OPTIONS = [1, 2, 3];
 const SESSIONS_OPTIONS = [2, 3, 4, 5, 6, 7];
 
+const DAY_NAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+
+function computeFirstWeekGoal(sessionsPerWeek: number): { firstWeekGoal: number; daysLeft: number; dayName: string; needsAdjustment: boolean } {
+  const today = new Date();
+  const dayOfWeek = getDay(today); // 0=Sun, 1=Mon...
+  // Days left in the week (Mon=1 to Sun=0): Mon→7, Tue→6, Wed→5, Thu→4, Fri→3, Sat→2, Sun→1
+  const daysLeft = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+  const firstWeekGoal = Math.ceil(sessionsPerWeek * daysLeft / 7);
+  const needsAdjustment = dayOfWeek !== 1; // not Monday
+  return { firstWeekGoal, daysLeft, dayName: DAY_NAMES[dayOfWeek], needsAdjustment };
+}
 
 const CreateChallenge = () => {
   const navigate = useNavigate();
@@ -21,6 +41,7 @@ const CreateChallenge = () => {
   const [duration, setDuration] = useState(3);
   const [isProcessing, setIsProcessing] = useState(false);
   const [promoCode, setPromoCode] = useState("");
+  const [showFirstWeekDialog, setShowFirstWeekDialog] = useState(false);
   const createChallenge = useCreateChallenge();
 
   useEffect(() => {
@@ -40,11 +61,20 @@ const CreateChallenge = () => {
   const totalBet = betAmount * duration;
   const totalSessions = sessionsPerWeek * duration * 4;
   const coinsPreview = calculateCoins(totalBet, duration, sessionsPerWeek);
+  const { firstWeekGoal, dayName, needsAdjustment } = computeFirstWeekGoal(sessionsPerWeek);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
+    if (needsAdjustment) {
+      setShowFirstWeekDialog(true);
+    } else {
+      proceedWithChallenge(null);
+    }
+  };
+
+  const proceedWithChallenge = async (firstWeekSessions: number | null) => {
+    setShowFirstWeekDialog(false);
     setIsProcessing(true);
     try {
-      // 1. Create challenge in DB (pending payment)
       const challenge = await createChallenge.mutateAsync({
         sessions_per_week: sessionsPerWeek,
         duration_months: duration,
@@ -52,19 +82,25 @@ const CreateChallenge = () => {
         odds: 1,
       });
 
-      // 2. Create Stripe checkout session (with optional promo code)
+      // Update first_week_sessions if needed
+      if (firstWeekSessions != null) {
+        await supabase
+          .from("challenges")
+          .update({ first_week_sessions: firstWeekSessions } as any)
+          .eq("id", challenge.id);
+      }
+
       const { data, error } = await supabase.functions.invoke("create-challenge-payment", {
         body: {
           challengeId: challenge.id,
           amount: totalBet,
-          description: `Mise FitBet — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
+          description: `Mise Resoly — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
           promoCode: promoCode.trim() || undefined,
         },
       });
 
       if (error) throw error;
       if (data?.success) {
-        // Promo code applied — payment bypassed
         toast.success("Code promo appliqué ! Défi lancé 🎉");
         navigate("/dashboard");
       } else if (data?.url) {
@@ -206,6 +242,31 @@ const CreateChallenge = () => {
         )}
         Lancer le défi
       </Button>
+
+      {/* First week adjustment dialog */}
+      <Dialog open={showFirstWeekDialog} onOpenChange={setShowFirstWeekDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Première semaine ajustée</DialogTitle>
+            <DialogDescription>
+              Tu commences un <strong>{dayName}</strong>. Ton objectif pour cette première semaine sera de{" "}
+              <strong>{firstWeekGoal} séance{firstWeekGoal > 1 ? "s" : ""}</strong> (au lieu de {sessionsPerWeek}).
+              Les semaines suivantes : {sessionsPerWeek} séances.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowFirstWeekDialog(false)}>
+              Annuler
+            </Button>
+            <Button
+              onClick={() => proceedWithChallenge(firstWeekGoal)}
+              className="bg-gradient-primary text-primary-foreground"
+            >
+              Confirmer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -8,7 +8,7 @@ import BottomNav from "@/components/BottomNav";
 import { useActiveChallenge, useCheckIns, useUserCoins } from "@/hooks/useChallenge";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateCoins } from "@/lib/coins";
-import { differenceInDays, startOfWeek, endOfWeek, isWithinInterval, parseISO } from "date-fns";
+import { startOfWeek, endOfWeek, isWithinInterval, format, startOfDay, subDays, isSameDay } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 
 const weekDayLabels = ["L", "M", "M", "J", "V", "S", "D"];
@@ -54,17 +54,28 @@ const Dashboard = () => {
   const totalSessions = challenge.total_sessions;
   const isChallengeComplete = completedSessions >= totalSessions && totalSessions > 0;
 
-  // Current streak
+  // Current streak — count unique calendar days consecutively from today
   let currentStreak = 0;
   if (verifiedCheckIns.length > 0) {
-    const sorted = [...verifiedCheckIns].sort((a, b) => new Date(b.checked_in_at).getTime() - new Date(a.checked_in_at).getTime());
-    const checkDay = new Date();
-    for (const ci of sorted) {
-      const ciDate = new Date(ci.checked_in_at);
-      const diff = differenceInDays(checkDay, ciDate);
-      if (diff <= 1) {
+    const uniqueDays = Array.from(
+      new Set(verifiedCheckIns.map(ci => format(new Date(ci.checked_in_at), "yyyy-MM-dd")))
+    ).sort().reverse(); // most recent first
+
+    const today = startOfDay(new Date());
+    let checkDate = today;
+
+    // If no check-in today, start from yesterday
+    if (uniqueDays.length > 0 && !isSameDay(new Date(uniqueDays[0]), today)) {
+      checkDate = subDays(today, 1);
+    }
+
+    for (const dayStr of uniqueDays) {
+      if (isSameDay(new Date(dayStr), checkDate)) {
         currentStreak++;
-      } else break;
+        checkDate = subDays(checkDate, 1);
+      } else if (new Date(dayStr) < checkDate) {
+        break;
+      }
     }
   }
 
@@ -77,7 +88,16 @@ const Dashboard = () => {
   );
   const checkedDays = new Set(thisWeekCheckIns.map(ci => new Date(ci.checked_in_at).getDay()));
   const weeklyDone = thisWeekCheckIns.length;
-  const weeklyGoal = challenge.sessions_per_week;
+
+  // First week adjustment: detect if we're in the first week of the challenge
+  const challengeStartDate = new Date(challenge.started_at);
+  const challengeWeekStart = startOfWeek(challengeStartDate, { weekStartsOn: 1 });
+  const isFirstWeek = weekStart.getTime() === challengeWeekStart.getTime();
+  const firstWeekSessions = (challenge as any).first_week_sessions as number | null;
+  const weeklyGoal = isFirstWeek && firstWeekSessions != null
+    ? firstWeekSessions
+    : challenge.sessions_per_week;
+
   const weeklyProgress = weeklyGoal > 0 ? Math.min(100, Math.round((weeklyDone / weeklyGoal) * 100)) : 0;
 
   const weekStatus = Array.from({ length: 7 }, (_, i) => {
@@ -119,7 +139,7 @@ const Dashboard = () => {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <Flame className="w-6 h-6 text-primary" />
-          <span className="font-display font-bold text-xl">FitBet</span>
+          <span className="font-display font-bold text-xl">Resoly</span>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">

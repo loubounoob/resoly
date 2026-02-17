@@ -1,0 +1,1 @@
+ALTER TABLE public.challenges ADD COLUMN first_week_sessions integer;
