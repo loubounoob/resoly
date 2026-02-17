@@ -57,19 +57,46 @@ const ShopifyProductCard = ({ product }: { product: ShopifyProduct }) => {
 const Shop = () => {
   const [products, setProducts] = useState<ShopifyProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const { data: coins, isLoading: coinsLoading } = useUserCoins();
 
   useEffect(() => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
     fetchShopifyProducts(20)
       .then(setProducts)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        console.error("Shopify fetch error:", err);
+        setError(true);
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+        setLoading(false);
+      });
+
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
   }, []);
 
   if (loading || coinsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-4">
+        <p className="text-muted-foreground text-center">Impossible de charger les produits. Vérifie ta connexion et réessaie.</p>
+        <Button onClick={() => { setError(false); setLoading(true); fetchShopifyProducts(20).then(setProducts).catch(() => setError(true)).finally(() => setLoading(false)); }}>
+          Réessayer
+        </Button>
+        <BottomNav />
       </div>
     );
   }
