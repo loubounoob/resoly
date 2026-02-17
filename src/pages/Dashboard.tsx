@@ -8,7 +8,7 @@ import BottomNav from "@/components/BottomNav";
 import { useActiveChallenge, useCheckIns, useUserCoins } from "@/hooks/useChallenge";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateCoins } from "@/lib/coins";
-import { startOfWeek, endOfWeek, isWithinInterval, format, startOfDay, subDays, isSameDay } from "date-fns";
+import { startOfWeek, endOfWeek, isWithinInterval, format, startOfDay, subDays, isSameDay, getDay } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 
 const weekDayLabels = ["L", "M", "M", "J", "V", "S", "D"];
@@ -100,6 +100,19 @@ const Dashboard = () => {
 
   const weeklyProgress = weeklyGoal > 0 ? Math.min(100, Math.round((weeklyDone / weeklyGoal) * 100)) : 0;
 
+  // Dynamic ring color logic
+  const isGoalMet = weeklyDone >= weeklyGoal;
+  const sessionsRemaining = weeklyGoal - weeklyDone;
+  const dayOfWeek = getDay(now); // 0=Sun, 1=Mon...
+  const daysLeftInWeek = dayOfWeek === 0 ? 1 : 7 - dayOfWeek + 1; // days left including today, week ends Sunday
+  const isUrgent = !isGoalMet && sessionsRemaining >= daysLeftInWeek;
+
+  const ringColors = isGoalMet
+    ? { start: "hsl(82, 85%, 55%)", end: "hsl(82, 85%, 40%)" }
+    : isUrgent
+    ? { start: "hsl(0, 85%, 55%)", end: "hsl(0, 70%, 45%)" }
+    : { start: "hsl(35, 95%, 55%)", end: "hsl(25, 90%, 45%)" };
+
   const weekStatus = Array.from({ length: 7 }, (_, i) => {
     const dayIndex = i === 6 ? 0 : i + 1;
     const dayDate = new Date(weekStart);
@@ -153,10 +166,17 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Weekly Progress Ring */}
-      <div className="flex flex-col items-center mb-6">
-        <div className="relative w-44 h-44">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+      {/* Weekly Progress Ring — clickable */}
+      <button
+        onClick={() => !isGoalMet && navigate("/verify")}
+        className={`flex flex-col items-center mb-6 group ${!isGoalMet ? "cursor-pointer" : "cursor-default"}`}
+      >
+        <div className={`relative w-44 h-44 transition-transform duration-200 ${!isGoalMet ? "group-hover:scale-105 group-active:scale-95" : ""}`}>
+          {/* Pulse animation when not complete */}
+          {!isGoalMet && (
+            <div className="absolute inset-0 rounded-full animate-ping opacity-10" style={{ background: ringColors.start }} />
+          )}
+          <svg className="w-full h-full -rotate-90 relative z-10" viewBox="0 0 120 120">
             <circle cx="60" cy="60" r="52" fill="none" stroke="hsl(220, 15%, 18%)" strokeWidth="8" />
             <circle
               cx="60" cy="60" r="52" fill="none"
@@ -169,18 +189,24 @@ const Dashboard = () => {
             />
             <defs>
               <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="hsl(82, 85%, 55%)" />
-                <stop offset="100%" stopColor="hsl(82, 85%, 40%)" />
+                <stop offset="0%" stopColor={ringColors.start} />
+                <stop offset="100%" stopColor={ringColors.end} />
               </linearGradient>
             </defs>
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
             <span className="text-4xl font-display font-bold">{weeklyDone}/{weeklyGoal}</span>
             <span className="text-xs text-muted-foreground">cette semaine</span>
+            {!isGoalMet && (
+              <div className="flex items-center gap-1 mt-1 text-muted-foreground">
+                <Camera className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-medium">Check-in</span>
+              </div>
+            )}
           </div>
         </div>
         <p className="text-sm font-medium mt-3 text-center">{motivationMessage}</p>
-      </div>
+      </button>
 
       {/* Week tracker */}
       <div className="bg-gradient-card rounded-2xl border border-border p-4 mb-4 shadow-card">
@@ -253,17 +279,9 @@ const Dashboard = () => {
         </div>
       ) : (
         <>
-          <Button
-            onClick={() => navigate("/verify")}
-            className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
-          >
-            <Camera className="w-5 h-5 mr-2" />
-            Check-in maintenant
-          </Button>
-
           <button
             onClick={() => navigate("/shop")}
-            className="flex items-center justify-between w-full mt-3 p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
+            className="flex items-center justify-between w-full p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
           >
             <div className="flex items-center gap-2">
               <Coins className="w-5 h-5 text-accent" />
