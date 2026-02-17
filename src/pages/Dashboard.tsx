@@ -209,15 +209,15 @@ const Dashboard = () => {
         <Progress value={weeklyProgress} className="h-2" />
       </div>
 
-      {/* Streak block */}
+      {/* Bet reminder — motivate to recover */}
       <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card mb-4 flex items-center gap-4">
-        <div className="w-14 h-14 rounded-full bg-accent/20 flex items-center justify-center">
-          <Flame className="w-7 h-7 text-accent" />
+        <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center">
+          <span className="text-2xl font-bold">💰</span>
         </div>
-        <div>
-          <span className="text-2xl font-display font-bold">{currentStreak} jour{currentStreak > 1 ? "s" : ""}</span>
+        <div className="flex-1">
+          <span className="text-2xl font-display font-bold">{totalBet}€</span>
           <p className="text-xs text-muted-foreground">
-            {currentStreak > 0 ? `${currentStreak} jour${currentStreak > 1 ? "s" : ""} d'affilée ! Continue !` : "Commence ta série aujourd'hui !"}
+            Tu as misé {totalBet}€ — tiens bon pour tout récupérer !
           </p>
         </div>
       </div>
@@ -225,8 +225,8 @@ const Dashboard = () => {
       {/* Coins to earn */}
       <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card mb-4 flex items-center justify-between">
         <div>
-          <span className="text-xl font-display font-bold text-gradient-gold flex items-center gap-1"><CoinIcon size={18} /> {coinsToEarn}</span>
-          <p className="text-xs text-muted-foreground">Termine ton défi pour les débloquer</p>
+          <span className="text-xl font-display font-bold text-gradient-gold flex items-center gap-1"><CoinIcon size={18} /> +{coinsToEarn}</span>
+          <p className="text-xs text-muted-foreground">Bonus pièces si tu réussis ton défi</p>
         </div>
       </div>
 
