@@ -172,8 +172,8 @@ const Dashboard = () => {
         className={`flex flex-col items-center mb-6 group ${!isGoalMet ? "cursor-pointer" : "cursor-default"}`}
       >
         <div className={`relative w-44 h-44 transition-transform duration-200 ${!isGoalMet ? "group-hover:scale-105 group-active:scale-95" : ""}`}>
-          {/* Pulse animation when not complete */}
-          {!isGoalMet && (
+          {/* Pulse animation only when urgent (red) */}
+          {isUrgent && (
             <div className="absolute inset-0 rounded-full animate-ping opacity-10" style={{ background: ringColors.start }} />
           )}
           <svg className="w-full h-full -rotate-90 relative z-10" viewBox="0 0 120 120">
