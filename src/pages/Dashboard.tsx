@@ -87,7 +87,7 @@ const Dashboard = () => {
     isWithinInterval(new Date(ci.checked_in_at), { start: weekStart, end: weekEnd })
   );
   const checkedDays = new Set(thisWeekCheckIns.map(ci => new Date(ci.checked_in_at).getDay()));
-  const weeklyDone = thisWeekCheckIns.length;
+  const weeklyDone = checkedDays.size; // count unique days, not total check-ins
 
   // First week adjustment: detect if we're in the first week of the challenge
   const challengeStartDate = new Date(challenge.started_at);
