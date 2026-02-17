@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
+import UsernameGuard from "./components/UsernameGuard";
 import Dashboard from "./pages/Dashboard";
 import CreateChallenge from "./pages/CreateChallenge";
 import PhotoVerify from "./pages/PhotoVerify";
@@ -34,7 +35,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!user) return <Navigate to="/auth" replace />;
-  return <>{children}</>;
+  return <UsernameGuard>{children}</UsernameGuard>;
 };
 
 const AppRoutes = () => {
