@@ -14,6 +14,9 @@ import PaymentSuccess from "./pages/PaymentSuccess";
 import Shop from "./pages/Shop";
 import ShopifyProductDetail from "./pages/ShopifyProductDetail";
 import Orders from "./pages/Orders";
+import Friends from "./pages/Friends";
+import CreateSocialChallenge from "./pages/CreateSocialChallenge";
+import CreateGroup from "./pages/CreateGroup";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -55,6 +58,9 @@ const AppRoutes = () => {
       <Route path="/shop" element={<ProtectedRoute><Shop /></ProtectedRoute>} />
       <Route path="/shopify/:handle" element={<ProtectedRoute><ShopifyProductDetail /></ProtectedRoute>} />
       <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+      <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
+      <Route path="/friends/create-social" element={<ProtectedRoute><CreateSocialChallenge /></ProtectedRoute>} />
+      <Route path="/friends/create-group" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
       <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>

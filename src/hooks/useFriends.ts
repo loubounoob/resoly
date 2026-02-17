@@ -1,0 +1,259 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+
+export const useFriendsList = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["friends-list", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("friendships" as any)
+        .select("*")
+        .or(`user_id.eq.${user!.id},friend_id.eq.${user!.id}`)
+        .eq("status", "accepted");
+      if (error) throw error;
+      const friendIds = (data as any[]).map((f: any) =>
+        f.user_id === user!.id ? f.friend_id : f.user_id
+      );
+      if (friendIds.length === 0) return [];
+      const { data: profiles, error: pErr } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("user_id", friendIds);
+      if (pErr) throw pErr;
+      return profiles;
+    },
+  });
+};
+
+export const useFriendRequests = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["friend-requests", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("friendships" as any)
+        .select("*")
+        .eq("friend_id", user!.id)
+        .eq("status", "pending");
+      if (error) throw error;
+      const senderIds = (data as any[]).map((f: any) => f.user_id);
+      if (senderIds.length === 0) return [];
+      const { data: profiles, error: pErr } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("user_id", senderIds);
+      if (pErr) throw pErr;
+      return (data as any[]).map((f: any) => ({
+        ...f,
+        profile: (profiles as any[]).find((p: any) => p.user_id === f.user_id),
+      }));
+    },
+  });
+};
+
+export const useSendFriendRequest = () => {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (friendUserId: string) => {
+      const { error } = await supabase
+        .from("friendships" as any)
+        .insert({ user_id: user!.id, friend_id: friendUserId } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["friends-list"] });
+      qc.invalidateQueries({ queryKey: ["friend-requests"] });
+    },
+  });
+};
+
+export const useRespondFriendRequest = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, accept }: { id: string; accept: boolean }) => {
+      const { error } = await supabase
+        .from("friendships" as any)
+        .update({ status: accept ? "accepted" : "rejected" } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["friends-list"] });
+      qc.invalidateQueries({ queryKey: ["friend-requests"] });
+    },
+  });
+};
+
+export const useFriendsActivity = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["friends-activity", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      // Get accepted friends
+      const { data: friendships, error } = await supabase
+        .from("friendships" as any)
+        .select("*")
+        .or(`user_id.eq.${user!.id},friend_id.eq.${user!.id}`)
+        .eq("status", "accepted");
+      if (error) throw error;
+      const friendIds = (friendships as any[]).map((f: any) =>
+        f.user_id === user!.id ? f.friend_id : f.user_id
+      );
+      if (friendIds.length === 0) return [];
+
+      // Get profiles
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("user_id", friendIds);
+
+      // Get active challenges for friends
+      const { data: challenges } = await supabase
+        .from("challenges")
+        .select("*")
+        .in("user_id", friendIds)
+        .eq("status", "active");
+
+      // Get check-ins for this week
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() + mondayOffset);
+      weekStart.setHours(0, 0, 0, 0);
+
+      const challengeIds = (challenges ?? []).map((c: any) => c.id);
+      let checkIns: any[] = [];
+      if (challengeIds.length > 0) {
+        const { data: ci } = await supabase
+          .from("check_ins")
+          .select("*")
+          .in("challenge_id", challengeIds)
+          .eq("verified", true)
+          .gte("checked_in_at", weekStart.toISOString());
+        checkIns = ci ?? [];
+      }
+
+      return friendIds.map((fid) => {
+        const profile = (profiles ?? []).find((p: any) => p.user_id === fid);
+        const challenge = (challenges ?? []).find((c: any) => c.user_id === fid);
+        const weeklyCheckIns = challenge
+          ? checkIns.filter((ci: any) => ci.challenge_id === challenge.id)
+          : [];
+        const uniqueDays = new Set(weeklyCheckIns.map((ci: any) => new Date(ci.checked_in_at).getDay()));
+        const weeklyDone = uniqueDays.size;
+        const weeklyGoal = challenge?.sessions_per_week ?? 0;
+
+        // Urgency logic
+        const sessionsRemaining = weeklyGoal - weeklyDone;
+        const currentDay = now.getDay();
+        const daysLeft = currentDay === 0 ? 1 : 7 - currentDay + 1;
+        const isGoalMet = weeklyDone >= weeklyGoal;
+        const isUrgent = !isGoalMet && sessionsRemaining >= daysLeft;
+
+        return {
+          userId: fid,
+          profile,
+          challenge,
+          weeklyDone,
+          weeklyGoal,
+          isGoalMet,
+          isUrgent,
+          hasChallenge: !!challenge,
+        };
+      });
+    },
+  });
+};
+
+export const useLeaderboard = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["leaderboard", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data: friendships } = await supabase
+        .from("friendships" as any)
+        .select("*")
+        .or(`user_id.eq.${user!.id},friend_id.eq.${user!.id}`)
+        .eq("status", "accepted");
+      const friendIds = [
+        user!.id,
+        ...((friendships as any[]) ?? []).map((f: any) =>
+          f.user_id === user!.id ? f.friend_id : f.user_id
+        ),
+      ];
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("user_id", friendIds);
+
+      const { data: checkIns } = await supabase
+        .from("check_ins")
+        .select("*")
+        .in("user_id", friendIds)
+        .eq("verified", true);
+
+      return friendIds.map((uid) => {
+        const profile = (profiles ?? []).find((p: any) => p.user_id === uid);
+        const userCheckIns = (checkIns ?? []).filter((ci: any) => ci.user_id === uid);
+        const weeks = new Set(
+          userCheckIns.map((ci: any) => {
+            const d = new Date(ci.checked_in_at);
+            const yearWeek = `${d.getFullYear()}-${Math.ceil((d.getDate() + new Date(d.getFullYear(), d.getMonth(), 1).getDay()) / 7)}`;
+            return yearWeek;
+          })
+        );
+        return {
+          userId: uid,
+          profile,
+          totalSessions: userCheckIns.length,
+          activeWeeks: weeks.size,
+          isMe: uid === user!.id,
+        };
+      }).sort((a, b) => b.totalSessions - a.totalSessions);
+    },
+  });
+};
+
+export const useSearchUsers = (query: string) => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["search-users", query],
+    enabled: !!user && query.length >= 2,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, username, display_name, first_name, avatar_url")
+        .ilike("username", `%${query}%`)
+        .neq("user_id", user!.id)
+        .limit(10);
+      if (error) throw error;
+      return data;
+    },
+  });
+};
+
+export const useMyProfile = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["my-profile", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", user!.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+};
