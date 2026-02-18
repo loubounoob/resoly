@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { calculateCoins } from "@/lib/coins";
 import { startOfWeek, endOfWeek, isWithinInterval, format, startOfDay, getDay } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import NotificationBell from "@/components/NotificationBell";
 
 const weekDayLabels = ["L", "M", "M", "J", "V", "S", "D"];
 
@@ -136,7 +137,8 @@ const Dashboard = () => {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <NotificationBell />
           <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
             <CoinIcon size={14} />
             <span className="text-sm font-bold">{coins ?? 0}</span>

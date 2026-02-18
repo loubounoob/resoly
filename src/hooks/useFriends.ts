@@ -64,6 +64,25 @@ export const useSendFriendRequest = () => {
         .from("friendships" as any)
         .insert({ user_id: user!.id, friend_id: friendUserId } as any);
       if (error) throw error;
+
+      // Get sender profile for notification
+      const { data: myProfile } = await supabase
+        .from("profiles")
+        .select("username, display_name")
+        .eq("user_id", user!.id)
+        .single();
+
+      // Send notification to friend
+      const senderName = myProfile?.username ? `@${myProfile.username}` : (myProfile?.display_name ?? "Quelqu'un");
+      await supabase.functions.invoke("send-notification", {
+        body: {
+          user_id: friendUserId,
+          type: "friend_request",
+          title: "Nouvelle demande d'ami",
+          body: `${senderName} veut devenir ton ami ! 🤝`,
+          data: { from_user_id: user!.id },
+        },
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["friends-list"] });
@@ -73,14 +92,35 @@ export const useSendFriendRequest = () => {
 };
 
 export const useRespondFriendRequest = () => {
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, accept }: { id: string; accept: boolean }) => {
+    mutationFn: async ({ id, accept, senderUserId }: { id: string; accept: boolean; senderUserId?: string }) => {
       const { error } = await supabase
         .from("friendships" as any)
         .update({ status: accept ? "accepted" : "rejected" } as any)
         .eq("id", id);
       if (error) throw error;
+
+      // Notify the requester that their request was accepted
+      if (accept && senderUserId) {
+        const { data: myProfile } = await supabase
+          .from("profiles")
+          .select("username, display_name")
+          .eq("user_id", user!.id)
+          .single();
+
+        const name = myProfile?.username ? `@${myProfile.username}` : (myProfile?.display_name ?? "Quelqu'un");
+        await supabase.functions.invoke("send-notification", {
+          body: {
+            user_id: senderUserId,
+            type: "friend_accepted",
+            title: "Demande acceptée !",
+            body: `${name} a accepté ta demande d'ami ! 🎉`,
+            data: { from_user_id: user!.id },
+          },
+        });
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["friends-list"] });

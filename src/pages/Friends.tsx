@@ -279,7 +279,7 @@ const Friends = () => {
                         )}
                       </p>
                       <button
-                        onClick={() => respondRequest.mutate({ id: req.id, accept: true })}
+                        onClick={() => respondRequest.mutate({ id: req.id, accept: true, senderUserId: req.profile?.user_id })}
                         className="p-1.5 rounded-lg bg-primary/20 text-primary hover:bg-primary/30"
                       >
                         <Check className="w-4 h-4" />
