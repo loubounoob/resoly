@@ -252,12 +252,6 @@ const Friends = () => {
       {/* Section 2: Défis sociaux */}
       <section className="mb-6">
         <h2 className="text-sm text-muted-foreground mb-3">Défis sociaux</h2>
-        <Button
-          onClick={() => navigate("/friends/create-social")}
-          className="w-full h-12 text-base font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl mb-3"
-        >
-          🔥 Lancer un défi social
-        </Button>
         {socialChallenges && socialChallenges.length > 0 ? (
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
             {socialChallenges.map((sc: any) => (
