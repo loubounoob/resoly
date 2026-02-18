@@ -526,6 +526,7 @@ export type Database = {
           challenge_id: string | null
           created_at: string
           id: string
+          payment_status: string
           social_challenge_id: string
           status: string
           user_id: string
@@ -535,6 +536,7 @@ export type Database = {
           challenge_id?: string | null
           created_at?: string
           id?: string
+          payment_status?: string
           social_challenge_id: string
           status?: string
           user_id: string
@@ -544,6 +546,7 @@ export type Database = {
           challenge_id?: string | null
           created_at?: string
           id?: string
+          payment_status?: string
           social_challenge_id?: string
           status?: string
           user_id?: string

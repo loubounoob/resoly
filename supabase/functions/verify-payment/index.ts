@@ -29,8 +29,8 @@ serve(async (req) => {
     const user = data.user;
     if (!user) throw new Error("User not authenticated");
 
-    const { sessionId, challengeId } = await req.json();
-    if (!sessionId || !challengeId) throw new Error("Missing sessionId or challengeId");
+    const { sessionId, challengeId, socialChallengeId, memberId } = await req.json();
+    if (!sessionId) throw new Error("Missing sessionId");
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2025-08-27.basil",
@@ -39,17 +39,41 @@ serve(async (req) => {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
     if (session.payment_status === "paid") {
-      // Update challenge payment status
-      const { error } = await supabaseAdmin
-        .from("challenges")
-        .update({
-          payment_status: "paid",
-          stripe_payment_intent_id: session.payment_intent as string,
-        })
-        .eq("id", challengeId)
-        .eq("user_id", user.id);
+      // Handle regular challenge
+      if (challengeId) {
+        const { error } = await supabaseAdmin
+          .from("challenges")
+          .update({
+            payment_status: "paid",
+            stripe_payment_intent_id: session.payment_intent as string,
+          })
+          .eq("id", challengeId)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      }
 
-      if (error) throw error;
+      // Handle social challenge member payment
+      if (socialChallengeId && memberId) {
+        const { error } = await supabaseAdmin
+          .from("social_challenge_members")
+          .update({ payment_status: "paid" })
+          .eq("id", memberId)
+          .eq("user_id", user.id);
+        if (error) throw error;
+
+        // Check if all members paid -> activate
+        const { data: members } = await supabaseAdmin
+          .from("social_challenge_members")
+          .select("payment_status")
+          .eq("social_challenge_id", socialChallengeId);
+
+        if (members && members.length > 0 && members.every((m: any) => m.payment_status === "paid")) {
+          await supabaseAdmin
+            .from("social_challenges")
+            .update({ status: "active" })
+            .eq("id", socialChallengeId);
+        }
+      }
 
       return new Response(JSON.stringify({ success: true, status: "paid" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Flame, Search, Copy, Check, X, Trophy, Loader2, UserPlus } from "lucide-react";
+import { Users, Plus, Flame, Search, Copy, Check, X, Trophy, Loader2, UserPlus, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -9,22 +9,26 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } f
 import BottomNav from "@/components/BottomNav";
 import MiniProgressRing from "@/components/MiniProgressRing";
 import { useFriendsActivity, useFriendRequests, useSendFriendRequest, useRespondFriendRequest, useSearchUsers, useMyProfile, useLeaderboard } from "@/hooks/useFriends";
-import { useSocialChallenges } from "@/hooks/useSocialChallenges";
+import { useSocialChallenges, useReceivedSocialChallenges, useAcceptSocialChallenge } from "@/hooks/useSocialChallenges";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const Friends = () => {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
 
   const { data: activity, isLoading: loadingActivity } = useFriendsActivity();
   const { data: requests } = useFriendRequests();
   const { data: socialChallenges } = useSocialChallenges();
+  const { data: receivedChallenges } = useReceivedSocialChallenges();
   const { data: leaderboard, isLoading: loadingLeaderboard } = useLeaderboard();
   const { data: searchResults } = useSearchUsers(searchQuery);
   const { data: myProfile } = useMyProfile();
   const sendRequest = useSendFriendRequest();
   const respondRequest = useRespondFriendRequest();
+  const acceptChallenge = useAcceptSocialChallenge();
 
   const getInitials = (profile: any) => {
     const name = profile?.display_name || profile?.first_name || "?";
@@ -56,7 +60,41 @@ const Friends = () => {
     }
   };
 
+  const handleAcceptChallenge = async (sc: any) => {
+    setAcceptingId(sc.id);
+    try {
+      const member = await acceptChallenge.mutateAsync({
+        socialChallengeId: sc.id,
+        betAmount: sc.bet_amount,
+      });
+
+      // Redirect to Stripe
+      const { data, error } = await supabase.functions.invoke("create-challenge-payment", {
+        body: {
+          socialChallengeId: sc.id,
+          memberId: member.id,
+          amount: sc.bet_amount,
+          description: `Mise Resoly Social — ${sc.bet_amount}€ — ${sc.type} ${sc.sessions_per_week}x/sem pendant ${sc.duration_months} mois`,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.success) {
+        toast.success("Code promo appliqué ! Défi accepté 🎉");
+        navigate("/friends");
+      } else if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("No checkout URL");
+      }
+    } catch {
+      toast.error("Erreur lors de l'acceptation");
+      setAcceptingId(null);
+    }
+  };
+
   const pendingCount = requests?.length ?? 0;
+  const receivedCount = receivedChallenges?.length ?? 0;
 
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
@@ -65,9 +103,9 @@ const Friends = () => {
         <div className="flex items-center gap-2">
           <Users className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-display font-bold">Amis</h1>
-          {pendingCount > 0 && (
+          {(pendingCount + receivedCount) > 0 && (
             <Badge className="bg-destructive text-destructive-foreground text-[10px] px-1.5 py-0.5 min-w-[20px] flex items-center justify-center">
-              {pendingCount}
+              {pendingCount + receivedCount}
             </Badge>
           )}
         </div>
@@ -113,6 +151,47 @@ const Friends = () => {
                 >
                   <X className="w-4 h-4" />
                 </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Section 0b: Received social challenges */}
+      {receivedCount > 0 && (
+        <section className="mb-6">
+          <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+            <Swords className="w-4 h-4 text-accent" />
+            Défis reçus
+            <Badge variant="secondary" className="text-[10px] ml-1">{receivedCount}</Badge>
+          </h2>
+          <div className="space-y-2">
+            {receivedChallenges!.map((sc: any) => (
+              <div key={sc.id} className="p-4 rounded-2xl border border-accent/20 bg-accent/5 shadow-card space-y-3">
+                <div className="flex items-center gap-3">
+                  <Avatar className="w-10 h-10">
+                    <AvatarImage src={sc.creatorProfile?.avatar_url} />
+                    <AvatarFallback className="bg-secondary text-xs font-bold">
+                      {getInitials(sc.creatorProfile)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {sc.creatorProfile?.display_name || sc.creatorProfile?.first_name || "Quelqu'un"} t'a défié !
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {sc.type === "duel" ? "🥊 Duel" : sc.type === "boost" ? "🤝 Boost" : "👥 Groupe"} · {sc.bet_amount}€ · {sc.sessions_per_week}x/sem · {sc.duration_months} mois
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => handleAcceptChallenge(sc)}
+                  disabled={acceptingId === sc.id}
+                  className="w-full h-12 font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
+                >
+                  {acceptingId === sc.id ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Flame className="w-4 h-4 mr-2" />}
+                  Accepter et payer {sc.bet_amount}€
+                </Button>
               </div>
             ))}
           </div>
@@ -267,7 +346,6 @@ const Friends = () => {
             <DrawerDescription>Recherche par pseudo ou partage ton lien</DrawerDescription>
           </DrawerHeader>
           <div className="px-4 pb-6 space-y-4">
-            {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -304,7 +382,6 @@ const Friends = () => {
               </div>
             )}
 
-            {/* Invite link */}
             <Button variant="outline" className="w-full" onClick={handleCopyInvite}>
               <Copy className="w-4 h-4 mr-2" />
               Partager mon lien d'invitation

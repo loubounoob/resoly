@@ -24,23 +24,37 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated");
 
-    const { challengeId, amount, description, promoCode } = await req.json();
-    if (!challengeId || !amount) throw new Error("Missing challengeId or amount");
+    const { challengeId, socialChallengeId, memberId, amount, description, promoCode } = await req.json();
+    if (!amount) throw new Error("Missing amount");
+    if (!challengeId && !socialChallengeId) throw new Error("Missing challengeId or socialChallengeId");
+
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
 
     // Handle promo code "loubou" — bypass Stripe entirely
     if (promoCode && promoCode.toLowerCase() === "loubou") {
-      const supabaseAdmin = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-      );
+      if (challengeId) {
+        const { error: updateError } = await supabaseAdmin
+          .from("challenges")
+          .update({ payment_status: "paid" })
+          .eq("id", challengeId)
+          .eq("user_id", user.id);
+        if (updateError) throw new Error("Failed to apply promo code");
+      }
 
-      const { error: updateError } = await supabaseAdmin
-        .from("challenges")
-        .update({ payment_status: "paid" })
-        .eq("id", challengeId)
-        .eq("user_id", user.id);
+      if (socialChallengeId && memberId) {
+        const { error: updateError } = await supabaseAdmin
+          .from("social_challenge_members")
+          .update({ payment_status: "paid" })
+          .eq("id", memberId)
+          .eq("user_id", user.id);
+        if (updateError) throw new Error("Failed to apply promo code for social challenge");
 
-      if (updateError) throw new Error("Failed to apply promo code");
+        // Check if all members have paid -> activate challenge
+        await checkAndActivateSocialChallenge(supabaseAdmin, socialChallengeId);
+      }
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -57,6 +71,15 @@ serve(async (req) => {
     let customerId;
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
+    }
+
+    // Build success URL with appropriate params
+    const origin = req.headers.get("origin");
+    let successUrl: string;
+    if (socialChallengeId) {
+      successUrl = `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&social_challenge_id=${socialChallengeId}&member_id=${memberId}`;
+    } else {
+      successUrl = `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&challenge_id=${challengeId}`;
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -77,10 +100,12 @@ serve(async (req) => {
       ],
       mode: "payment",
       allow_promotion_codes: true,
-      success_url: `${req.headers.get("origin")}/payment-success?session_id={CHECKOUT_SESSION_ID}&challenge_id=${challengeId}`,
-      cancel_url: `${req.headers.get("origin")}/create`,
+      success_url: successUrl,
+      cancel_url: `${origin}/create`,
       metadata: {
-        challenge_id: challengeId,
+        challenge_id: challengeId || "",
+        social_challenge_id: socialChallengeId || "",
+        member_id: memberId || "",
         user_id: user.id,
       },
     });
@@ -97,3 +122,17 @@ serve(async (req) => {
     });
   }
 });
+
+async function checkAndActivateSocialChallenge(supabaseAdmin: any, socialChallengeId: string) {
+  const { data: members } = await supabaseAdmin
+    .from("social_challenge_members")
+    .select("payment_status")
+    .eq("social_challenge_id", socialChallengeId);
+
+  if (members && members.length > 0 && members.every((m: any) => m.payment_status === "paid")) {
+    await supabaseAdmin
+      .from("social_challenges")
+      .update({ status: "active" })
+      .eq("id", socialChallengeId);
+  }
+}

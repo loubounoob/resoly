@@ -1,12 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Flame, Loader2 } from "lucide-react";
+import { ArrowLeft, Flame, Loader2, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import CoinIcon from "@/components/CoinIcon";
 import { useCreateSocialChallenge } from "@/hooks/useSocialChallenges";
 import { useFriendsList } from "@/hooks/useFriends";
 import { useGroups } from "@/hooks/useGroups";
+import { calculateCoins } from "@/lib/coins";
+import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 type ChallengeType = "duel" | "boost" | "group";
@@ -29,10 +34,19 @@ const CreateSocialChallenge = () => {
   const [challengeType, setChallengeType] = useState<ChallengeType | null>(null);
   const [selectedFriend, setSelectedFriend] = useState<string | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [shopProducts, setShopProducts] = useState<ShopifyProduct[]>([]);
 
   const createSocial = useCreateSocialChallenge();
   const { data: friends } = useFriendsList();
   const { data: groups } = useGroups();
+
+  useEffect(() => {
+    fetchShopifyProducts(20).then(setShopProducts).catch(console.error);
+  }, []);
+
+  const coinsPreview = calculateCoins(betAmount, duration, sessionsPerWeek);
 
   const handleSelectType = (type: ChallengeType) => {
     setChallengeType(type);
@@ -46,8 +60,9 @@ const CreateSocialChallenge = () => {
 
   const handleConfirm = async () => {
     if (!challengeType) return;
+    setIsProcessing(true);
     try {
-      await createSocial.mutateAsync({
+      const result = await createSocial.mutateAsync({
         type: challengeType,
         target_user_id: selectedFriend ?? undefined,
         group_id: selectedGroup ?? undefined,
@@ -55,19 +70,59 @@ const CreateSocialChallenge = () => {
         duration_months: duration,
         bet_amount: betAmount,
       });
-      toast.success("Défi social créé !");
-      navigate("/friends");
+
+      // Send notification to target user
+      if (selectedFriend) {
+        await supabase.functions.invoke("send-notification", {
+          body: {
+            user_id: selectedFriend,
+            type: "social_challenge",
+            title: "Nouveau défi reçu ! 🥊",
+            body: `Tu as reçu un défi ${challengeType} de ${betAmount}€ — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
+            data: { socialChallengeId: result.challenge.id },
+          },
+        });
+      }
+
+      // Redirect to Stripe payment
+      const { data, error } = await supabase.functions.invoke("create-challenge-payment", {
+        body: {
+          socialChallengeId: result.challenge.id,
+          memberId: result.member.id,
+          amount: betAmount,
+          description: `Mise Resoly Social — ${betAmount}€ — ${challengeType} ${sessionsPerWeek}x/sem pendant ${duration} mois`,
+          promoCode: promoCode.trim() || undefined,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.success) {
+        toast.success("Code promo appliqué ! Défi lancé 🎉");
+        navigate("/friends");
+      } else if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("No checkout URL returned");
+      }
     } catch {
       toast.error("Erreur lors de la création");
+      setIsProcessing(false);
     }
   };
 
   const getInitials = (p: any) => (p?.display_name || p?.first_name || "?").charAt(0).toUpperCase();
 
+  const goBack = () => {
+    if (step === "params") navigate(-1);
+    else if (step === "type") setStep("params");
+    else if (step === "target") setStep("type");
+    else setStep("target");
+  };
+
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-8">
       <div className="flex items-center gap-3 mb-8">
-        <button onClick={() => step === "params" ? navigate(-1) : setStep(step === "type" ? "params" : step === "target" ? "type" : "target")} className="text-muted-foreground hover:text-foreground transition-colors">
+        <button onClick={goBack} className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-6 h-6" />
         </button>
         <h1 className="text-2xl font-bold">Défi social</h1>
@@ -197,14 +252,77 @@ const CreateSocialChallenge = () => {
               <div><span className="text-muted-foreground block">Fréquence</span><span className="font-bold">{sessionsPerWeek}x/sem</span></div>
               <div><span className="text-muted-foreground block">Durée</span><span className="font-bold">{duration} mois</span></div>
             </div>
+
+            <div className="h-px bg-border" />
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Coins className="w-5 h-5 text-accent" />
+                <span className="text-sm text-muted-foreground">Pièces à gagner</span>
+              </div>
+              <span className="font-display font-bold text-lg text-gradient-gold">
+                <span className="inline-flex items-center gap-1"><CoinIcon size={18} /> {coinsPreview}</span>
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Tu gagnes {coinsPreview} pièces si tu réussis le défi
+            </p>
           </div>
+
+          {/* Shopify products carousel */}
+          {shopProducts.length > 0 && (
+            <section>
+              <label className="text-sm text-muted-foreground mb-3 block">Ce que tu pourras acheter</label>
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+                {shopProducts.map((product) => {
+                  const price = product.node.priceRange.minVariantPrice;
+                  const coinsPrice = Math.ceil(parseFloat(price.amount) * 50);
+                  const isAccessible = coinsPreview >= coinsPrice;
+                  return (
+                    <div
+                      key={product.node.id}
+                      className={`flex-shrink-0 w-[120px] rounded-xl border border-border bg-gradient-card overflow-hidden transition-opacity ${isAccessible ? "opacity-100" : "opacity-50"}`}
+                    >
+                      <div className="w-full aspect-square bg-secondary">
+                        <img src={product.node.images.edges[0]?.node?.url || "/placeholder.svg"} alt={product.node.title} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="p-2 space-y-1">
+                        <p className="text-xs font-medium truncate">{product.node.title}</p>
+                        <div className="flex items-center gap-1 text-xs font-bold text-primary">
+                          <CoinIcon size={12} /> {coinsPrice}
+                        </div>
+                        {isAccessible && (
+                          <Badge className="text-[10px] px-1.5 py-0 bg-green-500/20 text-green-400 border-green-500/30">
+                            Accessible
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Promo Code */}
+          <div>
+            <label className="text-sm text-muted-foreground mb-2 block">Code promo (optionnel)</label>
+            <input
+              type="text"
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value)}
+              placeholder="Entrer un code promo"
+              className="w-full h-12 rounded-xl border border-border bg-secondary px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+
           <Button
             onClick={handleConfirm}
-            disabled={createSocial.isPending}
+            disabled={isProcessing || createSocial.isPending}
             className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
-            {createSocial.isPending ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Flame className="w-5 h-5 mr-2" />}
-            Lancer le défi
+            {isProcessing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Flame className="w-5 h-5 mr-2" />}
+            Payer et lancer le défi
           </Button>
         </div>
       )}
