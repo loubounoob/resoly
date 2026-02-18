@@ -278,7 +278,7 @@ export const useRespondFriendRequestByUserId = () => {
         .limit(1)
         .maybeSingle();
       if (findErr) throw findErr;
-      if (!friendship) throw new Error("Demande introuvable");
+      if (!friendship) return { alreadyHandled: true };
 
       const { error } = await supabase
         .from("friendships" as any)
