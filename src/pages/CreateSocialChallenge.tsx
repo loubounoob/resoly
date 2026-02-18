@@ -27,7 +27,7 @@ const TYPE_CARDS: { type: ChallengeType; emoji: string; title: string; desc: str
 
 const CreateSocialChallenge = () => {
   const navigate = useNavigate();
-  const [step, setStep] = useState<"params" | "type" | "target" | "confirm">("params");
+  const [step, setStep] = useState<"type" | "params" | "target" | "confirm">("type");
   const [betAmount, setBetAmount] = useState(100);
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
@@ -47,10 +47,16 @@ const CreateSocialChallenge = () => {
   }, []);
 
   const coinsPreview = calculateCoins(betAmount, duration, sessionsPerWeek);
+  const totalSessions = sessionsPerWeek * duration * 4;
 
   const handleSelectType = (type: ChallengeType) => {
     setChallengeType(type);
-    if (type === "group" && groups && groups.length === 0) {
+    setStep("params");
+  };
+
+  const handleParamsNext = () => {
+    if (!challengeType) return;
+    if (challengeType === "group" && groups && groups.length === 0) {
       toast.info("Crée d'abord un groupe !");
       navigate("/friends/create-group");
       return;
@@ -71,7 +77,6 @@ const CreateSocialChallenge = () => {
         bet_amount: betAmount,
       });
 
-      // Send notification to target user
       if (selectedFriend) {
         await supabase.functions.invoke("send-notification", {
           body: {
@@ -84,7 +89,6 @@ const CreateSocialChallenge = () => {
         });
       }
 
-      // Redirect to Stripe payment
       const { data, error } = await supabase.functions.invoke("create-challenge-payment", {
         body: {
           socialChallengeId: result.challenge.id,
@@ -113,9 +117,9 @@ const CreateSocialChallenge = () => {
   const getInitials = (p: any) => (p?.display_name || p?.first_name || "?").charAt(0).toUpperCase();
 
   const goBack = () => {
-    if (step === "params") navigate(-1);
-    else if (step === "type") setStep("params");
-    else if (step === "target") setStep("type");
+    if (step === "type") navigate(-1);
+    else if (step === "params") setStep("type");
+    else if (step === "target") setStep("params");
     else setStep("target");
   };
 
@@ -127,41 +131,6 @@ const CreateSocialChallenge = () => {
         </button>
         <h1 className="text-2xl font-bold">Défi social</h1>
       </div>
-
-      {step === "params" && (
-        <div className="flex-1 space-y-8">
-          <section>
-            <label className="text-sm text-muted-foreground mb-3 block">Mise</label>
-            <div className="text-center mb-4">
-              <span className="text-5xl font-display font-bold text-gradient-primary">{betAmount}€</span>
-            </div>
-            <Slider value={[betAmount]} onValueChange={(v) => setBetAmount(v[0])} min={10} max={1000} step={10} />
-            <div className="flex justify-between text-xs text-muted-foreground mt-1"><span>10€</span><span>1 000€</span></div>
-          </section>
-
-          <section>
-            <label className="text-sm text-muted-foreground mb-3 block">Séances par semaine</label>
-            <div className="grid grid-cols-5 gap-2">
-              {SESSIONS_OPTIONS.map((s) => (
-                <button key={s} onClick={() => setSessionsPerWeek(s)} className={`h-12 rounded-lg font-display font-bold text-lg transition-all ${sessionsPerWeek === s ? "bg-gradient-primary text-primary-foreground shadow-glow" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>{s}</button>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <label className="text-sm text-muted-foreground mb-3 block">Durée</label>
-            <div className="grid grid-cols-3 gap-2">
-              {DURATION_OPTIONS.map((d) => (
-                <button key={d} onClick={() => setDuration(d)} className={`h-12 rounded-lg font-display font-bold transition-all ${duration === d ? "bg-gradient-primary text-primary-foreground shadow-glow" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>{d}<span className="text-xs font-normal ml-0.5">mois</span></button>
-              ))}
-            </div>
-          </section>
-
-          <Button onClick={() => setStep("type")} className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl">
-            Suivant
-          </Button>
-        </div>
-      )}
 
       {step === "type" && (
         <div className="flex-1 space-y-4">
@@ -183,6 +152,94 @@ const CreateSocialChallenge = () => {
               <p className="text-xs text-muted-foreground">{card.desc}</p>
             </button>
           ))}
+        </div>
+      )}
+
+      {step === "params" && (
+        <div className="flex-1 space-y-8">
+          <section>
+            <label className="text-sm text-muted-foreground mb-3 block">Ta mise</label>
+            <div className="text-center mb-4">
+              <span className="text-5xl font-display font-bold text-gradient-primary">{betAmount}€</span>
+            </div>
+            <Slider value={[betAmount]} onValueChange={(v) => setBetAmount(v[0])} min={10} max={1000} step={10} />
+            <div className="flex justify-between text-xs text-muted-foreground mt-1"><span>10€</span><span>1 000€</span></div>
+          </section>
+
+          <section>
+            <label className="text-sm text-muted-foreground mb-3 block">Séances par semaine</label>
+            <div className="grid grid-cols-5 gap-2">
+              {SESSIONS_OPTIONS.map((s) => (
+                <button key={s} onClick={() => setSessionsPerWeek(s)} className={`h-12 rounded-lg font-display font-bold text-lg transition-all ${sessionsPerWeek === s ? "bg-gradient-primary text-primary-foreground shadow-glow" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>{s}</button>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <label className="text-sm text-muted-foreground mb-3 block">Durée d'engagement</label>
+            <div className="grid grid-cols-3 gap-2">
+              {DURATION_OPTIONS.map((d) => (
+                <button key={d} onClick={() => setDuration(d)} className={`h-12 rounded-lg font-display font-bold transition-all ${duration === d ? "bg-gradient-primary text-primary-foreground shadow-glow" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>{d}<span className="text-xs font-normal ml-0.5">mois</span></button>
+              ))}
+            </div>
+          </section>
+
+          {/* Recap card */}
+          <div className="bg-gradient-card rounded-2xl border border-border p-5 shadow-card space-y-3">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><span className="text-muted-foreground block">Séances totales</span><span className="font-display font-bold text-lg">{totalSessions}</span></div>
+              <div><span className="text-muted-foreground block">Durée</span><span className="font-display font-bold text-lg">{duration} mois</span></div>
+            </div>
+            <div className="h-px bg-border" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Coins className="w-5 h-5 text-accent" />
+                <span className="text-sm text-muted-foreground">Pièces à gagner</span>
+              </div>
+              <span className="font-display font-bold text-lg text-gradient-gold">
+                <span className="inline-flex items-center gap-1"><CoinIcon size={18} /> {coinsPreview}</span>
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Tu gagnes {coinsPreview} pièces si tu réussis le défi. Ta mise de {betAmount}€ est remboursée en cas de succès, perdue en cas d'échec.
+            </p>
+          </div>
+
+          {/* Shopify products carousel */}
+          {shopProducts.length > 0 && (
+            <section>
+              <label className="text-sm text-muted-foreground mb-3 block">Ce que tu pourras acheter</label>
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+                {shopProducts.map((product) => {
+                  const price = product.node.priceRange.minVariantPrice;
+                  const coinsPrice = Math.ceil(parseFloat(price.amount) * 50);
+                  const isAccessible = coinsPreview >= coinsPrice;
+                  return (
+                    <div key={product.node.id} className={`flex-shrink-0 w-[120px] rounded-xl border border-border bg-gradient-card overflow-hidden transition-opacity ${isAccessible ? "opacity-100" : "opacity-50"}`}>
+                      <div className="w-full aspect-square bg-secondary">
+                        <img src={product.node.images.edges[0]?.node?.url || "/placeholder.svg"} alt={product.node.title} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="p-2 space-y-1">
+                        <p className="text-xs font-medium truncate">{product.node.title}</p>
+                        <div className="flex items-center gap-1 text-xs font-bold text-primary"><CoinIcon size={12} /> {coinsPrice}</div>
+                        {isAccessible && <Badge className="text-[10px] px-1.5 py-0 bg-green-500/20 text-green-400 border-green-500/30">Accessible</Badge>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Promo Code */}
+          <div>
+            <label className="text-sm text-muted-foreground mb-2 block">Code promo (optionnel)</label>
+            <input type="text" value={promoCode} onChange={(e) => setPromoCode(e.target.value)} placeholder="Entrer un code promo" className="w-full h-12 rounded-xl border border-border bg-secondary px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+
+          <Button onClick={handleParamsNext} className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl">
+            Suivant
+          </Button>
         </div>
       )}
 
@@ -252,9 +309,7 @@ const CreateSocialChallenge = () => {
               <div><span className="text-muted-foreground block">Fréquence</span><span className="font-bold">{sessionsPerWeek}x/sem</span></div>
               <div><span className="text-muted-foreground block">Durée</span><span className="font-bold">{duration} mois</span></div>
             </div>
-
             <div className="h-px bg-border" />
-
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Coins className="w-5 h-5 text-accent" />
@@ -265,55 +320,8 @@ const CreateSocialChallenge = () => {
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Tu gagnes {coinsPreview} pièces si tu réussis le défi
+              ✅ Remboursé si tu réussis · ❌ Perdu si tu échoues · 🪙 +{coinsPreview} pièces en bonus
             </p>
-          </div>
-
-          {/* Shopify products carousel */}
-          {shopProducts.length > 0 && (
-            <section>
-              <label className="text-sm text-muted-foreground mb-3 block">Ce que tu pourras acheter</label>
-              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
-                {shopProducts.map((product) => {
-                  const price = product.node.priceRange.minVariantPrice;
-                  const coinsPrice = Math.ceil(parseFloat(price.amount) * 50);
-                  const isAccessible = coinsPreview >= coinsPrice;
-                  return (
-                    <div
-                      key={product.node.id}
-                      className={`flex-shrink-0 w-[120px] rounded-xl border border-border bg-gradient-card overflow-hidden transition-opacity ${isAccessible ? "opacity-100" : "opacity-50"}`}
-                    >
-                      <div className="w-full aspect-square bg-secondary">
-                        <img src={product.node.images.edges[0]?.node?.url || "/placeholder.svg"} alt={product.node.title} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="p-2 space-y-1">
-                        <p className="text-xs font-medium truncate">{product.node.title}</p>
-                        <div className="flex items-center gap-1 text-xs font-bold text-primary">
-                          <CoinIcon size={12} /> {coinsPrice}
-                        </div>
-                        {isAccessible && (
-                          <Badge className="text-[10px] px-1.5 py-0 bg-green-500/20 text-green-400 border-green-500/30">
-                            Accessible
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* Promo Code */}
-          <div>
-            <label className="text-sm text-muted-foreground mb-2 block">Code promo (optionnel)</label>
-            <input
-              type="text"
-              value={promoCode}
-              onChange={(e) => setPromoCode(e.target.value)}
-              placeholder="Entrer un code promo"
-              className="w-full h-12 rounded-xl border border-border bg-secondary px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            />
           </div>
 
           <Button
@@ -322,7 +330,7 @@ const CreateSocialChallenge = () => {
             className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
             {isProcessing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Flame className="w-5 h-5 mr-2" />}
-            Payer et lancer le défi
+            Payer {betAmount}€ et lancer le défi
           </Button>
         </div>
       )}
