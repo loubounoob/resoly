@@ -1,106 +1,96 @@
 
 
-## Plan : 4 ameliorations (notifications interactives, header sans defi, premiere semaine, boost sur dashboard)
+## Plan : Notification push par geolocalisation "salle de sport"
 
-### 1. Accepter/refuser une demande d'ami depuis les notifications
+### Concept
 
-**Fichier** : `src/pages/Notifications.tsx`
+Quand un utilisateur avec un defi actif se trouve a proximite de sa salle de sport, l'application lui envoie automatiquement une notification locale pour lui rappeler de prendre sa photo de check-in.
 
-- Pour les notifications de type `friend_request`, ajouter deux boutons (Accepter / Refuser) directement dans la carte de notification
-- Extraire `from_user_id` depuis `notif.data` pour retrouver la demande d'ami correspondante
-- Creer un hook `useFriendRequestByUserId` dans `useFriends.ts` qui cherche la demande en attente a partir de `from_user_id`
-- Ou plus simplement : appeler `useRespondFriendRequest` apres avoir retrouve l'id de la demande via une requete directe dans le handler
-- Approche retenue : dans le composant, au clic sur Accepter/Refuser, faire une requete pour trouver le friendship puis le mettre a jour
+### 1. Enregistrer la localisation de la salle de sport
 
-**Fichier** : `src/hooks/useFriends.ts`
-- Ajouter une mutation `useRespondFriendRequestByUserId` qui prend un `senderUserId`, cherche la demande pending, et la met a jour
+**Migration SQL** : Ajouter deux colonnes a la table `profiles` :
 
-### 2. Header visible meme sans defi actif
-
-**Fichier** : `src/pages/Dashboard.tsx`
-
-Actuellement, quand `!challenge`, le composant retourne un ecran vide sans header. Il faut :
-- Extraire le header (avatar, nom, NotificationBell, coins) dans un bloc reutilise
-- L'afficher aussi dans le cas `!challenge` (au-dessus du CTA "Creer un defi")
-
-### 3. Afficher les infos premiere semaine et semaines restantes
-
-**Fichier** : `src/pages/Dashboard.tsx`
-
-- Quand `isFirstWeek` est vrai, afficher un bandeau explicatif sous l'anneau : "Premiere semaine : objectif adapte a {firstWeekSessions} seances"
-- Calculer le nombre de semaines restantes : `weeksRemaining = Math.ceil((totalSessions - completedSessions) / sessions_per_week)` ou via la date de fin
-- Afficher "X semaines restantes pour remporter le defi" dans la section recapitulative
-
-### 4. Afficher un defi boost recu sur le dashboard
-
-**Probleme actuel** : Quand un ami offre un boost, un `social_challenge` est cree et active, mais aucune ligne n'est inseree dans la table `challenges`. Le dashboard ne consulte que `challenges` donc l'utilisateur ne voit rien.
-
-**Solution** : 
-- Modifier `useActiveChallenge` pour aussi chercher les defis sociaux actifs de l'utilisateur (via `social_challenge_members` + `social_challenges` ou `status = 'active'`)
-- Si un social challenge actif est trouve (et pas de personal challenge), l'utiliser comme defi actif
-- Adapter le dashboard pour afficher les infos du social challenge (sessions_per_week, duration_months, bet_amount, coins) avec le meme format (anneau, semaine, mise, pieces)
-- Creer les check-ins avec un `challenge_id` pointe vers le social_challenge member ou ajouter un champ `social_challenge_id` dans `check_ins`
-
-**Approche plus simple et robuste** : A l'activation d'un social challenge (dans `verify-payment`), creer automatiquement une ligne dans `challenges` pour chaque membre, avec un lien vers le social_challenge. Cela permet au dashboard existant de fonctionner sans modification majeure.
-
-**Fichiers concernes** :
-- `supabase/functions/verify-payment/index.ts` : quand tous les membres ont paye, creer une entree `challenges` pour chaque membre
-- Une migration SQL pour ajouter `social_challenge_id` (nullable) a la table `challenges`
-- `src/pages/Dashboard.tsx` : aucun changement structurel necessaire, le challenge apparaitra naturellement
-
-### Details techniques
-
-**Migration SQL** :
 ```text
-ALTER TABLE challenges ADD COLUMN social_challenge_id uuid REFERENCES social_challenges(id);
+ALTER TABLE profiles ADD COLUMN gym_latitude double precision;
+ALTER TABLE profiles ADD COLUMN gym_longitude double precision;
+ALTER TABLE profiles ADD COLUMN gym_name text;
 ```
 
-**verify-payment (activation)** : quand all members paid :
-```text
-Pour chaque membre du social challenge :
-  INSERT INTO challenges (
-    user_id, sessions_per_week, duration_months,
-    bet_per_month, total_sessions, status, payment_status,
-    social_challenge_id, first_week_sessions
-  ) VALUES (...)
-```
+**Nouveau composant `GymLocationPicker`** :
+- Affiche un bouton "Definir ma salle de sport"
+- Utilise le plugin `@capacitor/geolocation` pour recuperer la position actuelle
+- L'utilisateur peut valider "C'est ici ma salle" ou ajuster manuellement
+- Sauvegarde lat/lng dans `profiles`
 
-**Notifications.tsx** : pour `friend_request` :
-```text
-<div className="flex gap-2 mt-2">
-  <button onClick={handleAccept}>Accepter</button>
-  <button onClick={handleReject}>Refuser</button>
-</div>
-```
+**Integration** : Le picker sera accessible depuis :
+- La page de creation de defi (etape optionnelle)
+- Les parametres du profil (Dashboard > avatar > parametres)
 
-**Dashboard.tsx** header sans defi :
-```text
-return (
-  <div>
-    {/* Header identique : avatar, nom, bell, coins */}
-    <div>/* CTA creer un defi */</div>
-    <BottomNav />
-  </div>
-);
-```
+### 2. Surveillance de la position en arriere-plan
 
-**Dashboard.tsx** premiere semaine + semaines restantes :
-```text
-{isFirstWeek && (
-  <div className="info-banner">
-    Premiere semaine : objectif adapte a {firstWeekSessions} seances
-  </div>
-)}
-<p>X semaines restantes</p>
-```
+**Dependance** : `@capacitor/geolocation` (a installer)
 
-### Fichiers modifies
+**Nouveau hook `src/hooks/useGymProximity.ts`** :
+- S'active uniquement si : plateforme native + defi actif + gym_latitude/gym_longitude definis
+- Utilise `Geolocation.watchPosition()` pour surveiller la position
+- Calcule la distance entre la position actuelle et la salle (formule Haversine)
+- Si distance < 200 metres et pas encore notifie aujourd'hui :
+  - Envoie une notification locale via `@capacitor/local-notifications`
+  - Stocke un flag dans localStorage pour eviter le spam (1 notif max par jour)
+
+**Dependance supplementaire** : `@capacitor/local-notifications` (notifications locales, pas besoin de passer par FCM pour ca)
+
+### 3. Notification locale
+
+Le message de la notification :
+- Titre : "Tu es a la salle ! 💪"
+- Corps : "N'oublie pas de prendre ta photo pour valider ta seance"
+- Action au tap : ouvre la page `/verify` (photo check-in)
+
+### 4. Configuration Capacitor
+
+Mise a jour de `capacitor.config.ts` pour ajouter la configuration des plugins Geolocation et LocalNotifications.
+
+### Fichiers concernes
 
 | Fichier | Modification |
 |---|---|
-| Migration SQL | Ajouter `social_challenge_id` a `challenges` |
-| `supabase/functions/verify-payment/index.ts` | Creer des `challenges` pour chaque membre a l'activation |
-| `src/pages/Notifications.tsx` | Boutons accepter/refuser pour `friend_request` |
-| `src/hooks/useFriends.ts` | Mutation pour repondre par `from_user_id` |
-| `src/pages/Dashboard.tsx` | Header sans defi, bandeau premiere semaine, semaines restantes |
+| Migration SQL | Ajouter `gym_latitude`, `gym_longitude`, `gym_name` a `profiles` |
+| `package.json` | Installer `@capacitor/geolocation` et `@capacitor/local-notifications` |
+| `capacitor.config.ts` | Ajouter config des plugins |
+| `src/hooks/useGymProximity.ts` | **Nouveau** -- surveillance position + notification locale |
+| `src/components/GymLocationPicker.tsx` | **Nouveau** -- composant pour definir sa salle |
+| `src/pages/CreateChallenge.tsx` | Ajouter etape optionnelle "Definir ma salle" |
+| `src/pages/Dashboard.tsx` | Ajouter le hook `useGymProximity` |
 
+### Details techniques
+
+**Calcul de distance (Haversine)** :
+
+```text
+function haversineDistance(lat1, lon1, lat2, lon2) -> metres
+  Retourne la distance en metres entre deux points GPS
+```
+
+**Hook useGymProximity** :
+
+```text
+1. Recuperer gym_latitude/gym_longitude depuis le profil
+2. Verifier qu'un defi actif existe
+3. Demarrer watchPosition avec { enableHighAccuracy: true }
+4. A chaque update de position :
+   - Calculer distance vers la salle
+   - Si < 200m ET pas deja notifie aujourd'hui :
+     -> LocalNotifications.schedule({ title, body, id })
+     -> Stocker la date dans localStorage
+5. Cleanup : clearWatch au unmount
+```
+
+**Permissions requises** (a configurer dans les projets natifs) :
+- iOS : `NSLocationWhenInUseUsageDescription` dans Info.plist
+- Android : `ACCESS_FINE_LOCATION` dans AndroidManifest.xml
+
+### Limitations
+
+- La surveillance en arriere-plan necessiterait un plugin supplementaire (`@capacitor-community/background-geolocation`). Pour cette premiere version, la detection fonctionne quand l'app est ouverte (foreground). On pourra ajouter le mode arriere-plan dans une iteration future si souhaite.
+- Sur le web (non-natif), le systeme sera desactive silencieusement.
