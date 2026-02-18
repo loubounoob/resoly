@@ -2,6 +2,48 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
+export const useFriendsWithActiveChallenge = (friendIds: string[]) => {
+  return useQuery({
+    queryKey: ["friends-active-challenges", friendIds],
+    enabled: friendIds.length > 0,
+    queryFn: async () => {
+      const { data: personalChallenges } = await supabase
+        .from("challenges")
+        .select("user_id")
+        .in("user_id", friendIds)
+        .eq("status", "active")
+        .eq("payment_status", "paid");
+
+      const { data: socialMembers } = await supabase
+        .from("social_challenge_members" as any)
+        .select("user_id, social_challenge_id")
+        .in("user_id", friendIds)
+        .eq("status", "joined");
+
+      const socialMembersList = (socialMembers as any[] ?? []);
+      let activeSocialUserIds: string[] = [];
+      if (socialMembersList.length > 0) {
+        const scIds = [...new Set(socialMembersList.map((m: any) => m.social_challenge_id))];
+        const { data: activeSocials } = await supabase
+          .from("social_challenges" as any)
+          .select("id")
+          .in("id", scIds)
+          .eq("status", "active");
+        const activeScIds = new Set((activeSocials as any[] ?? []).map((s: any) => s.id));
+        activeSocialUserIds = socialMembersList
+          .filter((m: any) => activeScIds.has(m.social_challenge_id))
+          .map((m: any) => m.user_id);
+      }
+
+      const busyIds = new Set([
+        ...(personalChallenges ?? []).map((c: any) => c.user_id),
+        ...activeSocialUserIds,
+      ]);
+      return busyIds;
+    },
+  });
+};
+
 export const useSocialChallenges = () => {
   const { user } = useAuth();
   return useQuery({
@@ -47,7 +89,6 @@ export const useReceivedSocialChallenges = () => {
     queryKey: ["received-social-challenges", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      // Get challenges targeting this user that are still pending
       const { data, error } = await supabase
         .from("social_challenges" as any)
         .select("*")
@@ -62,7 +103,6 @@ export const useReceivedSocialChallenges = () => {
         .select("*")
         .in("social_challenge_id", ids);
 
-      // Get creator profiles
       const creatorIds = [...new Set((data as any[]).map((sc: any) => sc.created_by))];
       let profiles: any[] = [];
       if (creatorIds.length > 0) {
@@ -109,7 +149,6 @@ export const useCreateSocialChallenge = () => {
         .select()
         .single();
       if (error) throw error;
-      // Also add creator as member
       const { data: memberData, error: memberError } = await supabase
         .from("social_challenge_members" as any)
         .insert({

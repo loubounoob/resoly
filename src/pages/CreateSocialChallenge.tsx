@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Flame, Loader2, Coins, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import CoinIcon from "@/components/CoinIcon";
-import { useCreateSocialChallenge } from "@/hooks/useSocialChallenges";
+import { useCreateSocialChallenge, useFriendsWithActiveChallenge } from "@/hooks/useSocialChallenges";
 import { useFriendsList } from "@/hooks/useFriends";
 import { useGroups } from "@/hooks/useGroups";
 import { calculateCoins } from "@/lib/coins";
@@ -27,11 +27,15 @@ const TYPE_CARDS: { type: ChallengeType; emoji: string; title: string; desc: str
 
 const CreateSocialChallenge = () => {
   const navigate = useNavigate();
-  const [step, setStep] = useState<"type" | "params" | "target" | "confirm">("type");
+  const [searchParams] = useSearchParams();
+  const preselectedType = searchParams.get("type") as ChallengeType | null;
+  const [step, setStep] = useState<"type" | "params" | "target" | "confirm">(
+    preselectedType ? "params" : "type"
+  );
+  const [challengeType, setChallengeType] = useState<ChallengeType | null>(preselectedType);
   const [betAmount, setBetAmount] = useState(100);
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
-  const [challengeType, setChallengeType] = useState<ChallengeType | null>(null);
   const [selectedFriend, setSelectedFriend] = useState<string | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -41,6 +45,8 @@ const CreateSocialChallenge = () => {
   const createSocial = useCreateSocialChallenge();
   const { data: friends } = useFriendsList();
   const { data: groups } = useGroups();
+  const friendIds = (friends ?? []).map((f: any) => f.user_id);
+  const { data: busyFriendIds } = useFriendsWithActiveChallenge(friendIds);
 
   useEffect(() => {
     fetchShopifyProducts(20).then(setShopProducts).catch(console.error);
@@ -269,21 +275,38 @@ const CreateSocialChallenge = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {friends.map((f: any) => (
-                    <button
-                      key={f.user_id}
-                      onClick={() => { setSelectedFriend(f.user_id); setStep("confirm"); }}
-                      className={`w-full flex items-center gap-3 p-4 rounded-xl border transition-all ${
-                        selectedFriend === f.user_id ? "border-primary bg-primary/10" : "border-border bg-gradient-card"
-                      }`}
-                    >
-                      <Avatar className="w-10 h-10">
-                        <AvatarImage src={f.avatar_url} />
-                        <AvatarFallback className="bg-secondary text-xs">{getInitials(f)}</AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium">{f.display_name || f.first_name || "Ami"}</span>
-                    </button>
-                  ))}
+                  {friends.map((f: any) => {
+                    const isBusy = busyFriendIds?.has(f.user_id);
+                    const isDisabled = isBusy && challengeType !== "boost";
+                    return (
+                      <button
+                        key={f.user_id}
+                        onClick={() => { if (!isDisabled) { setSelectedFriend(f.user_id); setStep("confirm"); } }}
+                        disabled={isDisabled}
+                        className={`w-full flex items-center gap-3 p-4 rounded-xl border transition-all ${
+                          isDisabled
+                            ? "border-border bg-secondary/50 opacity-50 cursor-not-allowed"
+                            : selectedFriend === f.user_id
+                            ? "border-primary bg-primary/10"
+                            : "border-border bg-gradient-card"
+                        }`}
+                      >
+                        <Avatar className="w-10 h-10">
+                          <AvatarImage src={f.avatar_url} />
+                          <AvatarFallback className="bg-secondary text-xs">{getInitials(f)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 text-left">
+                          <span className="font-medium">{f.display_name || f.first_name || "Ami"}</span>
+                          {isBusy && (
+                            <p className="text-[11px] text-accent">🔥 Défi en cours</p>
+                          )}
+                        </div>
+                        {isDisabled && (
+                          <Badge variant="secondary" className="text-[10px]">Occupé</Badge>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </>
