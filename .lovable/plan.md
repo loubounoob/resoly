@@ -1,65 +1,95 @@
 
 
-## Plan: Corrections pseudo, visibilite demandes d'ami, et photo de profil
+## Plan : Correction du systeme d'amis + defis sociaux avec paiement Stripe
 
-### Probleme 1 : Pseudo demande plusieurs fois
+### Probleme principal : Les profils ne sont pas crees
 
-**Diagnostic** : Le formulaire d'inscription (`Auth.tsx`) envoie le `username` dans `raw_user_meta_data`, et le trigger `handle_new_user` le lit pour l'inserer dans `profiles`. Cependant, `UsernameGuard` s'affiche sur **chaque route protegee** et verifie si le profil a un `username`. Si le profil n'est pas encore cree au moment du check (race condition entre le trigger et la redirection), le guard affiche le formulaire de pseudo. De plus, si l'utilisateur choisit un pseudo via le guard, il fait un `UPDATE` -- mais s'il n'y a pas encore de profil (trigger pas encore execute), l'update ne touche aucune ligne.
+**Diagnostic** : La fonction `handle_new_user()` existe dans la base de donnees mais **aucun trigger n'est attache** a la table `auth.users`. Resultat : sur 10 utilisateurs inscrits, seul 1 a un profil (cree manuellement). Les amis apparaissent avec "?" et "---" car ils n'ont pas de profil.
 
-**Solution** :
-- Supprimer le champ `username` du formulaire d'inscription (`Auth.tsx`) pour eviter la double saisie. Le trigger generera un pseudo temporaire (`user_xxxx`).
-- `UsernameGuard` restera le seul point d'entree pour choisir son pseudo. Ajouter un petit delai/retry si le profil n'existe pas encore (race condition).
-- Dans `UsernameGuard`, verifier que le username n'est pas un pseudo auto-genere (commencant par `user_`) -- si c'est le cas, considerer qu'il n'a pas encore choisi son pseudo.
+### Corrections a effectuer
 
-### Probleme 2 : Demandes d'ami cachees dans le drawer
+#### 1. Creer le trigger manquant + reparer les profils existants (Migration SQL)
 
-**Solution** :
-- Afficher une **section "Demandes en attente"** directement sur la page `Friends.tsx`, en haut (avant le fil d'activite), avec un badge de compteur.
-- Chaque demande affichera le pseudo, l'avatar et les boutons accepter/refuser.
-- Garder la recherche et l'invitation dans le drawer.
-
-### Probleme 3 : Photo de profil apres premiere seance
-
-**Solution** :
-- Creer un **bucket de stockage** `avatars` (public) via migration SQL avec les bonnes policies RLS.
-- Apres la premiere seance validee (ecran "Bravo"), afficher une etape supplementaire proposant de prendre une selfie/photo de profil. L'utilisateur peut passer cette etape.
-- Creer un composant `AvatarUpload` reutilisable (camera + upload vers le bucket `avatars`, mise a jour du champ `avatar_url` dans `profiles`).
-- Ajouter une option de changement de photo de profil accessible depuis le Dashboard (tap sur l'avatar dans le header).
-
-### Details techniques
-
-**Migration SQL** :
 ```sql
--- Creer le bucket avatars
-INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true);
+-- Attacher le trigger a auth.users
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- RLS: les utilisateurs peuvent uploader leur avatar
-CREATE POLICY "Users can upload their avatar"
-ON storage.objects FOR INSERT TO authenticated
-WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
-
--- RLS: les utilisateurs peuvent modifier/supprimer leur avatar
-CREATE POLICY "Users can update their avatar"
-ON storage.objects FOR UPDATE TO authenticated
-USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
-
-CREATE POLICY "Users can delete their avatar"
-ON storage.objects FOR DELETE TO authenticated
-USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
-
--- RLS: lecture publique
-CREATE POLICY "Public avatar access"
-ON storage.objects FOR SELECT TO public
-USING (bucket_id = 'avatars');
+-- Creer les profils manquants pour les utilisateurs existants
+INSERT INTO public.profiles (user_id, display_name, username, invite_code)
+SELECT 
+  u.id,
+  COALESCE(u.raw_user_meta_data->>'display_name', split_part(u.email, '@', 1)),
+  'user_' || substr(md5(random()::text), 1, 6),
+  upper(substr(md5(random()::text), 1, 8))
+FROM auth.users u
+LEFT JOIN public.profiles p ON p.user_id = u.id
+WHERE p.user_id IS NULL;
 ```
 
-**Fichiers modifies** :
-1. `src/pages/Auth.tsx` -- Retirer les champs pseudo et prenom du signup (seuls email/password)
-2. `src/components/UsernameGuard.tsx` -- Ajouter retry si profil pas encore cree + ignorer les pseudos auto-generes (`user_*`)
-3. `src/pages/Friends.tsx` -- Deplacer les demandes en attente dans la page principale (hors du drawer), avec badge visible
-4. `src/pages/PhotoVerify.tsx` -- Apres "Bravo" de la premiere seance, proposer l'upload d'avatar
-5. `src/pages/Dashboard.tsx` -- Rendre l'avatar cliquable dans le header pour changer la photo
+Cela garantit que chaque utilisateur a un profil et sera redirige vers `UsernameGuard` pour choisir un vrai pseudo.
 
-**Nouveaux fichiers** :
-1. `src/components/AvatarUpload.tsx` -- Composant reutilisable pour upload de photo de profil (camera/galerie, crop, upload vers storage, mise a jour `profiles.avatar_url`)
+#### 2. Defis sociaux : ajouter le systeme de pieces + recompenses + paiement Stripe
+
+Actuellement, quand on cree un defi social, il est juste enregistre en base sans paiement. Il faut :
+
+**a) Afficher les pieces a gagner sur l'ecran de creation** (`CreateSocialChallenge.tsx`)
+- Ajouter le calcul `calculateCoins` sur l'ecran de recap (identique au defi perso)
+- Afficher les produits Shopify accessibles avec les pieces gagnables
+
+**b) Rediriger le createur vers Stripe apres creation**
+- Apres `createSocial.mutateAsync()`, appeler l'edge function `create-challenge-payment` avec un nouveau parametre `socialChallengeId`
+- Adapter l'edge function pour gerer les social challenges (mettre a jour le `payment_status` du membre dans `social_challenge_members`)
+
+**c) Ajouter `payment_status` a la table `social_challenge_members`**
+- Migration SQL : `ALTER TABLE social_challenge_members ADD COLUMN payment_status text NOT NULL DEFAULT 'pending';`
+
+**d) Permettre au destinataire d'accepter et payer**
+- Quand un defi social en "pending" cible l'utilisateur connecte, afficher un bouton "Accepter le defi" sur la page Amis
+- Cliquer sur "Accepter" cree l'entree dans `social_challenge_members` puis redirige vers Stripe
+- Le duel passe en "active" uniquement quand les deux membres ont `payment_status = 'paid'`
+
+**e) Envoyer une notification au destinataire**
+- Quand un defi social est cree, appeler `send-notification` pour prevenir le destinataire
+
+#### 3. Adapter l'edge function de paiement
+
+Modifier `create-challenge-payment` pour :
+- Accepter un `socialChallengeId` et `memberId` en plus de `challengeId`
+- Si `socialChallengeId` est fourni, mettre a jour `social_challenge_members.payment_status` = 'paid'
+- Verifier si tous les membres ont paye, et si oui, passer le `social_challenges.status` a 'active'
+
+#### 4. Adapter `verify-payment` de la meme maniere
+
+Modifier `verify-payment` pour gerer les `socialChallengeId` dans les metadonnees de la session Stripe.
+
+### Fichiers modifies
+
+1. **Migration SQL** -- Trigger `on_auth_user_created` + backfill profiles + ajout `payment_status` a `social_challenge_members`
+2. `src/pages/CreateSocialChallenge.tsx` -- Ajout coins preview, produits Shopify, redirection Stripe apres creation, notification
+3. `src/pages/Friends.tsx` -- Section "Defis recus" avec bouton Accepter + payer pour les defis ciblant l'utilisateur
+4. `supabase/functions/create-challenge-payment/index.ts` -- Support `socialChallengeId`
+5. `supabase/functions/verify-payment/index.ts` -- Support `socialChallengeId`
+6. `src/hooks/useSocialChallenges.ts` -- Ajout mutation `useAcceptSocialChallenge` + `useRespondSocialChallenge`
+7. `src/pages/PaymentSuccess.tsx` -- Gerer le retour de paiement social challenge
+
+### Flux utilisateur final
+
+```text
+Createur                          Destinataire
+   |                                    |
+   |-- Cree defi social ------------->  |
+   |-- Redirige vers Stripe             |
+   |-- Paie --------------------------> |
+   |                                    |-- Recoit notification
+   |                                    |-- Voit "Defi recu" sur /friends
+   |                                    |-- Clique "Accepter"
+   |                                    |-- Redirige vers Stripe
+   |                                    |-- Paie
+   |                                    |
+   |<-- Les deux ont paye ------------->|
+   |-- Defi passe en "active"           |
+   |-- Chacun fait ses seances          |
+```
 
