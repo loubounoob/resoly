@@ -25,6 +25,7 @@ const Dashboard = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   const { data: challenge, isLoading: loadingChallenge } = useActiveChallenge();
   const { data: checkIns, isLoading: loadingCheckIns } = useCheckIns(challenge?.id);
   const { data: coins } = useUserCoins();
@@ -38,21 +39,71 @@ const Dashboard = () => {
     );
   }
 
+  // Header component reused in both states
+  const headerBlock = (
+    <>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setAvatarDialogOpen(true)} className="relative group">
+            <Avatar className="w-10 h-10 border-2 border-border">
+              <AvatarImage src={myProfile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-secondary text-xs font-bold">
+                {(myProfile?.display_name || myProfile?.username || "?").charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="absolute inset-0 rounded-full bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Camera className="w-4 h-4 text-white" />
+            </div>
+          </button>
+          <div>
+            <span className="font-display font-bold text-xl">Resoly</span>
+            {myProfile?.username && (
+              <p className="text-xs text-muted-foreground">@{myProfile.username}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
+            <CoinIcon size={14} />
+            <span className="text-sm font-bold">{coins ?? 0}</span>
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={avatarDialogOpen} onOpenChange={setAvatarDialogOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-center">Photo de profil</DialogTitle>
+          </DialogHeader>
+          <AvatarUpload
+            currentUrl={myProfile?.avatar_url}
+            size="lg"
+            onUploaded={() => setAvatarDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+
   if (!challenge) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 pb-24 gap-6">
-        <div className="text-center space-y-3">
-          <Flame className="w-12 h-12 text-primary mx-auto" />
-          <h2 className="text-2xl font-display font-bold">Aucun défi actif</h2>
-          <p className="text-muted-foreground text-sm">Crée ton premier défi fitness et commence à gagner des pièces !</p>
+      <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
+        {headerBlock}
+        <div className="flex-1 flex flex-col items-center justify-center gap-6">
+          <div className="text-center space-y-3">
+            <Flame className="w-12 h-12 text-primary mx-auto" />
+            <h2 className="text-2xl font-display font-bold">Aucun défi actif</h2>
+            <p className="text-muted-foreground text-sm">Crée ton premier défi fitness et commence à gagner des pièces !</p>
+          </div>
+          <Button
+            onClick={() => navigate("/create")}
+            className="h-14 px-8 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Créer un défi
+          </Button>
         </div>
-        <Button
-          onClick={() => navigate("/create")}
-          className="h-14 px-8 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Créer un défi
-        </Button>
         <BottomNav />
       </div>
     );
@@ -117,8 +168,6 @@ const Dashboard = () => {
   const totalBet = challenge.bet_per_month;
   const coinsToEarn = calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week);
 
-  const [isCompleting, setIsCompleting] = useState(false);
-
   const handleCompleteChallenge = async () => {
     setIsCompleting(true);
     try {
@@ -139,49 +188,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setAvatarDialogOpen(true)} className="relative group">
-            <Avatar className="w-10 h-10 border-2 border-border">
-              <AvatarImage src={myProfile?.avatar_url || undefined} />
-              <AvatarFallback className="bg-secondary text-xs font-bold">
-                {(myProfile?.display_name || myProfile?.username || "?").charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="absolute inset-0 rounded-full bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <Camera className="w-4 h-4 text-white" />
-            </div>
-          </button>
-          <div>
-            <span className="font-display font-bold text-xl">Resoly</span>
-            {myProfile?.username && (
-              <p className="text-xs text-muted-foreground">@{myProfile.username}</p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <NotificationBell />
-          <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
-            <CoinIcon size={14} />
-            <span className="text-sm font-bold">{coins ?? 0}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Avatar change dialog */}
-      <Dialog open={avatarDialogOpen} onOpenChange={setAvatarDialogOpen}>
-        <DialogContent className="max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="text-center">Photo de profil</DialogTitle>
-          </DialogHeader>
-          <AvatarUpload
-            currentUrl={myProfile?.avatar_url}
-            size="lg"
-            onUploaded={() => setAvatarDialogOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {headerBlock}
 
       {/* Weekly Progress Ring — clickable */}
       <button
@@ -224,6 +231,27 @@ const Dashboard = () => {
         </div>
         <p className="text-sm font-medium mt-3 text-center">{motivationMessage}</p>
       </button>
+
+      {/* First week banner */}
+      {isFirstWeek && firstWeekSessions != null && (
+        <div className="bg-accent/20 border border-accent/30 rounded-xl p-3 mb-4 text-center">
+          <p className="text-sm font-medium">🌱 Première semaine : objectif adapté à <span className="font-bold text-primary">{firstWeekSessions} séance{firstWeekSessions > 1 ? "s" : ""}</span></p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">L'objectif normal de {challenge.sessions_per_week} séances/sem commence la semaine prochaine</p>
+        </div>
+      )}
+
+      {/* Weeks remaining */}
+      {(() => {
+        const challengeEnd = new Date(challenge.started_at);
+        challengeEnd.setMonth(challengeEnd.getMonth() + challenge.duration_months);
+        const msLeft = challengeEnd.getTime() - now.getTime();
+        const weeksRemaining = Math.max(0, Math.ceil(msLeft / (7 * 24 * 60 * 60 * 1000)));
+        return weeksRemaining > 0 ? (
+          <div className="text-center mb-4">
+            <p className="text-xs text-muted-foreground">⏳ <span className="font-semibold">{weeksRemaining} semaine{weeksRemaining > 1 ? "s" : ""}</span> restante{weeksRemaining > 1 ? "s" : ""} pour remporter le défi</p>
+          </div>
+        ) : null;
+      })()}
 
       {/* Week tracker */}
       <div className="bg-gradient-card rounded-2xl border border-border p-4 mb-4 shadow-card">

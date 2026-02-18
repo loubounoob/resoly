@@ -1,10 +1,13 @@
-import { useEffect } from "react";
-import { ArrowLeft, UserPlus, UserCheck, Swords, Flame } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, UserPlus, UserCheck, Swords, Flame, Check, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useNotifications, useMarkNotificationsRead } from "@/hooks/useNotifications";
+import { useRespondFriendRequestByUserId } from "@/hooks/useFriends";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import BottomNav from "@/components/BottomNav";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 const typeConfig: Record<string, { icon: typeof UserPlus; color: string }> = {
   friend_request: { icon: UserPlus, color: "text-blue-400" },
@@ -17,11 +20,32 @@ const Notifications = () => {
   const navigate = useNavigate();
   const { data: notifications, isLoading } = useNotifications();
   const markRead = useMarkNotificationsRead();
+  const respondMutation = useRespondFriendRequestByUserId();
+  const [respondedIds, setRespondedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // Mark all as read when page is opened
     markRead.mutate();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRespond = (notifId: string, fromUserId: string, accept: boolean) => {
+    setRespondedIds(prev => new Set(prev).add(notifId));
+    respondMutation.mutate(
+      { senderUserId: fromUserId, accept },
+      {
+        onSuccess: () => {
+          toast.success(accept ? "Demande acceptée ! 🎉" : "Demande refusée");
+        },
+        onError: () => {
+          setRespondedIds(prev => {
+            const next = new Set(prev);
+            next.delete(notifId);
+            return next;
+          });
+          toast.error("Erreur, réessaie");
+        },
+      }
+    );
+  };
 
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
@@ -46,6 +70,10 @@ const Notifications = () => {
           {notifications.map((notif: any) => {
             const cfg = typeConfig[notif.type] ?? typeConfig.cheer;
             const Icon = cfg.icon;
+            const isFriendRequest = notif.type === "friend_request";
+            const fromUserId = notif.data?.from_user_id;
+            const alreadyResponded = respondedIds.has(notif.id);
+
             return (
               <div
                 key={notif.id}
@@ -62,6 +90,33 @@ const Notifications = () => {
                   <p className="text-[10px] text-muted-foreground mt-1">
                     {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: fr })}
                   </p>
+
+                  {isFriendRequest && fromUserId && !alreadyResponded && (
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => handleRespond(notif.id, fromUserId, true)}
+                        disabled={respondMutation.isPending}
+                      >
+                        <Check className="w-3.5 h-3.5 mr-1" />
+                        Accepter
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => handleRespond(notif.id, fromUserId, false)}
+                        disabled={respondMutation.isPending}
+                      >
+                        <X className="w-3.5 h-3.5 mr-1" />
+                        Refuser
+                      </Button>
+                    </div>
+                  )}
+                  {isFriendRequest && alreadyResponded && (
+                    <p className="text-xs text-muted-foreground mt-2 italic">Répondu ✓</p>
+                  )}
                 </div>
                 {!notif.read && (
                   <div className="w-2 h-2 rounded-full bg-primary mt-2 shrink-0" />

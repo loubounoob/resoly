@@ -72,6 +72,57 @@ serve(async (req) => {
             .from("social_challenges")
             .update({ status: "active" })
             .eq("id", socialChallengeId);
+
+          // Get the social challenge details
+          const { data: sc } = await supabaseAdmin
+            .from("social_challenges")
+            .select("*")
+            .eq("id", socialChallengeId)
+            .single();
+
+          if (sc) {
+            // Create a challenge entry for each member
+            const allMembers = await supabaseAdmin
+              .from("social_challenge_members")
+              .select("id, user_id, bet_amount")
+              .eq("social_challenge_id", socialChallengeId);
+
+            const totalSessions = sc.sessions_per_week * sc.duration_months * 4;
+            // First week: floor based on day of week (Mon=1)
+            const now = new Date();
+            const dayOfWeek = now.getDay(); // 0=Sun
+            const daysLeft = dayOfWeek === 0 ? 1 : 7 - dayOfWeek + 1;
+            const firstWeekSessions = Math.min(
+              Math.floor((sc.sessions_per_week / 7) * daysLeft),
+              sc.sessions_per_week
+            );
+
+            for (const member of (allMembers.data ?? [])) {
+              const { data: inserted } = await supabaseAdmin
+                .from("challenges")
+                .insert({
+                  user_id: member.user_id,
+                  sessions_per_week: sc.sessions_per_week,
+                  duration_months: sc.duration_months,
+                  bet_per_month: member.bet_amount,
+                  total_sessions: totalSessions,
+                  status: "active",
+                  payment_status: "paid",
+                  social_challenge_id: socialChallengeId,
+                  first_week_sessions: firstWeekSessions > 0 ? firstWeekSessions : 1,
+                })
+                .select("id")
+                .single();
+
+              // Link the member to the challenge
+              if (inserted) {
+                await supabaseAdmin
+                  .from("social_challenge_members")
+                  .update({ challenge_id: inserted.id })
+                  .eq("id", member.id);
+              }
+            }
+          }
         }
       }
 
