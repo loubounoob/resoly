@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Flame, Search, Copy, Check, X, Trophy, Loader2 } from "lucide-react";
+import { Users, Plus, Flame, Search, Copy, Check, X, Trophy, Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import BottomNav from "@/components/BottomNav";
 import MiniProgressRing from "@/components/MiniProgressRing";
@@ -55,6 +56,8 @@ const Friends = () => {
     }
   };
 
+  const pendingCount = requests?.length ?? 0;
+
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
       {/* Header */}
@@ -62,11 +65,59 @@ const Friends = () => {
         <div className="flex items-center gap-2">
           <Users className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-display font-bold">Amis</h1>
+          {pendingCount > 0 && (
+            <Badge className="bg-destructive text-destructive-foreground text-[10px] px-1.5 py-0.5 min-w-[20px] flex items-center justify-center">
+              {pendingCount}
+            </Badge>
+          )}
         </div>
         <Button variant="ghost" size="icon" onClick={() => setDrawerOpen(true)}>
           <Plus className="w-5 h-5" />
         </Button>
       </div>
+
+      {/* Section 0: Pending friend requests */}
+      {pendingCount > 0 && (
+        <section className="mb-6">
+          <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
+            <UserPlus className="w-4 h-4 text-primary" />
+            Demandes en attente
+            <Badge variant="secondary" className="text-[10px] ml-1">{pendingCount}</Badge>
+          </h2>
+          <div className="space-y-2">
+            {requests!.map((req: any) => (
+              <div key={req.id} className="flex items-center gap-3 p-3 rounded-2xl border border-primary/20 bg-primary/5 shadow-card">
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src={req.profile?.avatar_url} />
+                  <AvatarFallback className="bg-secondary text-xs font-bold">
+                    {getInitials(req.profile)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {req.profile?.display_name || req.profile?.first_name || "Inconnu"}
+                  </p>
+                  {req.profile?.username && (
+                    <p className="text-[11px] text-muted-foreground">@{req.profile.username}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => respondRequest.mutate({ id: req.id, accept: true, senderUserId: req.profile?.user_id })}
+                  className="p-2 rounded-xl bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => respondRequest.mutate({ id: req.id, accept: false })}
+                  className="p-2 rounded-xl bg-destructive/20 text-destructive hover:bg-destructive/30 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Section 1: Fil d'activité */}
       <section className="mb-6">
@@ -258,43 +309,6 @@ const Friends = () => {
               <Copy className="w-4 h-4 mr-2" />
               Partager mon lien d'invitation
             </Button>
-
-            {/* Pending requests */}
-            {requests && requests.length > 0 && (
-              <div>
-                <p className="text-sm font-medium mb-2">Demandes en attente</p>
-                <div className="space-y-2">
-                  {requests.map((req: any) => (
-                    <div key={req.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-gradient-card">
-                      <Avatar className="w-8 h-8">
-                        <AvatarImage src={req.profile?.avatar_url} />
-                        <AvatarFallback className="text-[10px] bg-secondary">
-                          {getInitials(req.profile)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <p className="flex-1 text-sm font-medium truncate">
-                        {req.profile?.display_name || req.profile?.first_name || "Inconnu"}
-                        {req.profile?.username && (
-                          <span className="text-xs text-muted-foreground ml-1">@{req.profile.username}</span>
-                        )}
-                      </p>
-                      <button
-                        onClick={() => respondRequest.mutate({ id: req.id, accept: true, senderUserId: req.profile?.user_id })}
-                        className="p-1.5 rounded-lg bg-primary/20 text-primary hover:bg-primary/30"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => respondRequest.mutate({ id: req.id, accept: false })}
-                        className="p-1.5 rounded-lg bg-destructive/20 text-destructive hover:bg-destructive/30"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </DrawerContent>
       </Drawer>

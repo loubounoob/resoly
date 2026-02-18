@@ -1,10 +1,14 @@
+import { useState } from "react";
 import { Flame, Camera, Plus, Loader2 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import BottomNav from "@/components/BottomNav";
+import AvatarUpload from "@/components/AvatarUpload";
 import { useActiveChallenge, useCheckIns, useUserCoins } from "@/hooks/useChallenge";
 import { useMyProfile } from "@/hooks/useFriends";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +23,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const { data: challenge, isLoading: loadingChallenge } = useActiveChallenge();
   const { data: checkIns, isLoading: loadingCheckIns } = useCheckIns(challenge?.id);
   const { data: coins } = useUserCoins();
@@ -128,8 +133,18 @@ const Dashboard = () => {
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Flame className="w-6 h-6 text-primary" />
+        <div className="flex items-center gap-3">
+          <button onClick={() => setAvatarDialogOpen(true)} className="relative group">
+            <Avatar className="w-10 h-10 border-2 border-border">
+              <AvatarImage src={myProfile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-secondary text-xs font-bold">
+                {(myProfile?.display_name || myProfile?.username || "?").charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="absolute inset-0 rounded-full bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Camera className="w-4 h-4 text-white" />
+            </div>
+          </button>
           <div>
             <span className="font-display font-bold text-xl">Resoly</span>
             {myProfile?.username && (
@@ -145,6 +160,20 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Avatar change dialog */}
+      <Dialog open={avatarDialogOpen} onOpenChange={setAvatarDialogOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-center">Photo de profil</DialogTitle>
+          </DialogHeader>
+          <AvatarUpload
+            currentUrl={myProfile?.avatar_url}
+            size="lg"
+            onUploaded={() => setAvatarDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Weekly Progress Ring — clickable */}
       <button

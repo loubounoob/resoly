@@ -2,13 +2,15 @@ import { Camera, CheckCircle2, XCircle, Loader2, PartyPopper } from "lucide-reac
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import BottomNav from "@/components/BottomNav";
+import AvatarUpload from "@/components/AvatarUpload";
 import { useActiveChallenge, useCheckIns, useCreateCheckIn } from "@/hooks/useChallenge";
+import { useMyProfile } from "@/hooks/useFriends";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { isToday } from "date-fns";
 
-type SessionPhase = "idle" | "loading" | "ai-result" | "congrats";
+type SessionPhase = "idle" | "loading" | "ai-result" | "congrats" | "avatar-prompt";
 
 const PhotoVerify = () => {
   const [phase, setPhase] = useState<SessionPhase>("idle");
@@ -19,8 +21,12 @@ const PhotoVerify = () => {
 
   const { data: challenge } = useActiveChallenge();
   const { data: checkIns } = useCheckIns(challenge?.id);
+  const { data: myProfile } = useMyProfile();
   const createCheckIn = useCreateCheckIn();
   const navigate = useNavigate();
+
+  const isFirstSession = checkIns ? checkIns.filter(ci => ci.verified).length === 0 : true;
+  const hasNoAvatar = !myProfile?.avatar_url;
 
   // Only used on initial load — not during active session
   const hasCheckedInToday =
@@ -91,6 +97,15 @@ const PhotoVerify = () => {
     setAiStatus(null);
   };
 
+  const handleContinueAfterSuccess = () => {
+    // If first session and no avatar, prompt for avatar
+    if (isFirstSession && hasNoAvatar) {
+      setPhase("avatar-prompt");
+    } else {
+      setPhase("congrats");
+    }
+  };
+
   // --- Already validated today (initial load only) ---
   if (hasCheckedInToday && phase === "idle") {
     return (
@@ -109,6 +124,30 @@ const PhotoVerify = () => {
             <Button onClick={() => navigate("/dashboard")} variant="outline" className="w-full h-12 rounded-xl">
               Retour au dashboard
             </Button>
+          </div>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  // --- Avatar prompt after first session ---
+  if (phase === "avatar-prompt") {
+    return (
+      <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <div className="w-full max-w-xs text-center space-y-6">
+            <h2 className="text-2xl font-display font-bold">📸 Ajoute ta photo !</h2>
+            <p className="text-muted-foreground text-sm">
+              Tes amis pourront te reconnaître plus facilement. Prends un selfie rapide !
+            </p>
+            <AvatarUpload
+              currentUrl={myProfile?.avatar_url}
+              size="lg"
+              showSkip
+              onSkip={() => setPhase("congrats")}
+              onUploaded={() => setPhase("congrats")}
+            />
           </div>
         </div>
         <BottomNav />
@@ -201,7 +240,7 @@ const PhotoVerify = () => {
 
             {phase === "ai-result" && aiStatus === "success" && (
               <Button
-                onClick={() => setPhase("congrats")}
+                onClick={handleContinueAfterSuccess}
                 className="w-full h-12 rounded-xl bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow font-display font-bold"
               >
                 Continuer
