@@ -13,7 +13,6 @@ export const useSocialChallenges = () => {
         .select("*")
         .in("status", ["pending", "active"]);
       if (error) throw error;
-      // Enrich with members
       const ids = (data as any[]).map((sc: any) => sc.id);
       if (ids.length === 0) return [];
       const { data: members } = await supabase
@@ -25,7 +24,7 @@ export const useSocialChallenges = () => {
       if (memberUserIds.length > 0) {
         const { data: p } = await supabase
           .from("profiles")
-          .select("user_id, display_name, first_name, avatar_url")
+          .select("user_id, display_name, first_name, avatar_url, username")
           .in("user_id", memberUserIds);
         profiles = p ?? [];
       }
@@ -38,6 +37,52 @@ export const useSocialChallenges = () => {
             profile: profiles.find((p: any) => p.user_id === m.user_id),
           })),
       }));
+    },
+  });
+};
+
+export const useReceivedSocialChallenges = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["received-social-challenges", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      // Get challenges targeting this user that are still pending
+      const { data, error } = await supabase
+        .from("social_challenges" as any)
+        .select("*")
+        .eq("target_user_id", user!.id)
+        .eq("status", "pending");
+      if (error) throw error;
+      if (!data || (data as any[]).length === 0) return [];
+
+      const ids = (data as any[]).map((sc: any) => sc.id);
+      const { data: members } = await supabase
+        .from("social_challenge_members" as any)
+        .select("*")
+        .in("social_challenge_id", ids);
+
+      // Get creator profiles
+      const creatorIds = [...new Set((data as any[]).map((sc: any) => sc.created_by))];
+      let profiles: any[] = [];
+      if (creatorIds.length > 0) {
+        const { data: p } = await supabase
+          .from("profiles")
+          .select("user_id, display_name, first_name, avatar_url, username")
+          .in("user_id", creatorIds);
+        profiles = p ?? [];
+      }
+
+      return (data as any[]).map((sc: any) => {
+        const scMembers = (members as any[] ?? []).filter((m: any) => m.social_challenge_id === sc.id);
+        const userAlreadyJoined = scMembers.some((m: any) => m.user_id === user!.id);
+        return {
+          ...sc,
+          members: scMembers,
+          creatorProfile: profiles.find((p: any) => p.user_id === sc.created_by),
+          userAlreadyJoined,
+        };
+      }).filter((sc: any) => !sc.userAlreadyJoined);
     },
   });
 };
@@ -65,16 +110,48 @@ export const useCreateSocialChallenge = () => {
         .single();
       if (error) throw error;
       // Also add creator as member
-      await supabase.from("social_challenge_members" as any).insert({
-        social_challenge_id: (data as any).id,
-        user_id: user!.id,
-        bet_amount: params.bet_amount,
-        status: "joined",
-      } as any);
-      return data;
+      const { data: memberData, error: memberError } = await supabase
+        .from("social_challenge_members" as any)
+        .insert({
+          social_challenge_id: (data as any).id,
+          user_id: user!.id,
+          bet_amount: params.bet_amount,
+          status: "joined",
+          payment_status: "pending",
+        } as any)
+        .select()
+        .single();
+      if (memberError) throw memberError;
+      return { challenge: data as any, member: memberData as any };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["social-challenges"] });
+    },
+  });
+};
+
+export const useAcceptSocialChallenge = () => {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { socialChallengeId: string; betAmount: number }) => {
+      const { data, error } = await supabase
+        .from("social_challenge_members" as any)
+        .insert({
+          social_challenge_id: params.socialChallengeId,
+          user_id: user!.id,
+          bet_amount: params.betAmount,
+          status: "joined",
+          payment_status: "pending",
+        } as any)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as any;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["social-challenges"] });
+      qc.invalidateQueries({ queryKey: ["received-social-challenges"] });
     },
   });
 };

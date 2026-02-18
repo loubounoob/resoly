@@ -9,19 +9,23 @@ const PaymentSuccess = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
 
+  const isSocial = !!searchParams.get("social_challenge_id");
+
   useEffect(() => {
     const verify = async () => {
       const sessionId = searchParams.get("session_id");
       const challengeId = searchParams.get("challenge_id");
+      const socialChallengeId = searchParams.get("social_challenge_id");
+      const memberId = searchParams.get("member_id");
 
-      if (!sessionId || !challengeId) {
+      if (!sessionId || (!challengeId && !socialChallengeId)) {
         setStatus("error");
         return;
       }
 
       try {
         const { data, error } = await supabase.functions.invoke("verify-payment", {
-          body: { sessionId, challengeId },
+          body: { sessionId, challengeId, socialChallengeId, memberId },
         });
 
         if (error) throw error;
@@ -54,13 +58,15 @@ const PaymentSuccess = () => {
           </div>
           <h1 className="text-2xl font-display font-bold text-center">Paiement confirmé !</h1>
           <p className="text-muted-foreground text-center text-sm">
-            Ton défi est maintenant actif. C'est parti ! 💪
+            {isSocial
+              ? "Ta mise est enregistrée ! Le défi sera activé quand tous les participants auront payé. 🤝"
+              : "Ton défi est maintenant actif. C'est parti ! 💪"}
           </p>
           <Button
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate(isSocial ? "/friends" : "/dashboard")}
             className="h-14 px-8 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
-            Voir mon défi
+            {isSocial ? "Voir mes défis" : "Voir mon défi"}
           </Button>
         </>
       )}
@@ -75,7 +81,7 @@ const PaymentSuccess = () => {
             Le paiement n'a pas pu être vérifié. Réessaie ou contacte le support.
           </p>
           <Button
-            onClick={() => navigate("/create")}
+            onClick={() => navigate(isSocial ? "/friends" : "/create")}
             variant="outline"
             className="rounded-xl"
           >
