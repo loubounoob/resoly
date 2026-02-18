@@ -1,0 +1,1 @@
+ALTER TABLE public.challenges ADD COLUMN social_challenge_id uuid REFERENCES public.social_challenges(id);

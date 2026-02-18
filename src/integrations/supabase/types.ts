@@ -25,6 +25,7 @@ export type Database = {
           odds: number
           payment_status: string
           sessions_per_week: number
+          social_challenge_id: string | null
           started_at: string
           status: string
           stripe_payment_intent_id: string | null
@@ -42,6 +43,7 @@ export type Database = {
           odds?: number
           payment_status?: string
           sessions_per_week?: number
+          social_challenge_id?: string | null
           started_at?: string
           status?: string
           stripe_payment_intent_id?: string | null
@@ -59,6 +61,7 @@ export type Database = {
           odds?: number
           payment_status?: string
           sessions_per_week?: number
+          social_challenge_id?: string | null
           started_at?: string
           status?: string
           stripe_payment_intent_id?: string | null
@@ -66,7 +69,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "challenges_social_challenge_id_fkey"
+            columns: ["social_challenge_id"]
+            isOneToOne: false
+            referencedRelation: "social_challenges"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       check_ins: {
         Row: {

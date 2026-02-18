@@ -263,6 +263,55 @@ export const useLeaderboard = () => {
   });
 };
 
+export const useRespondFriendRequestByUserId = () => {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ senderUserId, accept }: { senderUserId: string; accept: boolean }) => {
+      // Find the pending friendship from this sender
+      const { data: friendship, error: findErr } = await supabase
+        .from("friendships" as any)
+        .select("id")
+        .eq("user_id", senderUserId)
+        .eq("friend_id", user!.id)
+        .eq("status", "pending")
+        .limit(1)
+        .maybeSingle();
+      if (findErr) throw findErr;
+      if (!friendship) throw new Error("Demande introuvable");
+
+      const { error } = await supabase
+        .from("friendships" as any)
+        .update({ status: accept ? "accepted" : "rejected" } as any)
+        .eq("id", (friendship as any).id);
+      if (error) throw error;
+
+      if (accept) {
+        const { data: myProfile } = await supabase
+          .from("profiles")
+          .select("username, display_name")
+          .eq("user_id", user!.id)
+          .single();
+        const name = myProfile?.username ? `@${myProfile.username}` : (myProfile?.display_name ?? "Quelqu'un");
+        await supabase.functions.invoke("send-notification", {
+          body: {
+            user_id: senderUserId,
+            type: "friend_accepted",
+            title: "Demande acceptée !",
+            body: `${name} a accepté ta demande d'ami ! 🎉`,
+            data: { from_user_id: user!.id },
+          },
+        });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["friends-list"] });
+      qc.invalidateQueries({ queryKey: ["friend-requests"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+};
+
 export const useSearchUsers = (query: string) => {
   const { user } = useAuth();
   return useQuery({
