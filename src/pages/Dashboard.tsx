@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { Flame, Camera, Plus, Loader2 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { useQueryClient } from "@tanstack/react-query";
@@ -116,17 +117,24 @@ const Dashboard = () => {
   const totalBet = challenge.bet_per_month;
   const coinsToEarn = calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week);
 
+  const [isCompleting, setIsCompleting] = useState(false);
+
   const handleCompleteChallenge = async () => {
-    await supabase
-      .from("profiles")
-      .update({ coins: (coins ?? 0) + coinsToEarn } as any)
-      .eq("user_id", user!.id);
-    await supabase
-      .from("challenges")
-      .update({ status: "completed", coins_awarded: coinsToEarn } as any)
-      .eq("id", challenge.id);
-    queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
-    queryClient.invalidateQueries({ queryKey: ["user-coins"] });
+    setIsCompleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("complete-challenge", {
+        body: { challengeId: challenge.id },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error("Completion failed");
+      toast.success(data.refunded ? "Mise remboursée et pièces gagnées ! 🎉" : "Pièces gagnées ! 🎉");
+      queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
+      queryClient.invalidateQueries({ queryKey: ["user-coins"] });
+    } catch {
+      toast.error("Erreur lors de la finalisation du défi");
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   return (
@@ -276,9 +284,10 @@ const Dashboard = () => {
           </div>
           <Button
             onClick={handleCompleteChallenge}
+            disabled={isCompleting}
             className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
-            <Plus className="w-5 h-5 mr-2" />
+            {isCompleting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Plus className="w-5 h-5 mr-2" />}
             Récupérer et lancer un nouveau défi
           </Button>
         </div>

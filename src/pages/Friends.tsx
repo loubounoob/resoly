@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Flame, Search, Copy, Check, X, Trophy, Loader2, UserPlus, Swords } from "lucide-react";
+import { Users, Plus, Flame, Search, Copy, Check, X, Trophy, Loader2, UserPlus, Swords, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -247,6 +247,15 @@ const Friends = () => {
             })}
           </div>
         )}
+
+        {/* Offrir un défi button */}
+        <Button
+          onClick={() => navigate("/friends/create-social?type=boost")}
+          className="w-full h-12 mt-4 font-display font-bold bg-accent/10 text-accent hover:bg-accent/20 border border-accent/20 rounded-xl"
+        >
+          <Gift className="w-4 h-4 mr-2" />
+          Offrir un défi à un ami
+        </Button>
       </section>
 
       {/* Section 2: Défis sociaux */}
