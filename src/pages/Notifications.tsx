@@ -32,8 +32,12 @@ const Notifications = () => {
     respondMutation.mutate(
       { senderUserId: fromUserId, accept },
       {
-        onSuccess: () => {
-          toast.success(accept ? "Demande acceptée ! 🎉" : "Demande refusée");
+        onSuccess: (result: any) => {
+          if (result?.alreadyHandled) {
+            toast.info("Cette demande a déjà été traitée");
+          } else {
+            toast.success(accept ? "Demande acceptée ! 🎉" : "Demande refusée");
+          }
         },
         onError: () => {
           setRespondedIds(prev => {
