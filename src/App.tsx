@@ -18,8 +18,10 @@ import Orders from "./pages/Orders";
 import Friends from "./pages/Friends";
 import CreateSocialChallenge from "./pages/CreateSocialChallenge";
 import CreateGroup from "./pages/CreateGroup";
+import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +42,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const AppRoutes = () => {
   const { user, loading } = useAuth();
+  usePushNotifications();
 
   if (loading) {
     return (
@@ -62,6 +65,7 @@ const AppRoutes = () => {
       <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
       <Route path="/friends/create-social" element={<ProtectedRoute><CreateSocialChallenge /></ProtectedRoute>} />
       <Route path="/friends/create-group" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
       <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
