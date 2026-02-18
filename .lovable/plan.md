@@ -1,58 +1,65 @@
 
 
-# Pseudo obligatoire pour tous les utilisateurs
+## Plan: Corrections pseudo, visibilite demandes d'ami, et photo de profil
 
-## Objectif
-Chaque utilisateur doit avoir un pseudo unique (`username`). Il sera visible dans l'interface et requis des la connexion. Les comptes existants recevront un pseudo genere automatiquement.
+### Probleme 1 : Pseudo demande plusieurs fois
 
-## 1. Migration base de donnees
+**Diagnostic** : Le formulaire d'inscription (`Auth.tsx`) envoie le `username` dans `raw_user_meta_data`, et le trigger `handle_new_user` le lit pour l'inserer dans `profiles`. Cependant, `UsernameGuard` s'affiche sur **chaque route protegee** et verifie si le profil a un `username`. Si le profil n'est pas encore cree au moment du check (race condition entre le trigger et la redirection), le guard affiche le formulaire de pseudo. De plus, si l'utilisateur choisit un pseudo via le guard, il fait un `UPDATE` -- mais s'il n'y a pas encore de profil (trigger pas encore execute), l'update ne touche aucune ligne.
 
-- Attribuer un pseudo aleatoire aux comptes existants qui n'en ont pas (format : `user_XXXX` avec 4 caracteres aleatoires)
-- Generer un `invite_code` pour les comptes qui n'en ont pas
-- Ajouter une contrainte `UNIQUE` sur la colonne `username` (deja nullable, on ne la rend pas NOT NULL car le trigger `handle_new_user` ne genere pas de username a la creation -- on gere cote app)
-- Mettre a jour le trigger `handle_new_user` pour generer automatiquement un username et un invite_code a chaque nouveau compte
+**Solution** :
+- Supprimer le champ `username` du formulaire d'inscription (`Auth.tsx`) pour eviter la double saisie. Le trigger generera un pseudo temporaire (`user_xxxx`).
+- `UsernameGuard` restera le seul point d'entree pour choisir son pseudo. Ajouter un petit delai/retry si le profil n'existe pas encore (race condition).
+- Dans `UsernameGuard`, verifier que le username n'est pas un pseudo auto-genere (commencant par `user_`) -- si c'est le cas, considerer qu'il n'a pas encore choisi son pseudo.
 
-## 2. Ecran de saisie du pseudo (intercepteur)
+### Probleme 2 : Demandes d'ami cachees dans le drawer
 
-Creer un composant `UsernameGuard` qui enveloppe les routes protegees :
-- Verifie si le profil de l'utilisateur a un `username` defini
-- Si non : affiche un ecran plein-page obligatoire pour choisir son pseudo
-  - Champ de saisie avec validation (min 3 caracteres, max 20, alphanumerique + underscores)
-  - Verification en temps reel de la disponibilite (requete debounced sur `profiles`)
-  - Bouton "Confirmer" desactive tant que le pseudo n'est pas valide et disponible
-  - Pas de bouton retour -- l'utilisateur ne peut pas continuer sans pseudo
-- Si oui : affiche les enfants normalement
+**Solution** :
+- Afficher une **section "Demandes en attente"** directement sur la page `Friends.tsx`, en haut (avant le fil d'activite), avec un badge de compteur.
+- Chaque demande affichera le pseudo, l'avatar et les boutons accepter/refuser.
+- Garder la recherche et l'invitation dans le drawer.
 
-## 3. Affichage du pseudo dans l'interface
+### Probleme 3 : Photo de profil apres premiere seance
 
-- **Dashboard** : afficher `@username` sous le nom/logo en haut de page
-- **Page Amis** : afficher le pseudo `@username` sur chaque carte d'ami dans le fil d'activite et le classement
-- **Page Amis - Drawer d'ajout** : afficher le pseudo dans les resultats de recherche et les demandes en attente
+**Solution** :
+- Creer un **bucket de stockage** `avatars` (public) via migration SQL avec les bonnes policies RLS.
+- Apres la premiere seance validee (ecran "Bravo"), afficher une etape supplementaire proposant de prendre une selfie/photo de profil. L'utilisateur peut passer cette etape.
+- Creer un composant `AvatarUpload` reutilisable (camera + upload vers le bucket `avatars`, mise a jour du champ `avatar_url` dans `profiles`).
+- Ajouter une option de changement de photo de profil accessible depuis le Dashboard (tap sur l'avatar dans le header).
 
-## 4. Inscription -- pseudo a la creation de compte
+### Details techniques
 
-- Ajouter un champ "Pseudo" dans le formulaire d'inscription (`Auth.tsx`) avec verification de disponibilite en temps reel
-- Envoyer le pseudo dans `raw_user_meta_data` au signup, et le trigger `handle_new_user` l'enregistrera dans `profiles.username`
+**Migration SQL** :
+```sql
+-- Creer le bucket avatars
+INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true);
 
-## Details techniques
+-- RLS: les utilisateurs peuvent uploader leur avatar
+CREATE POLICY "Users can upload their avatar"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
 
-### Fichiers modifies
-| Fichier | Changement |
-|---------|-----------|
-| Migration SQL | Username aleatoire pour existants, update trigger `handle_new_user`, contrainte unique |
-| `src/App.tsx` | Wrapper `UsernameGuard` autour des routes protegees |
-| `src/pages/Auth.tsx` | Ajout champ pseudo a l'inscription + validation disponibilite |
-| `src/pages/Dashboard.tsx` | Affichage `@username` |
-| `src/pages/Friends.tsx` | Affichage `@username` dans le fil et le classement |
-| `src/hooks/useFriends.ts` | Inclure `username` dans les selects si pas deja fait |
+-- RLS: les utilisateurs peuvent modifier/supprimer leur avatar
+CREATE POLICY "Users can update their avatar"
+ON storage.objects FOR UPDATE TO authenticated
+USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
 
-### Fichiers crees
-| Fichier | Description |
-|---------|-----------|
-| `src/components/UsernameGuard.tsx` | Intercepteur qui bloque l'acces sans pseudo |
+CREATE POLICY "Users can delete their avatar"
+ON storage.objects FOR DELETE TO authenticated
+USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
 
-### Validation du pseudo
-- Regex : `/^[a-zA-Z0-9_]{3,20}$/`
-- Verification unicite via requete `profiles.username` avec `ilike` exact match
-- Feedback visuel : icone check vert si disponible, croix rouge si pris
+-- RLS: lecture publique
+CREATE POLICY "Public avatar access"
+ON storage.objects FOR SELECT TO public
+USING (bucket_id = 'avatars');
+```
+
+**Fichiers modifies** :
+1. `src/pages/Auth.tsx` -- Retirer les champs pseudo et prenom du signup (seuls email/password)
+2. `src/components/UsernameGuard.tsx` -- Ajouter retry si profil pas encore cree + ignorer les pseudos auto-generes (`user_*`)
+3. `src/pages/Friends.tsx` -- Deplacer les demandes en attente dans la page principale (hors du drawer), avec badge visible
+4. `src/pages/PhotoVerify.tsx` -- Apres "Bravo" de la premiere seance, proposer l'upload d'avatar
+5. `src/pages/Dashboard.tsx` -- Rendre l'avatar cliquable dans le header pour changer la photo
+
+**Nouveaux fichiers** :
+1. `src/components/AvatarUpload.tsx` -- Composant reutilisable pour upload de photo de profil (camera/galerie, crop, upload vers storage, mise a jour `profiles.avatar_url`)
 
