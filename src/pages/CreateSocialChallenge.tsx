@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Flame, Loader2, Coins } from "lucide-react";
+import { ArrowLeft, Flame, Loader2, Coins, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -248,8 +248,25 @@ const CreateSocialChallenge = () => {
           {challengeType !== "group" ? (
             <>
               <p className="text-sm text-muted-foreground mb-2">Sélectionne un ami</p>
+              <div className="bg-accent/10 border border-accent/20 rounded-xl p-4 mb-4">
+                <p className="text-xs text-accent flex items-center gap-2">
+                  <Flame className="w-4 h-4 shrink-0" />
+                  Un seul défi actif à la fois — reste concentré sur un objectif clair !
+                </p>
+              </div>
               {!friends || friends.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">Aucun ami ajouté</p>
+                <div className="flex flex-col items-center text-center py-10 space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
+                    <UserPlus className="w-7 h-7 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Aucun ami ajouté</p>
+                    <p className="text-sm text-muted-foreground mt-1">Ajoute des amis pour lancer un défi social</p>
+                  </div>
+                  <Button onClick={() => navigate("/friends")} className="bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-xl shadow-glow">
+                    <UserPlus className="w-4 h-4 mr-2" /> Ajouter des amis
+                  </Button>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {friends.map((f: any) => (
