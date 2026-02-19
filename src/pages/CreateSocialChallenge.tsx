@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Flame, Loader2, Coins, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -8,43 +8,27 @@ import { Badge } from "@/components/ui/badge";
 import CoinIcon from "@/components/CoinIcon";
 import { useCreateSocialChallenge, useFriendsWithActiveChallenge } from "@/hooks/useSocialChallenges";
 import { useFriendsList } from "@/hooks/useFriends";
-import { useGroups } from "@/hooks/useGroups";
 import { calculateCoins } from "@/lib/coins";
 import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-type ChallengeType = "duel" | "boost" | "group";
-
 const DURATION_OPTIONS = [1, 2, 3];
 const SESSIONS_OPTIONS = [2, 3, 4, 5, 6];
 
-const TYPE_CARDS: { type: ChallengeType; emoji: string; title: string; desc: string }[] = [
-  { type: "duel", emoji: "🥊", title: "Duel", desc: "Chacun crée son propre défi, validation indépendante" },
-  { type: "boost", emoji: "🤝", title: "Défi Boost", desc: "Tu configures et finances un défi pour un ami" },
-  { type: "group", emoji: "👥", title: "Groupe", desc: "Paramètres communs, chacun rejoint avec sa mise" },
-];
-
 const CreateSocialChallenge = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const preselectedType = searchParams.get("type") as ChallengeType | null;
-  const [step, setStep] = useState<"type" | "params" | "target" | "confirm">(
-    preselectedType ? "params" : "type"
-  );
-  const [challengeType, setChallengeType] = useState<ChallengeType | null>(preselectedType);
+  const [step, setStep] = useState<"params" | "target" | "confirm">("params");
   const [betAmount, setBetAmount] = useState(100);
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
   const [selectedFriend, setSelectedFriend] = useState<string | null>(null);
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [shopProducts, setShopProducts] = useState<ShopifyProduct[]>([]);
 
   const createSocial = useCreateSocialChallenge();
   const { data: friends } = useFriendsList();
-  const { data: groups } = useGroups();
   const friendIds = (friends ?? []).map((f: any) => f.user_id);
   const { data: busyFriendIds } = useFriendsWithActiveChallenge(friendIds);
 
@@ -55,29 +39,16 @@ const CreateSocialChallenge = () => {
   const coinsPreview = calculateCoins(betAmount, duration, sessionsPerWeek);
   const totalSessions = sessionsPerWeek * duration * 4;
 
-  const handleSelectType = (type: ChallengeType) => {
-    setChallengeType(type);
-    setStep("params");
-  };
-
   const handleParamsNext = () => {
-    if (!challengeType) return;
-    if (challengeType === "group" && groups && groups.length === 0) {
-      toast.info("Crée d'abord un groupe !");
-      navigate("/friends/create-group");
-      return;
-    }
     setStep("target");
   };
 
   const handleConfirm = async () => {
-    if (!challengeType) return;
     setIsProcessing(true);
     try {
       const result = await createSocial.mutateAsync({
-        type: challengeType,
+        type: "boost",
         target_user_id: selectedFriend ?? undefined,
-        group_id: selectedGroup ?? undefined,
         sessions_per_week: sessionsPerWeek,
         duration_months: duration,
         bet_amount: betAmount,
@@ -88,8 +59,8 @@ const CreateSocialChallenge = () => {
           body: {
             user_id: selectedFriend,
             type: "social_challenge",
-            title: "Nouveau défi reçu ! 🥊",
-            body: `Tu as reçu un défi ${challengeType} de ${betAmount}€ — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
+            title: "On t'offre un défi ! 🎁",
+            body: `Tu as reçu un défi de ${betAmount}€ — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
             data: { socialChallengeId: result.challenge.id },
           },
         });
@@ -100,14 +71,14 @@ const CreateSocialChallenge = () => {
           socialChallengeId: result.challenge.id,
           memberId: result.member.id,
           amount: betAmount,
-          description: `Mise Resoly Social — ${betAmount}€ — ${challengeType} ${sessionsPerWeek}x/sem pendant ${duration} mois`,
+          description: `Mise Resoly — Offrir un défi ${betAmount}€ — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
           promoCode: promoCode.trim() || undefined,
         },
       });
 
       if (error) throw error;
       if (data?.success) {
-        toast.success("Code promo appliqué ! Défi lancé 🎉");
+        toast.success("Code promo appliqué ! Défi offert 🎉");
         navigate("/friends");
       } else if (data?.url) {
         window.location.href = data.url;
@@ -123,8 +94,7 @@ const CreateSocialChallenge = () => {
   const getInitials = (p: any) => (p?.display_name || p?.first_name || "?").charAt(0).toUpperCase();
 
   const goBack = () => {
-    if (step === "type") navigate(-1);
-    else if (step === "params") setStep("type");
+    if (step === "params") navigate(-1);
     else if (step === "target") setStep("params");
     else setStep("target");
   };
@@ -135,31 +105,8 @@ const CreateSocialChallenge = () => {
         <button onClick={goBack} className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-6 h-6" />
         </button>
-        <h1 className="text-2xl font-bold">Défi social</h1>
+        <h1 className="text-2xl font-bold">Offrir un défi</h1>
       </div>
-
-      {step === "type" && (
-        <div className="flex-1 space-y-4">
-          <p className="text-sm text-muted-foreground mb-2">Choisis le type de défi</p>
-          {TYPE_CARDS.map((card) => (
-            <button
-              key={card.type}
-              onClick={() => handleSelectType(card.type)}
-              className={`w-full p-5 rounded-2xl border text-left transition-all ${
-                challengeType === card.type
-                  ? "border-primary bg-primary/10"
-                  : "border-border bg-gradient-card hover:border-primary/50"
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-1">
-                <span className="text-2xl">{card.emoji}</span>
-                <span className="font-display font-bold text-lg">{card.title}</span>
-              </div>
-              <p className="text-xs text-muted-foreground">{card.desc}</p>
-            </button>
-          ))}
-        </div>
-      )}
 
       {step === "params" && (
         <div className="flex-1 space-y-8">
@@ -207,14 +154,14 @@ const CreateSocialChallenge = () => {
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Tu gagnes {coinsPreview} pièces si tu réussis le défi. Ta mise de {betAmount}€ est remboursée en cas de succès, perdue en cas d'échec.
+              Ton ami gagne {coinsPreview} pièces s'il réussit le défi. Ta mise de {betAmount}€ lui est versée en cas de succès.
             </p>
           </div>
 
           {/* Shopify products carousel */}
           {shopProducts.length > 0 && (
             <section>
-              <label className="text-sm text-muted-foreground mb-3 block">Ce que tu pourras acheter</label>
+              <label className="text-sm text-muted-foreground mb-3 block">Ce qu'il pourra acheter</label>
               <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
                 {shopProducts.map((product) => {
                   const price = product.node.priceRange.minVariantPrice;
@@ -251,89 +198,60 @@ const CreateSocialChallenge = () => {
 
       {step === "target" && (
         <div className="flex-1 space-y-4">
-          {challengeType !== "group" ? (
-            <>
-              <p className="text-sm text-muted-foreground mb-2">Sélectionne un ami</p>
-              <div className="bg-accent/10 border border-accent/20 rounded-xl p-4 mb-4">
-                <p className="text-xs text-accent flex items-center gap-2">
-                  <Flame className="w-4 h-4 shrink-0" />
-                  Un seul défi actif à la fois — reste concentré sur un objectif clair !
-                </p>
+          <p className="text-sm text-muted-foreground mb-2">Sélectionne un ami</p>
+          <div className="bg-accent/10 border border-accent/20 rounded-xl p-4 mb-4">
+            <p className="text-xs text-accent flex items-center gap-2">
+              <Flame className="w-4 h-4 shrink-0" />
+              Un seul défi actif à la fois — reste concentré sur un objectif clair !
+            </p>
+          </div>
+          {!friends || friends.length === 0 ? (
+            <div className="flex flex-col items-center text-center py-10 space-y-4">
+              <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
+                <UserPlus className="w-7 h-7 text-muted-foreground" />
               </div>
-              {!friends || friends.length === 0 ? (
-                <div className="flex flex-col items-center text-center py-10 space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
-                    <UserPlus className="w-7 h-7 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">Aucun ami ajouté</p>
-                    <p className="text-sm text-muted-foreground mt-1">Ajoute des amis pour lancer un défi social</p>
-                  </div>
-                  <Button onClick={() => navigate("/friends")} className="bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-xl shadow-glow">
-                    <UserPlus className="w-4 h-4 mr-2" /> Ajouter des amis
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {friends.map((f: any) => {
-                    const isBusy = busyFriendIds?.has(f.user_id);
-                    return (
-                      <button
-                        key={f.user_id}
-                        onClick={() => { if (!isBusy) { setSelectedFriend(f.user_id); setStep("confirm"); } }}
-                        disabled={isBusy}
-                        className={`w-full flex items-center gap-3 p-4 rounded-xl border transition-all ${
-                          isBusy
-                            ? "border-border bg-secondary/50 opacity-50 cursor-not-allowed"
-                            : selectedFriend === f.user_id
-                            ? "border-primary bg-primary/10"
-                            : "border-border bg-gradient-card"
-                        }`}
-                      >
-                        <Avatar className="w-10 h-10">
-                          <AvatarImage src={f.avatar_url} />
-                          <AvatarFallback className="bg-secondary text-xs">{getInitials(f)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 text-left">
-                          <span className="font-medium">{f.display_name || f.first_name || "Ami"}</span>
-                          {isBusy && (
-                            <p className="text-[11px] text-destructive">⛔ A déjà un défi actif</p>
-                          )}
-                        </div>
-                        {isBusy && (
-                          <Badge variant="secondary" className="text-[10px]">Indisponible</Badge>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground mb-2">Sélectionne un groupe</p>
-              <Button variant="outline" className="w-full mb-3" onClick={() => navigate("/friends/create-group")}>
-                + Créer un groupe
+              <div>
+                <p className="font-medium text-foreground">Aucun ami ajouté</p>
+                <p className="text-sm text-muted-foreground mt-1">Ajoute des amis pour offrir un défi</p>
+              </div>
+              <Button onClick={() => navigate("/friends")} className="bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-xl shadow-glow">
+                <UserPlus className="w-4 h-4 mr-2" /> Ajouter des amis
               </Button>
-              {!groups || groups.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Aucun groupe</p>
-              ) : (
-                <div className="space-y-2">
-                  {groups.map((g: any) => (
-                    <button
-                      key={g.id}
-                      onClick={() => { setSelectedGroup(g.id); setStep("confirm"); }}
-                      className={`w-full p-4 rounded-xl border text-left transition-all ${
-                        selectedGroup === g.id ? "border-primary bg-primary/10" : "border-border bg-gradient-card"
-                      }`}
-                    >
-                      <span className="font-medium">{g.name}</span>
-                      {g.description && <p className="text-xs text-muted-foreground mt-0.5">{g.description}</p>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {friends.map((f: any) => {
+                const isBusy = busyFriendIds?.has(f.user_id);
+                return (
+                  <button
+                    key={f.user_id}
+                    onClick={() => { if (!isBusy) { setSelectedFriend(f.user_id); setStep("confirm"); } }}
+                    disabled={isBusy}
+                    className={`w-full flex items-center gap-3 p-4 rounded-xl border transition-all ${
+                      isBusy
+                        ? "border-border bg-secondary/50 opacity-50 cursor-not-allowed"
+                        : selectedFriend === f.user_id
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-gradient-card"
+                    }`}
+                  >
+                    <Avatar className="w-10 h-10">
+                      <AvatarImage src={f.avatar_url} />
+                      <AvatarFallback className="bg-secondary text-xs">{getInitials(f)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 text-left">
+                      <span className="font-medium">{f.display_name || f.first_name || "Ami"}</span>
+                      {isBusy && (
+                        <p className="text-[11px] text-destructive">⛔ A déjà un défi actif</p>
+                      )}
+                    </div>
+                    {isBusy && (
+                      <Badge variant="secondary" className="text-[10px]">Indisponible</Badge>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
       )}
@@ -343,7 +261,7 @@ const CreateSocialChallenge = () => {
           <div className="bg-gradient-card rounded-2xl border border-border p-5 shadow-card space-y-3">
             <h3 className="font-display font-bold text-lg">Récapitulatif</h3>
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><span className="text-muted-foreground block">Type</span><span className="font-bold">{challengeType === "duel" ? "🥊 Duel" : challengeType === "boost" ? "🤝 Boost" : "👥 Groupe"}</span></div>
+              <div><span className="text-muted-foreground block">Type</span><span className="font-bold">🎁 Offrir un défi</span></div>
               <div><span className="text-muted-foreground block">Mise</span><span className="font-bold">{betAmount}€</span></div>
               <div><span className="text-muted-foreground block">Fréquence</span><span className="font-bold">{sessionsPerWeek}x/sem</span></div>
               <div><span className="text-muted-foreground block">Durée</span><span className="font-bold">{duration} mois</span></div>
@@ -359,7 +277,7 @@ const CreateSocialChallenge = () => {
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              ✅ Remboursé si tu réussis · ❌ Perdu si tu échoues · 🪙 +{coinsPreview} pièces en bonus
+              ✅ Ton ami est remboursé s'il réussit · ❌ Ta mise est perdue s'il échoue · 🪙 +{coinsPreview} pièces en bonus
             </p>
           </div>
 
@@ -369,7 +287,7 @@ const CreateSocialChallenge = () => {
             className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
             {isProcessing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Flame className="w-5 h-5 mr-2" />}
-            Payer {betAmount}€ et lancer le défi
+            Payer {betAmount}€ et offrir le défi
           </Button>
         </div>
       )}

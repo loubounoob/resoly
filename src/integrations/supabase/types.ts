@@ -545,6 +545,7 @@ export type Database = {
           bet_amount: number
           challenge_id: string | null
           created_at: string
+          iban: string | null
           id: string
           payment_status: string
           social_challenge_id: string
@@ -555,6 +556,7 @@ export type Database = {
           bet_amount?: number
           challenge_id?: string | null
           created_at?: string
+          iban?: string | null
           id?: string
           payment_status?: string
           social_challenge_id: string
@@ -565,6 +567,7 @@ export type Database = {
           bet_amount?: number
           challenge_id?: string | null
           created_at?: string
+          iban?: string | null
           id?: string
           payment_status?: string
           social_challenge_id?: string
