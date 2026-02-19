@@ -50,6 +50,43 @@ serve(async (req) => {
           .eq("id", challengeId)
           .eq("user_id", user.id);
         if (error) throw error;
+
+        // Referral bonus: if bet >= 50€ and user was referred, give 250 coins to referrer (once)
+        const { data: challenge } = await supabaseAdmin
+          .from("challenges")
+          .select("bet_per_month")
+          .eq("id", challengeId)
+          .single();
+
+        if (challenge && challenge.bet_per_month >= 50) {
+          const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("referred_by, referral_bonus_paid")
+            .eq("user_id", user.id)
+            .single();
+
+          if (profile?.referred_by && !profile.referral_bonus_paid) {
+            // Credit 250 coins to referrer
+            const { data: referrer } = await supabaseAdmin
+              .from("profiles")
+              .select("coins")
+              .eq("user_id", profile.referred_by)
+              .single();
+
+            if (referrer) {
+              await supabaseAdmin
+                .from("profiles")
+                .update({ coins: referrer.coins + 250 })
+                .eq("user_id", profile.referred_by);
+            }
+
+            // Mark bonus as paid
+            await supabaseAdmin
+              .from("profiles")
+              .update({ referral_bonus_paid: true })
+              .eq("user_id", user.id);
+          }
+        }
       }
 
       // Handle social challenge member payment

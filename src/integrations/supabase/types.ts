@@ -317,6 +317,8 @@ export type Database = {
           invite_code: string | null
           last_name: string | null
           phone: string | null
+          referral_bonus_paid: boolean
+          referred_by: string | null
           updated_at: string
           user_id: string
           username: string | null
@@ -339,6 +341,8 @@ export type Database = {
           invite_code?: string | null
           last_name?: string | null
           phone?: string | null
+          referral_bonus_paid?: boolean
+          referred_by?: string | null
           updated_at?: string
           user_id: string
           username?: string | null
@@ -361,12 +365,22 @@ export type Database = {
           invite_code?: string | null
           last_name?: string | null
           phone?: string | null
+          referral_bonus_paid?: boolean
+          referred_by?: string | null
           updated_at?: string
           user_id?: string
           username?: string | null
           zip?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_referred_by_fkey"
+            columns: ["referred_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       push_tokens: {
         Row: {

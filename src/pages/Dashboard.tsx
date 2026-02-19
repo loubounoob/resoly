@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Flame, Camera, Plus, Loader2 } from "lucide-react";
+import BuyCoinsDrawer from "@/components/BuyCoinsDrawer";
 import CoinIcon from "@/components/CoinIcon";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -27,6 +28,7 @@ const Dashboard = () => {
   const queryClient = useQueryClient();
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [buyCoinsOpen, setBuyCoinsOpen] = useState(false);
   const { data: challenge, isLoading: loadingChallenge } = useActiveChallenge();
   const { data: checkIns, isLoading: loadingCheckIns } = useCheckIns(challenge?.id);
   const { data: coins } = useUserCoins();
@@ -71,10 +73,13 @@ const Dashboard = () => {
         </div>
         <div className="flex items-center gap-2">
           <NotificationBell />
-          <div className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5">
+          <button
+            onClick={() => setBuyCoinsOpen(true)}
+            className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5 hover:bg-secondary/80 transition-colors"
+          >
             <CoinIcon size={14} />
             <span className="text-sm font-bold">{coins ?? 0}</span>
-          </div>
+          </button>
         </div>
       </div>
 
@@ -90,6 +95,12 @@ const Dashboard = () => {
           />
         </DialogContent>
       </Dialog>
+
+      <BuyCoinsDrawer
+        open={buyCoinsOpen}
+        onOpenChange={setBuyCoinsOpen}
+        inviteCode={myProfile?.invite_code}
+      />
     </>
   );
 
