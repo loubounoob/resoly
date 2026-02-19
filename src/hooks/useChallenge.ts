@@ -77,6 +77,14 @@ export const useCreateChallenge = () => {
       bet_per_month: number;
       odds: number;
     }) => {
+      // Cancel any zombie challenges (created but never paid)
+      await supabase
+        .from("challenges")
+        .update({ status: "failed" })
+        .eq("user_id", user!.id)
+        .eq("status", "active")
+        .eq("payment_status", "pending");
+
       const total_sessions = params.sessions_per_week * params.duration_months * 4;
       const { data, error } = await supabase
         .from("challenges")
