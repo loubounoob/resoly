@@ -1,6 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffect } from "react";
+
+// Realtime hook for friendships changes
+export const useFriendshipsRealtime = () => {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel("friendships-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "friendships" },
+        () => {
+          qc.invalidateQueries({ queryKey: ["friends-list"] });
+          qc.invalidateQueries({ queryKey: ["friend-requests"] });
+          qc.invalidateQueries({ queryKey: ["friends-activity"] });
+          qc.invalidateQueries({ queryKey: ["leaderboard"] });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, qc]);
+};
 
 export const useFriendsList = () => {
   const { user } = useAuth();
@@ -129,13 +153,14 @@ export const useRespondFriendRequest = () => {
       qc.invalidateQueries({ queryKey: ["friend-requests"] });
       qc.invalidateQueries({ queryKey: ["friends-activity"] });
       qc.invalidateQueries({ queryKey: ["leaderboard"] });
-      // Remove the friend_request notification when responding
+      // Remove the friend_request notification from this sender
       if (variables.senderUserId) {
         supabase
           .from("notifications" as any)
           .delete()
           .eq("user_id", user!.id)
           .eq("type", "friend_request")
+          .contains("data" as any, { from_user_id: variables.senderUserId } as any)
           .then(() => {
             qc.invalidateQueries({ queryKey: ["notifications"] });
             qc.invalidateQueries({ queryKey: ["unread-count"] });
@@ -320,10 +345,20 @@ export const useRespondFriendRequestByUserId = () => {
         });
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["friends-list"] });
       qc.invalidateQueries({ queryKey: ["friend-requests"] });
-      qc.invalidateQueries({ queryKey: ["notifications"] });
+      // Delete the friend_request notification from this sender
+      supabase
+        .from("notifications" as any)
+        .delete()
+        .eq("user_id", user!.id)
+        .eq("type", "friend_request")
+        .contains("data" as any, { from_user_id: variables.senderUserId } as any)
+        .then(() => {
+          qc.invalidateQueries({ queryKey: ["notifications"] });
+          qc.invalidateQueries({ queryKey: ["unread-count"] });
+        });
     },
   });
 };
