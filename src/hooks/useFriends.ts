@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
+import { startOfWeek } from "date-fns";
 
 // Realtime hook for friendships changes
 export const useFriendshipsRealtime = () => {
@@ -221,6 +222,8 @@ export const useFriendsActivity = () => {
         checkIns = ci ?? [];
       }
 
+      const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+
       return friendIds.map((fid) => {
         const profile = (profiles ?? []).find((p: any) => p.user_id === fid);
         const challenge = (challenges ?? []).find((c: any) => c.user_id === fid);
@@ -229,7 +232,16 @@ export const useFriendsActivity = () => {
           : [];
         const uniqueDays = new Set(weeklyCheckIns.map((ci: any) => new Date(ci.checked_in_at).getDay()));
         const weeklyDone = uniqueDays.size;
-        const weeklyGoal = challenge?.sessions_per_week ?? 0;
+
+        // First week adjustment
+        let isFirstWeek = false;
+        if (challenge) {
+          const challengeWeekStart = startOfWeek(new Date(challenge.started_at), { weekStartsOn: 1 });
+          isFirstWeek = currentWeekStart.getTime() === challengeWeekStart.getTime();
+        }
+        const weeklyGoal = isFirstWeek && challenge?.first_week_sessions != null
+          ? challenge.first_week_sessions
+          : (challenge?.sessions_per_week ?? 0);
 
         // Urgency logic
         const sessionsRemaining = weeklyGoal - weeklyDone;
@@ -270,6 +282,7 @@ export const useFriendsActivity = () => {
           weeklyGoal,
           isGoalMet,
           isUrgent,
+          isFirstWeek,
           hasChallenge: !!challenge,
           weekStatus,
           weeksRemaining,
