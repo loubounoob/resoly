@@ -70,34 +70,22 @@ const Friends = () => {
     }
     setAcceptingId(sc.id);
     try {
-      const member = await acceptChallenge.mutateAsync({
-        socialChallengeId: sc.id,
-        betAmount: sc.bet_amount,
-        iban: sc.type === "boost" ? ibanValue.trim() : undefined,
-      });
-
-      // Redirect to Stripe
-      const { data, error } = await supabase.functions.invoke("create-challenge-payment", {
+      // For boost challenges, recipient doesn't pay — use dedicated function
+      const { data, error } = await supabase.functions.invoke("accept-boost-challenge", {
         body: {
           socialChallengeId: sc.id,
-          memberId: member.id,
-          amount: sc.bet_amount,
-          description: `Mise Resoly Social — ${sc.bet_amount}€ — ${sc.type} ${sc.sessions_per_week}x/sem pendant ${sc.duration_months} mois`,
+          iban: ibanValue.trim() || undefined,
         },
       });
 
       if (error) throw error;
-      if (data?.success) {
-        toast.success("Code promo appliqué ! Défi accepté 🎉");
-        setIbanValue("");
-        navigate("/friends");
-      } else if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error("No checkout URL");
-      }
-    } catch {
-      toast.error("Erreur lors de l'acceptation");
+      if (!data?.success) throw new Error(data?.error || "Erreur");
+
+      toast.success("Défi accepté ! C'est parti 🔥");
+      setIbanValue("");
+      navigate("/dashboard");
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur lors de l'acceptation");
       setAcceptingId(null);
     }
   };
