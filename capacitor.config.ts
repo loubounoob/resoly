@@ -12,6 +12,13 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
+    Geolocation: {
+      // iOS: NSLocationWhenInUseUsageDescription must be set in Info.plist
+    },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_icon',
+      iconColor: '#FF6B35',
+    },
   },
 };
 

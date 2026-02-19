@@ -17,6 +17,7 @@ import { calculateCoins } from "@/lib/coins";
 import { startOfWeek, endOfWeek, isWithinInterval, format, startOfDay, getDay } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import NotificationBell from "@/components/NotificationBell";
+import { useGymProximity } from "@/hooks/useGymProximity";
 
 const weekDayLabels = ["L", "M", "M", "J", "V", "S", "D"];
 
@@ -30,6 +31,12 @@ const Dashboard = () => {
   const { data: checkIns, isLoading: loadingCheckIns } = useCheckIns(challenge?.id);
   const { data: coins } = useUserCoins();
   const { data: myProfile } = useMyProfile();
+
+  useGymProximity({
+    gymLatitude: (myProfile as any)?.gym_latitude ?? null,
+    gymLongitude: (myProfile as any)?.gym_longitude ?? null,
+    hasActiveChallenge: !!challenge,
+  });
 
   if (loadingChallenge) {
     return (

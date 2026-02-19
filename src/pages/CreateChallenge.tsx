@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { getDay } from "date-fns";
 import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 import { Badge } from "@/components/ui/badge";
+import GymLocationPicker from "@/components/GymLocationPicker";
 import {
   Dialog,
   DialogContent,
@@ -306,6 +307,11 @@ const CreateChallenge = () => {
           </div>
         </section>
       )}
+
+      {/* Gym Location Picker */}
+      <div className="mt-4">
+        <GymLocationPicker />
+      </div>
 
       {/* Promo Code */}
       <div className="mt-4">

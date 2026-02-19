@@ -310,6 +310,9 @@ export type Database = {
           created_at: string
           display_name: string | null
           first_name: string | null
+          gym_latitude: number | null
+          gym_longitude: number | null
+          gym_name: string | null
           id: string
           invite_code: string | null
           last_name: string | null
@@ -329,6 +332,9 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           first_name?: string | null
+          gym_latitude?: number | null
+          gym_longitude?: number | null
+          gym_name?: string | null
           id?: string
           invite_code?: string | null
           last_name?: string | null
@@ -348,6 +354,9 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           first_name?: string | null
+          gym_latitude?: number | null
+          gym_longitude?: number | null
+          gym_name?: string | null
           id?: string
           invite_code?: string | null
           last_name?: string | null
