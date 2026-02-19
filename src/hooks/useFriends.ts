@@ -238,6 +238,30 @@ export const useFriendsActivity = () => {
         const isGoalMet = weeklyDone >= weeklyGoal;
         const isUrgent = !isGoalMet && sessionsRemaining >= daysLeft;
 
+        // Build week status array (Mon-Sun) for the week tracker
+        const checkedDaySet = new Set(weeklyCheckIns.map((ci: any) => new Date(ci.checked_in_at).getDay()));
+        const weekStatus = Array.from({ length: 7 }, (_, i) => {
+          const dayIndex = i === 6 ? 0 : i + 1; // Mon=1..Sat=6, Sun=0
+          const dayDate = new Date(weekStart);
+          dayDate.setDate(dayDate.getDate() + i);
+          if (dayDate > now) return null; // future
+          return checkedDaySet.has(dayIndex) ? true : false;
+        });
+
+        // Weeks remaining
+        let weeksRemaining = 0;
+        if (challenge) {
+          const challengeEnd = new Date(challenge.started_at);
+          challengeEnd.setMonth(challengeEnd.getMonth() + challenge.duration_months);
+          const msLeft = challengeEnd.getTime() - now.getTime();
+          weeksRemaining = Math.max(0, Math.ceil(msLeft / (7 * 24 * 60 * 60 * 1000)));
+        }
+
+        // Total verified check-ins for challenge
+        const totalVerified = challenge
+          ? checkIns.filter((ci: any) => ci.challenge_id === challenge.id).length
+          : 0;
+
         return {
           userId: fid,
           profile,
@@ -247,6 +271,9 @@ export const useFriendsActivity = () => {
           isGoalMet,
           isUrgent,
           hasChallenge: !!challenge,
+          weekStatus,
+          weeksRemaining,
+          totalVerified,
         };
       });
     },

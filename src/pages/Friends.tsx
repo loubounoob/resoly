@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users, Plus, Flame, Search, Copy, Check, X, Loader2, UserPlus, Swords, Gift, ChevronRight } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -114,7 +115,7 @@ const Friends = () => {
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2">
           <Users className="w-6 h-6 text-primary" />
           <h1 className="text-2xl font-display font-bold">Amis</h1>
           {(pendingCount + receivedCount) > 0 && (
@@ -315,58 +316,107 @@ const Friends = () => {
           </DrawerHeader>
           <div className="px-4 pb-6">
             {selectedFriend?.hasChallenge && selectedFriend?.challenge ? (
-              <div className="space-y-4">
-                {/* Progress ring centered */}
-                <div className="flex justify-center">
-                  <MiniProgressRing
-                    done={selectedFriend.weeklyDone}
-                    goal={selectedFriend.weeklyGoal}
-                    isGoalMet={selectedFriend.isGoalMet}
-                    isUrgent={selectedFriend.isUrgent}
-                    size={80}
-                  />
-                </div>
+              (() => {
+                const f = selectedFriend;
+                const weeklyProgress = f.weeklyGoal > 0 ? Math.min(100, Math.round((f.weeklyDone / f.weeklyGoal) * 100)) : 0;
+                const ringColors = f.isGoalMet
+                  ? { start: "hsl(82, 85%, 55%)", end: "hsl(82, 85%, 40%)" }
+                  : f.isUrgent
+                  ? { start: "hsl(0, 85%, 55%)", end: "hsl(0, 70%, 45%)" }
+                  : { start: "hsl(35, 95%, 55%)", end: "hsl(25, 90%, 45%)" };
+                const weekDayLabels = ["L", "M", "M", "J", "V", "S", "D"];
+                const motivationMessage = f.weeklyDone >= f.weeklyGoal
+                  ? "Objectif de la semaine atteint ! 🎉"
+                  : `🔥 ${f.weeklyGoal - f.weeklyDone} séance(s) restante(s)`;
 
-                {/* Challenge stats */}
-                <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card space-y-3">
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <span className="text-muted-foreground block text-xs">Mise</span>
-                      <span className="font-display font-bold text-lg">{selectedFriend.challenge.bet_per_month}€</span>
+                return (
+                  <div className="space-y-4">
+                    {/* Progress ring */}
+                    <div className="flex flex-col items-center">
+                      <div className="relative w-32 h-32">
+                        <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+                          <circle cx="60" cy="60" r="52" fill="none" stroke="hsl(220, 15%, 18%)" strokeWidth="8" />
+                          <circle
+                            cx="60" cy="60" r="52" fill="none"
+                            stroke={`url(#friendRingGrad)`}
+                            strokeWidth="8"
+                            strokeLinecap="round"
+                            strokeDasharray={`${2 * Math.PI * 52}`}
+                            strokeDashoffset={`${2 * Math.PI * 52 * (1 - weeklyProgress / 100)}`}
+                            className="transition-all duration-700"
+                          />
+                          <defs>
+                            <linearGradient id="friendRingGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                              <stop offset="0%" stopColor={ringColors.start} />
+                              <stop offset="100%" stopColor={ringColors.end} />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-2xl font-display font-bold">{f.weeklyDone}/{f.weeklyGoal}</span>
+                          <span className="text-[10px] text-muted-foreground">cette semaine</span>
+                        </div>
+                      </div>
+                      <p className="text-sm font-medium mt-2">{motivationMessage}</p>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground block text-xs">Durée</span>
-                      <span className="font-display font-bold text-lg">{selectedFriend.challenge.duration_months} mois</span>
+
+                    {/* Weeks remaining */}
+                    {f.weeksRemaining > 0 && (
+                      <p className="text-center text-xs text-muted-foreground">
+                        ⏳ <span className="font-semibold">{f.weeksRemaining} semaine{f.weeksRemaining > 1 ? "s" : ""}</span> restante{f.weeksRemaining > 1 ? "s" : ""} pour remporter le défi
+                      </p>
+                    )}
+
+                    {/* Week tracker */}
+                    {f.weekStatus && (
+                      <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm font-medium">🗓️ Sa semaine</span>
+                          <span className="text-xs text-muted-foreground">{f.weeklyDone}/{f.weeklyGoal} séances</span>
+                        </div>
+                        <div className="grid grid-cols-7 gap-2 mb-3">
+                          {weekDayLabels.map((day, i) => (
+                            <div key={i} className="flex flex-col items-center gap-1.5">
+                              <span className="text-[10px] text-muted-foreground">{day}</span>
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                                f.weekStatus[i] === true
+                                  ? "bg-gradient-primary text-primary-foreground shadow-glow"
+                                  : f.weekStatus[i] === false
+                                  ? "bg-destructive/20 text-destructive"
+                                  : "bg-secondary text-muted-foreground"
+                              }`}>
+                                {f.weekStatus[i] === true ? "✓" : f.weekStatus[i] === false ? "✗" : "·"}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <Progress value={weeklyProgress} className="h-2" />
+                      </div>
+                    )}
+
+                    {/* Bet & stats */}
+                    <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                        <span className="text-xl">💰</span>
+                      </div>
+                      <div className="flex-1">
+                        <span className="text-xl font-display font-bold">{f.challenge.bet_per_month}€</span>
+                        <p className="text-xs text-muted-foreground">
+                          {f.challenge.sessions_per_week}x/sem · {f.challenge.duration_months} mois
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground block text-xs">Fréquence</span>
-                      <span className="font-display font-bold text-lg">{selectedFriend.challenge.sessions_per_week}x/sem</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block text-xs">Cette semaine</span>
-                      <span className="font-display font-bold text-lg">{selectedFriend.weeklyDone}/{selectedFriend.weeklyGoal}</span>
+
+                    {/* Coins */}
+                    <div className="bg-gradient-card rounded-2xl border border-border p-3 shadow-card flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Pièces gagnées</span>
+                      <span className="font-display font-bold text-gradient-gold inline-flex items-center gap-1">
+                        <CoinIcon size={16} /> {f.challenge.coins_awarded}
+                      </span>
                     </div>
                   </div>
-                  <div className="h-px bg-border" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Pièces gagnées</span>
-                    <span className="font-display font-bold text-gradient-gold inline-flex items-center gap-1">
-                      <CoinIcon size={16} /> {selectedFriend.challenge.coins_awarded}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Status */}
-                <div className={`text-center text-sm font-medium ${
-                  selectedFriend.isGoalMet ? "text-primary" : selectedFriend.isUrgent ? "text-destructive" : "text-accent"
-                }`}>
-                  {selectedFriend.isGoalMet
-                    ? "✅ Objectif de la semaine atteint !"
-                    : selectedFriend.isUrgent
-                    ? "⚠️ Dernière chance aujourd'hui"
-                    : `🔥 ${selectedFriend.weeklyGoal - selectedFriend.weeklyDone} séance(s) restante(s)`}
-                </div>
-              </div>
+                );
+              })()
             ) : (
               <div className="text-center py-8">
                 <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
