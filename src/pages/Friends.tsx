@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Flame, Search, Copy, Check, X, Loader2, UserPlus, Swords, Gift } from "lucide-react";
+import { Users, Plus, Flame, Search, Copy, Check, X, Loader2, UserPlus, Swords, Gift, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import BottomNav from "@/components/BottomNav";
 import MiniProgressRing from "@/components/MiniProgressRing";
+import CoinIcon from "@/components/CoinIcon";
 import { useFriendsActivity, useFriendRequests, useSendFriendRequest, useRespondFriendRequest, useSearchUsers, useMyProfile, useFriendshipsRealtime } from "@/hooks/useFriends";
 import { useReceivedSocialChallenges, useAcceptSocialChallenge } from "@/hooks/useSocialChallenges";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +19,8 @@ const Friends = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [selectedFriend, setSelectedFriend] = useState<any>(null);
+  const [ibanValue, setIbanValue] = useState("");
 
   useFriendshipsRealtime();
   const { data: activity, isLoading: loadingActivity } = useFriendsActivity();
@@ -60,11 +63,16 @@ const Friends = () => {
   };
 
   const handleAcceptChallenge = async (sc: any) => {
+    if (sc.type === "boost" && !ibanValue.trim()) {
+      toast.error("Entre ton IBAN pour recevoir ta récompense");
+      return;
+    }
     setAcceptingId(sc.id);
     try {
       const member = await acceptChallenge.mutateAsync({
         socialChallengeId: sc.id,
         betAmount: sc.bet_amount,
+        iban: sc.type === "boost" ? ibanValue.trim() : undefined,
       });
 
       // Redirect to Stripe
@@ -80,6 +88,7 @@ const Friends = () => {
       if (error) throw error;
       if (data?.success) {
         toast.success("Code promo appliqué ! Défi accepté 🎉");
+        setIbanValue("");
         navigate("/friends");
       } else if (data?.url) {
         window.location.href = data.url;
@@ -94,6 +103,12 @@ const Friends = () => {
 
   const pendingCount = requests?.length ?? 0;
   const receivedCount = receivedChallenges?.length ?? 0;
+
+  // Compute challenge details for the selected friend
+  const friendChallenge = selectedFriend?.challenge;
+  const totalDone = selectedFriend?.challenge
+    ? undefined // we'll compute from check-ins data if available
+    : 0;
 
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
@@ -176,20 +191,37 @@ const Friends = () => {
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {sc.creatorProfile?.display_name || sc.creatorProfile?.first_name || "Quelqu'un"} t'a défié !
+                      {sc.creatorProfile?.display_name || sc.creatorProfile?.first_name || "Quelqu'un"} t'offre un défi !
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {sc.type === "duel" ? "🥊 Duel" : sc.type === "boost" ? "🤝 Boost" : "👥 Groupe"} · {sc.bet_amount}€ · {sc.sessions_per_week}x/sem · {sc.duration_months} mois
+                      🎁 {sc.bet_amount}€ · {sc.sessions_per_week}x/sem · {sc.duration_months} mois
                     </p>
                   </div>
                 </div>
+
+                {/* IBAN input for boost challenges */}
+                {sc.type === "boost" && (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Ton IBAN (pour recevoir ta récompense)
+                    </label>
+                    <input
+                      type="text"
+                      value={ibanValue}
+                      onChange={(e) => setIbanValue(e.target.value.toUpperCase())}
+                      placeholder="FR76 1234 5678 9012 3456 7890 123"
+                      className="w-full h-10 rounded-xl border border-border bg-secondary px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                    />
+                  </div>
+                )}
+
                 <Button
                   onClick={() => handleAcceptChallenge(sc)}
                   disabled={acceptingId === sc.id}
                   className="w-full h-12 font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
                 >
                   {acceptingId === sc.id ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Flame className="w-4 h-4 mr-2" />}
-                  Accepter et payer {sc.bet_amount}€
+                  Accepter le défi
                 </Button>
               </div>
             ))}
@@ -214,7 +246,11 @@ const Friends = () => {
             {activity.map((friend: any) => {
               const status = getStatusInfo(friend);
               return (
-                <div key={friend.userId} className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card flex items-center gap-3">
+                <button
+                  key={friend.userId}
+                  onClick={() => setSelectedFriend(friend)}
+                  className="w-full bg-gradient-card rounded-2xl border border-border p-4 shadow-card flex items-center gap-3 text-left transition-all hover:border-primary/30 active:scale-[0.98]"
+                >
                   <Avatar className="w-10 h-10">
                     <AvatarImage src={friend.profile?.avatar_url} />
                     <AvatarFallback className="bg-secondary text-xs font-bold">
@@ -238,10 +274,8 @@ const Friends = () => {
                       isUrgent={friend.isUrgent}
                     />
                   )}
-                  <button className="text-muted-foreground hover:text-accent transition-colors p-1">
-                    <Flame className="w-4 h-4" />
-                  </button>
-                </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                </button>
               );
             })}
           </div>
@@ -253,10 +287,105 @@ const Friends = () => {
           className="w-full h-12 mt-4 font-display font-bold bg-accent/10 text-accent hover:bg-accent/20 border border-accent/20 rounded-xl"
         >
           <Gift className="w-4 h-4 mr-2" />
-          Offrir un défi à un ami
+          Offrir un défi
         </Button>
       </section>
 
+      {/* Friend Detail Drawer */}
+      <Drawer open={!!selectedFriend} onOpenChange={(open) => { if (!open) setSelectedFriend(null); }}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle className="flex items-center gap-3">
+              <Avatar className="w-10 h-10">
+                <AvatarImage src={selectedFriend?.profile?.avatar_url} />
+                <AvatarFallback className="bg-secondary text-xs font-bold">
+                  {getInitials(selectedFriend?.profile)}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <span>{selectedFriend?.profile?.display_name || selectedFriend?.profile?.first_name || "Ami"}</span>
+                {selectedFriend?.profile?.username && (
+                  <p className="text-xs text-muted-foreground font-normal">@{selectedFriend.profile.username}</p>
+                )}
+              </div>
+            </DrawerTitle>
+            <DrawerDescription>
+              {selectedFriend?.hasChallenge ? "Détails du défi actif" : "Aucun défi actif"}
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="px-4 pb-6">
+            {selectedFriend?.hasChallenge && selectedFriend?.challenge ? (
+              <div className="space-y-4">
+                {/* Progress ring centered */}
+                <div className="flex justify-center">
+                  <MiniProgressRing
+                    done={selectedFriend.weeklyDone}
+                    goal={selectedFriend.weeklyGoal}
+                    isGoalMet={selectedFriend.isGoalMet}
+                    isUrgent={selectedFriend.isUrgent}
+                    size={80}
+                  />
+                </div>
+
+                {/* Challenge stats */}
+                <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card space-y-3">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-muted-foreground block text-xs">Mise</span>
+                      <span className="font-display font-bold text-lg">{selectedFriend.challenge.bet_per_month}€</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-xs">Durée</span>
+                      <span className="font-display font-bold text-lg">{selectedFriend.challenge.duration_months} mois</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-xs">Fréquence</span>
+                      <span className="font-display font-bold text-lg">{selectedFriend.challenge.sessions_per_week}x/sem</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-xs">Cette semaine</span>
+                      <span className="font-display font-bold text-lg">{selectedFriend.weeklyDone}/{selectedFriend.weeklyGoal}</span>
+                    </div>
+                  </div>
+                  <div className="h-px bg-border" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Pièces gagnées</span>
+                    <span className="font-display font-bold text-gradient-gold inline-flex items-center gap-1">
+                      <CoinIcon size={16} /> {selectedFriend.challenge.coins_awarded}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div className={`text-center text-sm font-medium ${
+                  selectedFriend.isGoalMet ? "text-primary" : selectedFriend.isUrgent ? "text-destructive" : "text-accent"
+                }`}>
+                  {selectedFriend.isGoalMet
+                    ? "✅ Objectif de la semaine atteint !"
+                    : selectedFriend.isUrgent
+                    ? "⚠️ Dernière chance aujourd'hui"
+                    : `🔥 ${selectedFriend.weeklyGoal - selectedFriend.weeklyDone} séance(s) restante(s)`}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">Cet ami n'a pas de défi actif</p>
+                <Button
+                  onClick={() => {
+                    setSelectedFriend(null);
+                    navigate("/friends/create-social?type=boost");
+                  }}
+                  className="mt-4 bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-xl shadow-glow"
+                >
+                  <Gift className="w-4 h-4 mr-2" />
+                  Lui offrir un défi
+                </Button>
+              </div>
+            )}
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       {/* Add Friend Drawer */}
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>

@@ -173,16 +173,18 @@ export const useAcceptSocialChallenge = () => {
   const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { socialChallengeId: string; betAmount: number }) => {
+    mutationFn: async (params: { socialChallengeId: string; betAmount: number; iban?: string }) => {
+      const insertData: any = {
+        social_challenge_id: params.socialChallengeId,
+        user_id: user!.id,
+        bet_amount: params.betAmount,
+        status: "joined",
+        payment_status: "pending",
+      };
+      if (params.iban) insertData.iban = params.iban;
       const { data, error } = await supabase
         .from("social_challenge_members" as any)
-        .insert({
-          social_challenge_id: params.socialChallengeId,
-          user_id: user!.id,
-          bet_amount: params.betAmount,
-          status: "joined",
-          payment_status: "pending",
-        } as any)
+        .insert(insertData as any)
         .select()
         .single();
       if (error) throw error;
