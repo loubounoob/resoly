@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import BottomNav from "@/components/BottomNav";
 import MiniProgressRing from "@/components/MiniProgressRing";
-import { useFriendsActivity, useFriendRequests, useSendFriendRequest, useRespondFriendRequest, useSearchUsers, useMyProfile, useLeaderboard } from "@/hooks/useFriends";
+import { useFriendsActivity, useFriendRequests, useSendFriendRequest, useRespondFriendRequest, useSearchUsers, useMyProfile, useLeaderboard, useFriendshipsRealtime } from "@/hooks/useFriends";
 import { useSocialChallenges, useReceivedSocialChallenges, useAcceptSocialChallenge } from "@/hooks/useSocialChallenges";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ const Friends = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
 
+  useFriendshipsRealtime();
   const { data: activity, isLoading: loadingActivity } = useFriendsActivity();
   const { data: requests } = useFriendRequests();
   const { data: socialChallenges } = useSocialChallenges();
