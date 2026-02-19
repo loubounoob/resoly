@@ -1,96 +1,49 @@
 
 
-## Plan : Notification push par geolocalisation "salle de sport"
+## Corrections a apporter
 
-### Concept
+### 1. Ajustement premiere semaine dans l'onglet Amis
 
-Quand un utilisateur avec un defi actif se trouve a proximite de sa salle de sport, l'application lui envoie automatiquement une notification locale pour lui rappeler de prendre sa photo de check-in.
+**Probleme** : Le Dashboard utilise `first_week_sessions` pour adapter l'objectif hebdomadaire quand on est dans la premiere semaine du defi. Mais dans le hook `useFriendsActivity`, l'objectif est toujours `challenge.sessions_per_week`, sans tenir compte de `first_week_sessions`.
 
-### 1. Enregistrer la localisation de la salle de sport
+**Solution** : Dans `src/hooks/useFriends.ts`, dans la fonction `useFriendsActivity`, ajouter la meme logique que le Dashboard :
+- Calculer `isFirstWeek` en comparant le debut de la semaine actuelle avec le debut de la semaine ou le defi a commence
+- Si `isFirstWeek` et que `first_week_sessions` existe, utiliser cette valeur au lieu de `sessions_per_week`
+- Propager cette valeur corrigee dans `weeklyGoal`, `isGoalMet`, `isUrgent`, etc.
 
-**Migration SQL** : Ajouter deux colonnes a la table `profiles` :
+### 2. Afficher le pseudonyme (username) comme nom principal
 
-```text
-ALTER TABLE profiles ADD COLUMN gym_latitude double precision;
-ALTER TABLE profiles ADD COLUMN gym_longitude double precision;
-ALTER TABLE profiles ADD COLUMN gym_name text;
-```
+**Probleme** : Partout dans `Friends.tsx`, le nom affiche est `display_name || first_name || "Ami"`. Or l'utilisateur veut que seul le **pseudonyme** (`username`) soit affiche.
 
-**Nouveau composant `GymLocationPicker`** :
-- Affiche un bouton "Definir ma salle de sport"
-- Utilise le plugin `@capacitor/geolocation` pour recuperer la position actuelle
-- L'utilisateur peut valider "C'est ici ma salle" ou ajuster manuellement
-- Sauvegarde lat/lng dans `profiles`
-
-**Integration** : Le picker sera accessible depuis :
-- La page de creation de defi (etape optionnelle)
-- Les parametres du profil (Dashboard > avatar > parametres)
-
-### 2. Surveillance de la position en arriere-plan
-
-**Dependance** : `@capacitor/geolocation` (a installer)
-
-**Nouveau hook `src/hooks/useGymProximity.ts`** :
-- S'active uniquement si : plateforme native + defi actif + gym_latitude/gym_longitude definis
-- Utilise `Geolocation.watchPosition()` pour surveiller la position
-- Calcule la distance entre la position actuelle et la salle (formule Haversine)
-- Si distance < 200 metres et pas encore notifie aujourd'hui :
-  - Envoie une notification locale via `@capacitor/local-notifications`
-  - Stocke un flag dans localStorage pour eviter le spam (1 notif max par jour)
-
-**Dependance supplementaire** : `@capacitor/local-notifications` (notifications locales, pas besoin de passer par FCM pour ca)
-
-### 3. Notification locale
-
-Le message de la notification :
-- Titre : "Tu es a la salle ! 💪"
-- Corps : "N'oublie pas de prendre ta photo pour valider ta seance"
-- Action au tap : ouvre la page `/verify` (photo check-in)
-
-### 4. Configuration Capacitor
-
-Mise a jour de `capacitor.config.ts` pour ajouter la configuration des plugins Geolocation et LocalNotifications.
-
-### Fichiers concernes
-
-| Fichier | Modification |
-|---|---|
-| Migration SQL | Ajouter `gym_latitude`, `gym_longitude`, `gym_name` a `profiles` |
-| `package.json` | Installer `@capacitor/geolocation` et `@capacitor/local-notifications` |
-| `capacitor.config.ts` | Ajouter config des plugins |
-| `src/hooks/useGymProximity.ts` | **Nouveau** -- surveillance position + notification locale |
-| `src/components/GymLocationPicker.tsx` | **Nouveau** -- composant pour definir sa salle |
-| `src/pages/CreateChallenge.tsx` | Ajouter etape optionnelle "Definir ma salle" |
-| `src/pages/Dashboard.tsx` | Ajouter le hook `useGymProximity` |
+**Solution** : Dans `src/pages/Friends.tsx`, remplacer toutes les occurrences de `display_name || first_name` par `username` comme nom principal :
+- Fil d'activite (ligne 251) : afficher `profile.username` au lieu de `display_name`
+- Demandes en attente (ligne 139) : idem
+- Drawer de detail (ligne 295) : idem
+- Defis recus (ligne 183) : utiliser `creatorProfile.username`
+- Garder le `@username` en sous-titre uniquement si on affiche autre chose en principal (ce qui ne sera plus le cas, donc le supprimer pour eviter la redondance)
 
 ### Details techniques
 
-**Calcul de distance (Haversine)** :
+**Fichiers modifies :**
 
-```text
-function haversineDistance(lat1, lon1, lat2, lon2) -> metres
-  Retourne la distance en metres entre deux points GPS
-```
+1. **`src/hooks/useFriends.ts`** - dans `useFriendsActivity` :
+   - Importer `startOfWeek` de `date-fns`
+   - Apres avoir recupere le challenge de chaque ami, calculer :
+     ```
+     const challengeStart = new Date(challenge.started_at)
+     const challengeWeekStart = startOfWeek(challengeStart, { weekStartsOn: 1 })
+     const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 })
+     const isFirstWeek = currentWeekStart.getTime() === challengeWeekStart.getTime()
+     const adjustedGoal = isFirstWeek && challenge.first_week_sessions != null
+       ? challenge.first_week_sessions
+       : challenge.sessions_per_week
+     ```
+   - Utiliser `adjustedGoal` a la place de `weeklyGoal` dans tous les calculs (isGoalMet, isUrgent, etc.)
+   - Ajouter `isFirstWeek` et `firstWeekSessions` dans l'objet retourne
 
-**Hook useGymProximity** :
+2. **`src/pages/Friends.tsx`** :
+   - Remplacer tous les `display_name || first_name || "Ami"` par `username || "Ami"`
+   - Supprimer les lignes `@username` en sous-titre (devenues redondantes)
+   - Dans le drawer de detail, afficher le bandeau "Premiere semaine" si `isFirstWeek` est vrai (comme sur le Dashboard)
+   - Adapter le ring et le tracker pour utiliser le goal ajuste
 
-```text
-1. Recuperer gym_latitude/gym_longitude depuis le profil
-2. Verifier qu'un defi actif existe
-3. Demarrer watchPosition avec { enableHighAccuracy: true }
-4. A chaque update de position :
-   - Calculer distance vers la salle
-   - Si < 200m ET pas deja notifie aujourd'hui :
-     -> LocalNotifications.schedule({ title, body, id })
-     -> Stocker la date dans localStorage
-5. Cleanup : clearWatch au unmount
-```
-
-**Permissions requises** (a configurer dans les projets natifs) :
-- iOS : `NSLocationWhenInUseUsageDescription` dans Info.plist
-- Android : `ACCESS_FINE_LOCATION` dans AndroidManifest.xml
-
-### Limitations
-
-- La surveillance en arriere-plan necessiterait un plugin supplementaire (`@capacitor-community/background-geolocation`). Pour cette premiere version, la detection fonctionne quand l'app est ouverte (foreground). On pourra ajouter le mode arriere-plan dans une iteration future si souhaite.
-- Sur le web (non-natif), le systeme sera desactive silencieusement.
