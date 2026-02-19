@@ -34,7 +34,7 @@ const Friends = () => {
   const acceptChallenge = useAcceptSocialChallenge();
 
   const getInitials = (profile: any) => {
-    const name = profile?.display_name || profile?.first_name || "?";
+    const name = profile?.username || "?";
     return name.charAt(0).toUpperCase();
   };
 
@@ -136,11 +136,8 @@ const Friends = () => {
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">
-                    {req.profile?.display_name || req.profile?.first_name || "Inconnu"}
+                    {req.profile?.username || "Inconnu"}
                   </p>
-                  {req.profile?.username && (
-                    <p className="text-[11px] text-muted-foreground">@{req.profile.username}</p>
-                  )}
                 </div>
                 <button
                   onClick={() => respondRequest.mutate({ id: req.id, accept: true, senderUserId: req.profile?.user_id })}
@@ -180,7 +177,7 @@ const Friends = () => {
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {sc.creatorProfile?.display_name || sc.creatorProfile?.first_name || "Quelqu'un"} t'offre un défi !
+                      {sc.creatorProfile?.username || "Quelqu'un"} t'offre un défi !
                     </p>
                     <p className="text-xs text-muted-foreground">
                       🎁 {sc.bet_amount}€ · {sc.sessions_per_week}x/sem · {sc.duration_months} mois
@@ -248,11 +245,8 @@ const Friends = () => {
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {friend.profile?.display_name || friend.profile?.first_name || "Ami"}
+                      {friend.profile?.username || "Ami"}
                     </p>
-                    {friend.profile?.username && (
-                      <p className="text-[11px] text-muted-foreground">@{friend.profile.username}</p>
-                    )}
                     <p className={`text-xs ${status.color}`}>{status.text}</p>
                   </div>
                   {friend.hasChallenge && (
@@ -291,12 +285,7 @@ const Friends = () => {
                   {getInitials(selectedFriend?.profile)}
                 </AvatarFallback>
               </Avatar>
-              <div>
-                <span>{selectedFriend?.profile?.display_name || selectedFriend?.profile?.first_name || "Ami"}</span>
-                {selectedFriend?.profile?.username && (
-                  <p className="text-xs text-muted-foreground font-normal">@{selectedFriend.profile.username}</p>
-                )}
-              </div>
+              <span>{selectedFriend?.profile?.username || "Ami"}</span>
             </DrawerTitle>
             <DrawerDescription>
               {selectedFriend?.hasChallenge ? "Détails du défi actif" : "Aucun défi actif"}
@@ -319,6 +308,12 @@ const Friends = () => {
 
                 return (
                   <div className="space-y-4">
+                    {/* First week banner */}
+                    {f.isFirstWeek && (
+                      <div className="bg-accent/10 border border-accent/20 rounded-xl px-4 py-2 text-center">
+                        <span className="text-xs font-medium text-accent">⭐ Première semaine — objectif adapté</span>
+                      </div>
+                    )}
                     {/* Progress ring */}
                     <div className="flex flex-col items-center">
                       <div className="relative w-32 h-32">
@@ -449,12 +444,11 @@ const Friends = () => {
                     <Avatar className="w-8 h-8">
                       <AvatarImage src={u.avatar_url} />
                       <AvatarFallback className="text-[10px] bg-secondary">
-                        {(u.display_name || u.username || "?").charAt(0).toUpperCase()}
+                       {(u.username || "?").charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <p className="text-sm font-medium">{u.display_name || u.username}</p>
-                      {u.username && <p className="text-xs text-muted-foreground">@{u.username}</p>}
+                      <p className="text-sm font-medium">{u.username || "?"}</p>
                     </div>
                     <Button
                       size="sm"
