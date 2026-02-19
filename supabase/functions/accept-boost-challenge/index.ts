@@ -43,8 +43,8 @@ serve(async (req) => {
     if (sc.target_user_id !== user.id) {
       throw new Error("You are not the target of this challenge");
     }
-    if (sc.status !== "pending") {
-      throw new Error("This challenge is no longer pending");
+    if (sc.status !== "pending" && sc.status !== "active") {
+      throw new Error("This challenge is no longer available");
     }
 
     // 2. Check user doesn't already have an active challenge

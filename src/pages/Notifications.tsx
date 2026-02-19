@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, UserPlus, UserCheck, Swords, Flame, Check, X } from "lucide-react";
+import { ArrowLeft, UserPlus, UserCheck, Swords, Flame, Check, X, Gift, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useNotifications, useMarkNotificationsRead } from "@/hooks/useNotifications";
 import { useRespondFriendRequestByUserId } from "@/hooks/useFriends";
+import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import BottomNav from "@/components/BottomNav";
@@ -13,6 +14,7 @@ const typeConfig: Record<string, { icon: typeof UserPlus; color: string }> = {
   friend_request: { icon: UserPlus, color: "text-blue-400" },
   friend_accepted: { icon: UserCheck, color: "text-green-400" },
   challenge_invite: { icon: Swords, color: "text-purple-400" },
+  social_challenge: { icon: Gift, color: "text-accent" },
   cheer: { icon: Flame, color: "text-orange-400" },
 };
 
@@ -22,6 +24,9 @@ const Notifications = () => {
   const markRead = useMarkNotificationsRead();
   const respondMutation = useRespondFriendRequestByUserId();
   const [respondedIds, setRespondedIds] = useState<Set<string>>(new Set());
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [ibanInputId, setIbanInputId] = useState<string | null>(null);
+  const [ibanValue, setIbanValue] = useState("");
 
   useEffect(() => {
     markRead.mutate();
@@ -51,6 +56,37 @@ const Notifications = () => {
     );
   };
 
+  const handleAcceptSocialChallenge = async (notifId: string, socialChallengeId: string) => {
+    if (!ibanValue.trim()) {
+      setIbanInputId(notifId);
+      return;
+    }
+    setAcceptingId(notifId);
+    try {
+      const { data, error } = await supabase.functions.invoke("accept-boost-challenge", {
+        body: {
+          socialChallengeId,
+          iban: ibanValue.trim(),
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Erreur");
+      setRespondedIds(prev => new Set(prev).add(notifId));
+      toast.success("Défi accepté ! C'est parti 🔥");
+      setIbanValue("");
+      setIbanInputId(null);
+      navigate("/dashboard");
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur lors de l'acceptation");
+      setAcceptingId(null);
+    }
+  };
+
+  const handleDeclineSocialChallenge = (notifId: string) => {
+    setRespondedIds(prev => new Set(prev).add(notifId));
+    toast.info("Défi refusé");
+  };
+
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
       <div className="flex items-center gap-3 mb-6">
@@ -75,55 +111,108 @@ const Notifications = () => {
             const cfg = typeConfig[notif.type] ?? typeConfig.cheer;
             const Icon = cfg.icon;
             const isFriendRequest = notif.type === "friend_request";
+            const isSocialChallenge = notif.type === "social_challenge";
             const fromUserId = notif.data?.from_user_id;
+            const socialChallengeId = notif.data?.socialChallengeId;
             const alreadyResponded = respondedIds.has(notif.id);
 
             return (
               <div
                 key={notif.id}
-                className={`bg-gradient-card rounded-xl border p-4 flex items-start gap-3 transition-all ${
+                className={`bg-gradient-card rounded-xl border p-4 flex flex-col gap-3 transition-all ${
                   !notif.read ? "border-primary/30" : "border-border"
                 }`}
               >
-                <div className={`mt-0.5 ${cfg.color}`}>
-                  <Icon className="w-5 h-5" />
+                <div className="flex items-start gap-3">
+                  <div className={`mt-0.5 ${cfg.color}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{notif.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{notif.body}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: fr })}
+                    </p>
+                  </div>
+                  {!notif.read && (
+                    <div className="w-2 h-2 rounded-full bg-primary mt-2 shrink-0" />
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{notif.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{notif.body}</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: fr })}
-                  </p>
 
-                  {isFriendRequest && fromUserId && !alreadyResponded && (
-                    <div className="flex gap-2 mt-2">
+                {/* Friend request actions */}
+                {isFriendRequest && fromUserId && !alreadyResponded && (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => handleRespond(notif.id, fromUserId, true)}
+                      disabled={respondMutation.isPending}
+                    >
+                      <Check className="w-3.5 h-3.5 mr-1" />
+                      Accepter
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={() => handleRespond(notif.id, fromUserId, false)}
+                      disabled={respondMutation.isPending}
+                    >
+                      <X className="w-3.5 h-3.5 mr-1" />
+                      Refuser
+                    </Button>
+                  </div>
+                )}
+                {isFriendRequest && alreadyResponded && (
+                  <p className="text-xs text-muted-foreground italic">Répondu ✓</p>
+                )}
+
+                {/* Social challenge actions */}
+                {isSocialChallenge && socialChallengeId && !alreadyResponded && (
+                  <div className="space-y-2">
+                    {/* IBAN input */}
+                    {ibanInputId === notif.id && (
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1.5 block">
+                          Ton IBAN (pour recevoir ta récompense)
+                        </label>
+                        <input
+                          type="text"
+                          value={ibanValue}
+                          onChange={(e) => setIbanValue(e.target.value.toUpperCase())}
+                          placeholder="FR76 1234 5678 9012 3456 7890 123"
+                          className="w-full h-10 rounded-xl border border-border bg-secondary px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                        />
+                      </div>
+                    )}
+                    <div className="flex gap-2">
                       <Button
                         size="sm"
-                        className="h-8 text-xs"
-                        onClick={() => handleRespond(notif.id, fromUserId, true)}
-                        disabled={respondMutation.isPending}
+                        className="h-9 text-xs font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow"
+                        onClick={() => handleAcceptSocialChallenge(notif.id, socialChallengeId)}
+                        disabled={acceptingId === notif.id}
                       >
-                        <Check className="w-3.5 h-3.5 mr-1" />
-                        Accepter
+                        {acceptingId === notif.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                        ) : (
+                          <Flame className="w-3.5 h-3.5 mr-1" />
+                        )}
+                        {ibanInputId === notif.id ? "Confirmer" : "Accepter le défi"}
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-8 text-xs"
-                        onClick={() => handleRespond(notif.id, fromUserId, false)}
-                        disabled={respondMutation.isPending}
+                        className="h-9 text-xs"
+                        onClick={() => handleDeclineSocialChallenge(notif.id)}
                       >
                         <X className="w-3.5 h-3.5 mr-1" />
                         Refuser
                       </Button>
                     </div>
-                  )}
-                  {isFriendRequest && alreadyResponded && (
-                    <p className="text-xs text-muted-foreground mt-2 italic">Répondu ✓</p>
-                  )}
-                </div>
-                {!notif.read && (
-                  <div className="w-2 h-2 rounded-full bg-primary mt-2 shrink-0" />
+                  </div>
+                )}
+                {isSocialChallenge && alreadyResponded && (
+                  <p className="text-xs text-muted-foreground italic">Répondu ✓</p>
                 )}
               </div>
             );
