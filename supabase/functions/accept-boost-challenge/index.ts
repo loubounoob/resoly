@@ -1,0 +1,146 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const supabaseClient = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+  );
+
+  const supabaseAdmin = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+  );
+
+  try {
+    const authHeader = req.headers.get("Authorization")!;
+    const token = authHeader.replace("Bearer ", "");
+    const { data: authData } = await supabaseClient.auth.getUser(token);
+    const user = authData.user;
+    if (!user) throw new Error("User not authenticated");
+
+    const { socialChallengeId, iban } = await req.json();
+    if (!socialChallengeId) throw new Error("Missing socialChallengeId");
+
+    // 1. Fetch the social challenge
+    const { data: sc, error: scErr } = await supabaseAdmin
+      .from("social_challenges")
+      .select("*")
+      .eq("id", socialChallengeId)
+      .single();
+    if (scErr || !sc) throw new Error("Social challenge not found");
+
+    // Verify user is the target
+    if (sc.target_user_id !== user.id) {
+      throw new Error("You are not the target of this challenge");
+    }
+    if (sc.status !== "pending") {
+      throw new Error("This challenge is no longer pending");
+    }
+
+    // 2. Check user doesn't already have an active challenge
+    const { data: existingChallenge } = await supabaseAdmin
+      .from("challenges")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .eq("payment_status", "paid")
+      .limit(1);
+    if (existingChallenge && existingChallenge.length > 0) {
+      throw new Error("Tu as déjà un défi actif");
+    }
+
+    // 3. Insert recipient as a member (no payment needed for boost)
+    const insertData: any = {
+      social_challenge_id: socialChallengeId,
+      user_id: user.id,
+      bet_amount: sc.bet_amount,
+      status: "joined",
+      payment_status: "paid", // No payment needed for recipient of a boost
+    };
+    if (iban) insertData.iban = iban;
+
+    const { data: member, error: memberErr } = await supabaseAdmin
+      .from("social_challenge_members")
+      .insert(insertData)
+      .select()
+      .single();
+    if (memberErr) throw memberErr;
+
+    // 4. Activate the social challenge
+    await supabaseAdmin
+      .from("social_challenges")
+      .update({ status: "active" })
+      .eq("id", socialChallengeId);
+
+    // 5. Create individual challenge entries for all members
+    const { data: allMembers } = await supabaseAdmin
+      .from("social_challenge_members")
+      .select("id, user_id, bet_amount")
+      .eq("social_challenge_id", socialChallengeId);
+
+    const totalSessions = sc.sessions_per_week * sc.duration_months * 4;
+    
+    // First week adjustment
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sun
+    const daysLeft = dayOfWeek === 0 ? 1 : 7 - dayOfWeek + 1;
+    const firstWeekSessions = Math.min(
+      Math.max(1, Math.floor((sc.sessions_per_week / 7) * daysLeft)),
+      sc.sessions_per_week
+    );
+
+    for (const m of (allMembers ?? [])) {
+      // Skip if member already has a linked challenge
+      const { data: existingLink } = await supabaseAdmin
+        .from("social_challenge_members")
+        .select("challenge_id")
+        .eq("id", m.id)
+        .single();
+      if (existingLink?.challenge_id) continue;
+
+      const { data: inserted } = await supabaseAdmin
+        .from("challenges")
+        .insert({
+          user_id: m.user_id,
+          sessions_per_week: sc.sessions_per_week,
+          duration_months: sc.duration_months,
+          bet_per_month: m.bet_amount,
+          total_sessions: totalSessions,
+          status: "active",
+          payment_status: "paid",
+          social_challenge_id: socialChallengeId,
+          first_week_sessions: firstWeekSessions,
+        })
+        .select("id")
+        .single();
+
+      if (inserted) {
+        await supabaseAdmin
+          .from("social_challenge_members")
+          .update({ challenge_id: inserted.id })
+          .eq("id", m.id);
+      }
+    }
+
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+    });
+  }
+});
