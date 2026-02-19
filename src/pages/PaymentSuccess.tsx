@@ -10,10 +10,25 @@ const PaymentSuccess = () => {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
 
   const isSocial = !!searchParams.get("social_challenge_id");
+  const isCoins = searchParams.get("type") === "coins";
 
   useEffect(() => {
     const verify = async () => {
       const sessionId = searchParams.get("session_id");
+
+      if (isCoins) {
+        if (!sessionId) { setStatus("error"); return; }
+        try {
+          const { data, error } = await supabase.functions.invoke("verify-coin-purchase", {
+            body: { sessionId },
+          });
+          if (error) throw error;
+          if (data?.success) setStatus("success");
+          else setStatus("error");
+        } catch { setStatus("error"); }
+        return;
+      }
+
       const challengeId = searchParams.get("challenge_id");
       const socialChallengeId = searchParams.get("social_challenge_id");
       const memberId = searchParams.get("member_id");
@@ -56,17 +71,21 @@ const PaymentSuccess = () => {
           <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
             <CheckCircle2 className="w-10 h-10 text-primary" />
           </div>
-          <h1 className="text-2xl font-display font-bold text-center">Paiement confirmé !</h1>
+          <h1 className="text-2xl font-display font-bold text-center">
+            {isCoins ? "Pièces ajoutées !" : "Paiement confirmé !"}
+          </h1>
           <p className="text-muted-foreground text-center text-sm">
-            {isSocial
+            {isCoins
+              ? "Tes pièces ont été créditées sur ton compte ! 🪙"
+              : isSocial
               ? "Ta mise est enregistrée ! Le défi sera activé quand tous les participants auront payé. 🤝"
               : "Ton défi est maintenant actif. C'est parti ! 💪"}
           </p>
           <Button
-            onClick={() => navigate(isSocial ? "/friends" : "/dashboard")}
+            onClick={() => navigate(isCoins ? "/dashboard" : isSocial ? "/friends" : "/dashboard")}
             className="h-14 px-8 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
-            {isSocial ? "Voir mes défis" : "Voir mon défi"}
+            {isCoins ? "Retour" : isSocial ? "Voir mes défis" : "Voir mon défi"}
           </Button>
         </>
       )}

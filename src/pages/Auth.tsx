@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,16 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
+
+  // Capture invite code from URL
+  useEffect(() => {
+    const invite = searchParams.get("invite");
+    if (invite) {
+      localStorage.setItem("resoly_invite_code", invite);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,13 +33,16 @@ const Auth = () => {
         if (error) throw error;
         navigate("/dashboard");
       } else {
+        const inviteCode = localStorage.getItem("resoly_invite_code") || undefined;
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: window.location.origin,
+            data: inviteCode ? { invite_code_used: inviteCode } : undefined,
           },
         });
+        if (!error) localStorage.removeItem("resoly_invite_code");
         if (error) throw error;
         navigate("/dashboard");
       }
