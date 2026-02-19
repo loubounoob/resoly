@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Flame, Search, Copy, Check, X, Trophy, Loader2, UserPlus, Swords, Gift } from "lucide-react";
+import { Users, Plus, Flame, Search, Copy, Check, X, Loader2, UserPlus, Swords, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -8,8 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import BottomNav from "@/components/BottomNav";
 import MiniProgressRing from "@/components/MiniProgressRing";
-import { useFriendsActivity, useFriendRequests, useSendFriendRequest, useRespondFriendRequest, useSearchUsers, useMyProfile, useLeaderboard, useFriendshipsRealtime } from "@/hooks/useFriends";
-import { useSocialChallenges, useReceivedSocialChallenges, useAcceptSocialChallenge } from "@/hooks/useSocialChallenges";
+import { useFriendsActivity, useFriendRequests, useSendFriendRequest, useRespondFriendRequest, useSearchUsers, useMyProfile, useFriendshipsRealtime } from "@/hooks/useFriends";
+import { useReceivedSocialChallenges, useAcceptSocialChallenge } from "@/hooks/useSocialChallenges";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -22,9 +22,7 @@ const Friends = () => {
   useFriendshipsRealtime();
   const { data: activity, isLoading: loadingActivity } = useFriendsActivity();
   const { data: requests } = useFriendRequests();
-  const { data: socialChallenges } = useSocialChallenges();
   const { data: receivedChallenges } = useReceivedSocialChallenges();
-  const { data: leaderboard, isLoading: loadingLeaderboard } = useLeaderboard();
   const { data: searchResults } = useSearchUsers(searchQuery);
   const { data: myProfile } = useMyProfile();
   const sendRequest = useSendFriendRequest();
@@ -259,88 +257,6 @@ const Friends = () => {
         </Button>
       </section>
 
-      {/* Section 2: Défis sociaux */}
-      <section className="mb-6">
-        <h2 className="text-sm text-muted-foreground mb-3">Défis sociaux</h2>
-        {socialChallenges && socialChallenges.length > 0 ? (
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
-            {socialChallenges.map((sc: any) => (
-              <div key={sc.id} className="flex-shrink-0 w-[200px] bg-gradient-card rounded-2xl border border-border p-4 shadow-card">
-                <div className="flex items-center gap-1 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-primary">
-                    {sc.type === "duel" ? "🥊 Duel" : sc.type === "boost" ? "🤝 Boost" : "👥 Groupe"}
-                  </span>
-                </div>
-                <div className="flex -space-x-2 mb-2">
-                  {sc.members?.slice(0, 4).map((m: any) => (
-                    <Avatar key={m.user_id} className="w-7 h-7 border-2 border-background">
-                      <AvatarImage src={m.profile?.avatar_url} />
-                      <AvatarFallback className="text-[10px] bg-secondary">
-                        {getInitials(m.profile)}
-                      </AvatarFallback>
-                    </Avatar>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {sc.sessions_per_week}x/sem · {sc.duration_months} mois · {sc.bet_amount}€
-                </p>
-                <span className={`text-[10px] font-medium ${sc.status === "active" ? "text-primary" : "text-accent"}`}>
-                  {sc.status === "active" ? "En cours" : "En attente"}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground text-center">Aucun défi social en cours</p>
-        )}
-      </section>
-
-      {/* Section 3: Classement */}
-      <section>
-        <h2 className="text-sm text-muted-foreground mb-3 flex items-center gap-1.5">
-          <Trophy className="w-4 h-4" /> Classement du cercle
-        </h2>
-        {loadingLeaderboard ? (
-          <div className="flex justify-center py-4">
-            <Loader2 className="w-5 h-5 text-primary animate-spin" />
-          </div>
-        ) : !leaderboard || leaderboard.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center">Pas encore de données</p>
-        ) : (
-          <div className="space-y-2">
-            {leaderboard.map((entry: any, i: number) => (
-              <div
-                key={entry.userId}
-                className={`flex items-center gap-3 p-3 rounded-xl border ${
-                  entry.isMe ? "border-primary/30 bg-primary/5" : "border-border bg-gradient-card"
-                }`}
-              >
-                <span className="text-sm font-bold w-6 text-center text-muted-foreground">
-                  {i + 1}
-                </span>
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src={entry.profile?.avatar_url} />
-                  <AvatarFallback className="text-[10px] bg-secondary">
-                    {getInitials(entry.profile)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {entry.isMe ? "Toi" : entry.profile?.display_name || entry.profile?.first_name || "—"}
-                  </p>
-                  {entry.profile?.username && (
-                    <p className="text-[10px] text-muted-foreground">@{entry.profile.username}</p>
-                   )}
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold">{entry.totalSessions}</p>
-                  <p className="text-[10px] text-muted-foreground">{entry.activeWeeks} sem.</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
 
       {/* Add Friend Drawer */}
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
