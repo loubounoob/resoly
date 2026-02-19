@@ -87,6 +87,8 @@ export const useSendFriendRequest = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["friends-list"] });
       qc.invalidateQueries({ queryKey: ["friend-requests"] });
+      qc.invalidateQueries({ queryKey: ["friends-activity"] });
+      qc.invalidateQueries({ queryKey: ["leaderboard"] });
     },
   });
 };
@@ -122,9 +124,23 @@ export const useRespondFriendRequest = () => {
         });
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["friends-list"] });
       qc.invalidateQueries({ queryKey: ["friend-requests"] });
+      qc.invalidateQueries({ queryKey: ["friends-activity"] });
+      qc.invalidateQueries({ queryKey: ["leaderboard"] });
+      // Remove the friend_request notification when responding
+      if (variables.senderUserId) {
+        supabase
+          .from("notifications" as any)
+          .delete()
+          .eq("user_id", user!.id)
+          .eq("type", "friend_request")
+          .then(() => {
+            qc.invalidateQueries({ queryKey: ["notifications"] });
+            qc.invalidateQueries({ queryKey: ["unread-count"] });
+          });
+      }
     },
   });
 };

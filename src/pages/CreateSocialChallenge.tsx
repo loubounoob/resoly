@@ -277,14 +277,13 @@ const CreateSocialChallenge = () => {
                 <div className="space-y-2">
                   {friends.map((f: any) => {
                     const isBusy = busyFriendIds?.has(f.user_id);
-                    const isDisabled = isBusy && challengeType !== "boost";
                     return (
                       <button
                         key={f.user_id}
-                        onClick={() => { if (!isDisabled) { setSelectedFriend(f.user_id); setStep("confirm"); } }}
-                        disabled={isDisabled}
+                        onClick={() => { if (!isBusy) { setSelectedFriend(f.user_id); setStep("confirm"); } }}
+                        disabled={isBusy}
                         className={`w-full flex items-center gap-3 p-4 rounded-xl border transition-all ${
-                          isDisabled
+                          isBusy
                             ? "border-border bg-secondary/50 opacity-50 cursor-not-allowed"
                             : selectedFriend === f.user_id
                             ? "border-primary bg-primary/10"
@@ -298,11 +297,11 @@ const CreateSocialChallenge = () => {
                         <div className="flex-1 text-left">
                           <span className="font-medium">{f.display_name || f.first_name || "Ami"}</span>
                           {isBusy && (
-                            <p className="text-[11px] text-accent">🔥 Défi en cours</p>
+                            <p className="text-[11px] text-destructive">⛔ A déjà un défi actif</p>
                           )}
                         </div>
-                        {isDisabled && (
-                          <Badge variant="secondary" className="text-[10px]">Occupé</Badge>
+                        {isBusy && (
+                          <Badge variant="secondary" className="text-[10px]">Indisponible</Badge>
                         )}
                       </button>
                     );
