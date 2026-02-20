@@ -3,7 +3,7 @@ import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
 import { LocalNotifications } from "@capacitor/local-notifications";
 
-const PROXIMITY_THRESHOLD_METERS = 200;
+const PROXIMITY_THRESHOLD_METERS = 50;
 const STORAGE_KEY = "gym_proximity_last_notified";
 
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
