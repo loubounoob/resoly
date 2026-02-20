@@ -302,15 +302,24 @@ const Dashboard = () => {
       </div>
 
       {/* Bet & Coins combined */}
-      <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card mb-4 flex items-center gap-4">
-        <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center">
-          <span className="text-2xl font-bold">💰</span>
-        </div>
-        <div className="flex-1 space-y-1">
-          <span className="text-2xl font-display font-bold">{totalBet}€</span>
-          <p className="text-xs text-muted-foreground">Tu as misé {totalBet}€ — tiens bon pour tout récupérer !</p>
-          <div className="flex items-center gap-1 text-gradient-gold font-display font-bold text-sm">
-            <CoinIcon size={14} /> +{coinsToEarn} <span className="text-muted-foreground font-normal text-xs ml-1">bonus pièces</span>
+      <div className="relative overflow-hidden rounded-2xl border border-border p-5 shadow-card mb-4 bg-gradient-to-br from-secondary via-secondary/80 to-primary/10">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-20 h-20 bg-accent/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="relative flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/30 to-accent/20 flex items-center justify-center shadow-lg border border-primary/20">
+            <span className="text-2xl">💰</span>
+          </div>
+          <div className="flex-1 space-y-1.5">
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-display font-bold tracking-tight">{totalBet}€</span>
+              <span className="text-xs text-muted-foreground font-medium">en jeu</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Tiens bon pour tout récupérer !</p>
+            <div className="inline-flex items-center gap-1.5 bg-accent/10 border border-accent/20 rounded-full px-2.5 py-0.5">
+              <CoinIcon size={13} />
+              <span className="text-xs font-display font-bold text-accent">+{coinsToEarn}</span>
+              <span className="text-[10px] text-muted-foreground">bonus</span>
+            </div>
           </div>
         </div>
       </div>
