@@ -41,7 +41,7 @@ function computeFirstWeekGoal(sessionsPerWeek: number): { firstWeekGoal: number;
 const CreateChallenge = () => {
   const navigate = useNavigate();
   const { data: activeChallenge, isLoading: loadingActive } = useActiveChallenge();
-  const [mode, setMode] = useState<ChallengeMode | null>(null);
+  const [mode, setMode] = useState<ChallengeMode | null>("solo");
   const [betAmount, setBetAmount] = useState(100);
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
