@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { isToday } from "date-fns";
+import confetti from "canvas-confetti";
 import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -106,6 +107,9 @@ const PhotoVerify = () => {
 
       if (verified) {
         didValidateThisSession.current = true;
+        // 🎉 Confetti burst
+        confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+        setTimeout(() => confetti({ particleCount: 80, spread: 100, origin: { y: 0.5 } }), 300);
         // Auto-save gym location on first ever verified check-in
         if (isFirstSession && hasNoGymLocation) {
           saveGymLocation();
