@@ -1,83 +1,54 @@
 
 
-## Plan : Achat de pieces + Systeme de parrainage
+# Stories Instagram-style sur le Dashboard
 
-### Ce qui sera fait
+## Concept
+Afficher les photos de check-in validees des amis (et de soi-meme) sous forme de stories cliquables, visibles pendant 24h puis automatiquement supprimees.
 
-**1. Drawer "Acheter des pieces"** : en cliquant sur le badge de pieces (dashboard, boutique, etc.), un drawer s'ouvre avec :
-- 4 packs : 500 pieces (10EUR), 1000 pieces (20EUR), 2500 pieces (50EUR), 5000 pieces (100EUR)
-- Un bouton pour chaque pack qui declenche un paiement Stripe
-- Une section "Parrainage" en bas avec le code invite de l'utilisateur et un bouton copier
-
-**2. Edge Function `buy-coins`** : cree une session Stripe Checkout pour acheter un pack de pieces. Au retour (page payment-success), les pieces sont creditees au profil.
-
-**3. Edge Function `credit-coins-after-payment`** : appelee par la page payment-success pour verifier le paiement Stripe et crediter les pieces.
-
-**4. Systeme de parrainage** :
-- A l'inscription, le champ `?invite=CODE` dans l'URL est capture et stocke dans le profil comme `referred_by` (user_id du parrain)
-- Quand un filleul cree son profil avec un code parrain valide : +50 pieces pour le parrain
-- Quand un filleul cree un defi de +50EUR : +250 pieces supplementaires pour le parrain
+## Emplacement
+Entre la carte "Ta semaine" (week tracker) et la carte "Mise/Pieces en jeu", sous forme d'une rangee horizontale compacte d'avatars (style Instagram Stories).
 
 ---
 
-### Details techniques
+## Etapes techniques
 
-**Migration SQL** :
-```
-ALTER TABLE profiles ADD COLUMN referred_by uuid REFERENCES profiles(user_id);
-```
+### 1. Storage bucket pour les photos de stories
+- Creer un bucket `check-in-photos` (public) via migration SQL
+- Ajouter des policies RLS pour que les utilisateurs puissent uploader leurs propres photos et que les amis puissent les lire
 
-**Nouveau composant `src/components/BuyCoinsDrawer.tsx`** :
-- Drawer avec les 4 packs affiches en cartes
-- Section parrainage avec code invite + bouton copier
-- Appel a `supabase.functions.invoke("buy-coins", { body: { pack } })` au clic
-- Redirection vers Stripe Checkout (window.location.href)
+### 2. Sauvegarder la photo lors du check-in
+- Modifier `PhotoVerify.tsx` : lors d'un check-in verifie avec succes, uploader la photo dans le bucket `check-in-photos` et mettre a jour le champ `photo_url` (deja existant dans la table `check_ins`)
 
-**Edge Function `supabase/functions/buy-coins/index.ts`** :
-- Recoit le pack choisi (10, 20, 50, 100)
-- Cree une session Stripe Checkout avec le montant correspondant
-- Metadata : `{ type: "coin_purchase", coins: X, user_id }` pour verification ensuite
-- success_url : `/payment-success?session_id={CHECKOUT_SESSION_ID}&type=coins`
+### 3. Nettoyage automatique apres 24h (pg_cron)
+- Migration SQL : creer un job pg_cron qui tourne toutes les heures
+- Le job supprime les fichiers du bucket storage et met `photo_url = NULL` pour les check-ins de plus de 24h
 
-**Modification de `src/pages/PaymentSuccess.tsx`** :
-- Detecter `type=coins` dans les params
-- Appeler une edge function `verify-coin-purchase` pour crediter les pieces
-- Afficher un message de succes adapte
+### 4. Hook `useStories`
+- Nouveau hook dans `src/hooks/useStories.ts`
+- Requete les check-ins verifies des amis + les siens des dernieres 24h ayant un `photo_url` non null
+- Joint avec les profils pour avoir avatar et username
+- Regroupe par utilisateur (un avatar = toutes les stories recentes d'un user)
 
-**Edge Function `supabase/functions/verify-coin-purchase/index.ts`** :
-- Recupere la session Stripe, verifie le paiement
-- Lit les metadata pour connaitre le nombre de pieces
-- Credite le profil de l'utilisateur (ajout atomique avec `coins + X`)
-- Protection contre double-credit (verifier si deja traite)
+### 5. Composant `StoriesBar` sur le Dashboard
+- Nouveau composant `src/components/StoriesBar.tsx`
+- Rangee horizontale scrollable d'avatars avec bordure coloree (vert = story non vue)
+- Chaque avatar est cliquable et ouvre un Dialog/Drawer plein ecran avec la photo
+- Design compact : hauteur ~70px max pour ne pas casser la mise en page
+- Place entre le week tracker et la carte mise/pieces
 
-**Modification de `src/pages/Auth.tsx`** :
-- Lire `?invite=CODE` depuis l'URL
-- Stocker dans `localStorage` pour le reprendre apres inscription
-- Passer le code dans `signUp({ options: { data: { invite_code_used: CODE } } })`
+### 6. Viewer de story
+- Dialog plein ecran avec la photo, le nom de l'utilisateur et l'heure du check-in
+- Swipe ou boutons pour naviguer entre les stories d'un meme utilisateur
 
-**Modification du trigger `handle_new_user` (migration SQL)** :
-- Lire `invite_code_used` depuis `raw_user_meta_data`
-- Chercher le parrain par son `invite_code`
-- Si trouve : mettre `referred_by = parrain.user_id` + crediter 50 pieces au parrain
+---
 
-**Modification de `create-challenge-payment` ou `verify-payment`** :
-- Quand un defi est cree avec une mise >= 50EUR, verifier si l'utilisateur a un `referred_by`
-- Si oui et que c'est la premiere fois (premier defi du filleul >= 50EUR) : crediter 250 pieces au parrain
+## Structure des fichiers modifies/crees
 
-**Modification du Dashboard (coin badge)** :
-- Rendre le badge de pieces cliquable
-- Ouvrir le `BuyCoinsDrawer` au clic
-
-**Fichiers crees :**
-- `src/components/BuyCoinsDrawer.tsx`
-- `supabase/functions/buy-coins/index.ts`
-- `supabase/functions/verify-coin-purchase/index.ts`
-- 1 migration SQL (colonne `referred_by` + mise a jour du trigger)
-
-**Fichiers modifies :**
-- `src/pages/Dashboard.tsx` (badge cliquable)
-- `src/pages/Auth.tsx` (capture du code invite)
-- `src/pages/PaymentSuccess.tsx` (gestion type=coins)
-- `supabase/functions/verify-payment/index.ts` (bonus parrainage 250 pieces)
-- `src/pages/Shop.tsx` / `src/pages/Rewards.tsx` (si badge de pieces present, le rendre cliquable aussi)
+| Fichier | Action |
+|---|---|
+| Migration SQL (bucket + pg_cron) | Creer |
+| `src/hooks/useStories.ts` | Creer |
+| `src/components/StoriesBar.tsx` | Creer |
+| `src/pages/PhotoVerify.tsx` | Modifier (upload photo) |
+| `src/pages/Dashboard.tsx` | Modifier (ajouter StoriesBar) |
 
