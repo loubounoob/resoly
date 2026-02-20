@@ -19,6 +19,7 @@ import Friends from "./pages/Friends";
 import CreateSocialChallenge from "./pages/CreateSocialChallenge";
 import CreateGroup from "./pages/CreateGroup";
 import Notifications from "./pages/Notifications";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
@@ -67,6 +68,7 @@ const AppRoutes = () => {
       <Route path="/friends/create-group" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
       <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
