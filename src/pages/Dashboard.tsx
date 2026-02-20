@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Flame, Camera, Plus, Loader2 } from "lucide-react";
+import { Flame, Camera, Plus, Loader2, Settings } from "lucide-react";
 import BuyCoinsDrawer from "@/components/BuyCoinsDrawer";
 import CoinIcon from "@/components/CoinIcon";
 import { useQueryClient } from "@tanstack/react-query";
@@ -72,6 +72,9 @@ const Dashboard = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => navigate("/settings")} className="p-2 rounded-lg hover:bg-secondary transition-colors">
+            <Settings className="w-5 h-5 text-muted-foreground" />
+          </button>
           <NotificationBell />
           <button
             onClick={() => setBuyCoinsOpen(true)}
