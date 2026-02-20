@@ -100,7 +100,7 @@ const PhotoVerify = () => {
       const verified = data.verified === true;
       setReason(data.reason || "");
 
-      await createCheckIn.mutateAsync({
+      const checkInResult = await createCheckIn.mutateAsync({
         challenge_id: challenge.id,
         verified,
       });
@@ -110,6 +110,29 @@ const PhotoVerify = () => {
         // 🎉 Confetti burst
         confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
         setTimeout(() => confetti({ particleCount: 80, spread: 100, origin: { y: 0.5 } }), 300);
+
+        // Upload photo to storage for stories
+        try {
+          const ext = file.name.split(".").pop() || "jpg";
+          const filePath = `${user!.id}/${checkInResult.id}.${ext}`;
+          const { error: uploadError } = await supabase.storage
+            .from("check-in-photos")
+            .upload(filePath, file, { upsert: true });
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage
+              .from("check-in-photos")
+              .getPublicUrl(filePath);
+            if (urlData?.publicUrl) {
+              await supabase
+                .from("check_ins")
+                .update({ photo_url: urlData.publicUrl })
+                .eq("id", checkInResult.id);
+            }
+          }
+        } catch (uploadErr) {
+          console.error("Story photo upload failed:", uploadErr);
+        }
+
         // Auto-save gym location on first ever verified check-in
         if (isFirstSession && hasNoGymLocation) {
           saveGymLocation();
