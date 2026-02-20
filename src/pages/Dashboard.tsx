@@ -19,6 +19,7 @@ import { startOfWeek, endOfWeek, isWithinInterval, format, startOfDay, getDay } 
 import { useAuth } from "@/contexts/AuthContext";
 import NotificationBell from "@/components/NotificationBell";
 import { useGymProximity } from "@/hooks/useGymProximity";
+import StoriesBar from "@/components/StoriesBar";
 
 const weekDayLabels = ["L", "M", "M", "J", "V", "S", "D"];
 
@@ -300,6 +301,9 @@ const Dashboard = () => {
         </div>
         <Progress value={weeklyProgress} className="h-2" />
       </div>
+
+      {/* Stories bar */}
+      <StoriesBar />
 
       {/* Bet & Coins combined */}
       <div className="relative overflow-hidden rounded-2xl border border-border p-5 shadow-card mb-4 bg-gradient-to-br from-secondary via-secondary/80 to-primary/10">
