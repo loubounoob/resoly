@@ -9,6 +9,9 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { isToday } from "date-fns";
+import { Capacitor } from "@capacitor/core";
+import { Geolocation } from "@capacitor/geolocation";
+import { useAuth } from "@/contexts/AuthContext";
 
 type SessionPhase = "idle" | "loading" | "ai-result" | "congrats" | "avatar-prompt";
 
@@ -18,6 +21,7 @@ const PhotoVerify = () => {
   const [preview, setPreview] = useState<string | null>(null);
   const [reason, setReason] = useState<string>("");
   const didValidateThisSession = useRef(false);
+  const { user } = useAuth();
 
   const { data: challenge } = useActiveChallenge();
   const { data: checkIns } = useCheckIns(challenge?.id);
@@ -27,6 +31,31 @@ const PhotoVerify = () => {
 
   const isFirstSession = checkIns ? checkIns.filter(ci => ci.verified).length === 0 : true;
   const hasNoAvatar = !myProfile?.avatar_url;
+  const hasNoGymLocation = !myProfile?.gym_latitude || !myProfile?.gym_longitude;
+
+  // Save current GPS as gym location on first verified check-in
+  const saveGymLocation = async () => {
+    if (!user || !hasNoGymLocation) return;
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const perm = await Geolocation.requestPermissions();
+        if (perm.location !== "granted") return;
+      }
+      const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
+      const { latitude, longitude } = position.coords;
+      await supabase
+        .from("profiles")
+        .update({
+          gym_latitude: latitude,
+          gym_longitude: longitude,
+          gym_name: "Ma salle",
+        } as any)
+        .eq("user_id", user.id);
+      console.log("Gym location saved automatically:", latitude, longitude);
+    } catch (err) {
+      console.error("Could not save gym location:", err);
+    }
+  };
 
   // Only used on initial load — not during active session
   const hasCheckedInToday =
@@ -77,6 +106,10 @@ const PhotoVerify = () => {
 
       if (verified) {
         didValidateThisSession.current = true;
+        // Auto-save gym location on first ever verified check-in
+        if (isFirstSession && hasNoGymLocation) {
+          saveGymLocation();
+        }
       }
 
       setAiStatus(verified ? "success" : "error");
