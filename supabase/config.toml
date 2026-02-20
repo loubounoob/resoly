@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.verify-coin-purchase]
 verify_jwt = false
+
+[functions.check-challenge-peril]
+verify_jwt = false
