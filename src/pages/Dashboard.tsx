@@ -301,24 +301,17 @@ const Dashboard = () => {
         <Progress value={weeklyProgress} className="h-2" />
       </div>
 
-      {/* Bet reminder — motivate to recover */}
+      {/* Bet & Coins combined */}
       <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card mb-4 flex items-center gap-4">
         <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center">
           <span className="text-2xl font-bold">💰</span>
         </div>
-        <div className="flex-1">
+        <div className="flex-1 space-y-1">
           <span className="text-2xl font-display font-bold">{totalBet}€</span>
-          <p className="text-xs text-muted-foreground">
-            Tu as misé {totalBet}€ — tiens bon pour tout récupérer !
-          </p>
-        </div>
-      </div>
-
-      {/* Coins to earn */}
-      <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card mb-4 flex items-center justify-between">
-        <div>
-          <span className="text-xl font-display font-bold text-gradient-gold flex items-center gap-1"><CoinIcon size={18} /> +{coinsToEarn}</span>
-          <p className="text-xs text-muted-foreground">Bonus pièces si tu réussis ton défi</p>
+          <p className="text-xs text-muted-foreground">Tu as misé {totalBet}€ — tiens bon pour tout récupérer !</p>
+          <div className="flex items-center gap-1 text-gradient-gold font-display font-bold text-sm">
+            <CoinIcon size={14} /> +{coinsToEarn} <span className="text-muted-foreground font-normal text-xs ml-1">bonus pièces</span>
+          </div>
         </div>
       </div>
 
