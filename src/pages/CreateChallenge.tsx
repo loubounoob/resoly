@@ -41,7 +41,7 @@ function computeFirstWeekGoal(sessionsPerWeek: number): { firstWeekGoal: number;
 const CreateChallenge = () => {
   const navigate = useNavigate();
   const { data: activeChallenge, isLoading: loadingActive } = useActiveChallenge();
-  const [mode, setMode] = useState<ChallengeMode | null>("solo");
+  const [mode] = useState<ChallengeMode>("solo");
   const [betAmount, setBetAmount] = useState(100);
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
@@ -138,41 +138,14 @@ const CreateChallenge = () => {
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-8">
       {/* Header */}
       <div className="flex items-center gap-3 mb-8">
-        <button onClick={() => {
-          if (mode === null) navigate(-1);
-          else setMode(null);
-        }} className="text-muted-foreground hover:text-foreground transition-colors">
+        <button onClick={() => navigate("/dashboard")} className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-6 h-6" />
         </button>
         <h1 className="text-2xl font-bold">Créer un défi</h1>
       </div>
 
-      {/* Mode selection */}
-      {mode === null && (
-        <div className="flex-1 space-y-4">
-          <p className="text-sm text-muted-foreground mb-2">Quel type de défi veux-tu lancer ?</p>
-          <button
-            onClick={() => setMode("solo")}
-            className="w-full p-5 rounded-2xl border border-border bg-gradient-card hover:border-primary/50 text-left transition-all"
-          >
-            <div className="flex items-center gap-3 mb-1">
-              <User className="w-6 h-6 text-primary" />
-              <span className="font-display font-bold text-lg">Défi personnel</span>
-            </div>
-            <p className="text-xs text-muted-foreground">Lance-toi un défi solo avec ta propre mise</p>
-          </button>
-          <button
-            onClick={() => setMode("social")}
-            className="w-full p-5 rounded-2xl border border-border bg-gradient-card hover:border-primary/50 text-left transition-all"
-          >
-            <div className="flex items-center gap-3 mb-1">
-              <Users className="w-6 h-6 text-accent" />
-              <span className="font-display font-bold text-lg">Défi social</span>
-            </div>
-            <p className="text-xs text-muted-foreground">Défie un ami, booste-le ou lance un défi de groupe</p>
-          </button>
-        </div>
-      )}
+
+
 
       {mode === "solo" && (
       <>
@@ -308,10 +281,6 @@ const CreateChallenge = () => {
         </section>
       )}
 
-      {/* Gym Location Picker */}
-      <div className="mt-4">
-        <GymLocationPicker />
-      </div>
 
       {/* Promo Code */}
       <div className="mt-4">
