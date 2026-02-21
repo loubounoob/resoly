@@ -10,10 +10,25 @@ import { fr } from "date-fns/locale";
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   pending: { label: "En attente", color: "bg-yellow-500/20 text-yellow-400" },
-  confirmed: { label: "Confirmée", color: "bg-primary/20 text-primary" },
-  shipped: { label: "Expédiée", color: "bg-blue-500/20 text-blue-400" },
-  delivered: { label: "Livrée", color: "bg-green-500/20 text-green-400" },
+  preparing: { label: "Préparation", color: "bg-orange-500/20 text-orange-400" },
+  shipping: { label: "Livraison en cours", color: "bg-blue-500/20 text-blue-400" },
+  arriving: { label: "Arrive bientôt", color: "bg-primary/20 text-primary" },
+  delivered: { label: "Arrivé", color: "bg-green-500/20 text-green-400" },
   cancelled: { label: "Annulée", color: "bg-destructive/20 text-destructive" },
+};
+
+const getComputedStatus = (createdAt: string, dbStatus: string): string => {
+  if (dbStatus === "cancelled") return "cancelled";
+  const now = new Date();
+  const created = new Date(createdAt);
+  const hoursElapsed = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
+  const daysElapsed = hoursElapsed / 24;
+
+  if (hoursElapsed < 2) return "pending";
+  if (daysElapsed < 2) return "preparing";
+  if (daysElapsed < 7) return "shipping";
+  if (daysElapsed < 10) return "arriving";
+  return "delivered";
 };
 
 const Orders = () => {
@@ -55,7 +70,8 @@ const Orders = () => {
       ) : (
         <div className="space-y-3">
           {orders.map((order) => {
-            const status = statusLabels[order.status] ?? statusLabels.pending;
+            const computedKey = getComputedStatus(order.created_at, order.status);
+            const status = statusLabels[computedKey] ?? statusLabels.pending;
             return (
               <div key={order.id} className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card">
                 <div className="flex items-start justify-between mb-2">
