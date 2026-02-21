@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { Button } from "@/components/ui/button";
 import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
@@ -22,6 +22,8 @@ const ShopifyProductDetail = () => {
   const [purchasing, setPurchasing] = useState(false);
   const [shippingOpen, setShippingOpen] = useState(false);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const touchStartX = useRef(0);
   const { data: coins, isLoading: coinsLoading, refetch: refetchCoins } = useUserCoins();
 
   useEffect(() => {
@@ -56,7 +58,7 @@ const ShopifyProductDetail = () => {
     );
   }
 
-  const image = product.node.images.edges[0]?.node;
+  const images = product.node.images.edges;
   const variantPrice = selectedVariant?.price ?? product.node.priceRange.minVariantPrice;
   const coinsPrice = Math.ceil(parseFloat(variantPrice.amount) * COINS_PER_EURO);
   const options = product.node.options.filter(o => !(o.values.length === 1 && o.values[0] === "Default Title"));
@@ -116,8 +118,40 @@ const ShopifyProductDetail = () => {
 
   return (
     <div className="min-h-screen flex flex-col pb-8">
-      <div className="relative">
-        <img src={image?.url || "/placeholder.svg"} alt={image?.altText || product.node.title} className="w-full aspect-square object-cover" />
+      <div className="relative"
+        onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+        onTouchEnd={(e) => {
+          const diff = touchStartX.current - e.changedTouches[0].clientX;
+          if (Math.abs(diff) > 50) {
+            if (diff > 0 && currentImageIndex < images.length - 1) setCurrentImageIndex(i => i + 1);
+            if (diff < 0 && currentImageIndex > 0) setCurrentImageIndex(i => i - 1);
+          }
+        }}
+      >
+        <img
+          src={images[currentImageIndex]?.node.url || "/placeholder.svg"}
+          alt={images[currentImageIndex]?.node.altText || product.node.title}
+          className="w-full aspect-square object-cover"
+        />
+        {images.length > 1 && (
+          <>
+            {currentImageIndex > 0 && (
+              <button onClick={() => setCurrentImageIndex(i => i - 1)} className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur rounded-full p-1.5">
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            {currentImageIndex < images.length - 1 && (
+              <button onClick={() => setCurrentImageIndex(i => i + 1)} className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur rounded-full p-1.5">
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {images.map((_, idx) => (
+                <button key={idx} onClick={() => setCurrentImageIndex(idx)} className={`w-2 h-2 rounded-full transition-all ${idx === currentImageIndex ? "bg-primary scale-125" : "bg-background/60"}`} />
+              ))}
+            </div>
+          </>
+        )}
         <button onClick={() => navigate("/shop")} className="absolute top-4 left-4 bg-background/80 backdrop-blur rounded-full p-2">
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -171,7 +205,7 @@ const ShopifyProductDetail = () => {
           </div>
         )}
 
-        <p className="text-muted-foreground text-sm mt-4 leading-relaxed">{product.node.description}</p>
+        <div className="text-muted-foreground text-sm mt-4 leading-relaxed prose prose-sm prose-invert max-w-none [&_p]:mb-2 [&_br]:block [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4" dangerouslySetInnerHTML={{ __html: product.node.descriptionHtml }} />
         <div className="mt-auto pt-6 flex flex-col gap-3">
           <Button className="w-full h-12 text-base" disabled={!selectedVariant?.availableForSale} onClick={handleAdd}>
             {selectedVariant?.availableForSale ? "🛒 Ajouter au panier" : "Indisponible"}
