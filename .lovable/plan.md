@@ -1,46 +1,60 @@
 
 
-## Refonte des cartes commandes
+## Synchronisation des defis vers Google Sheets
 
-### Ce qui change
+### Principe
 
-1. **Photo produit** -- Charger les produits Shopify au montage de la page, puis associer chaque commande a son image via le `variant_id` stocke dans `coin_orders`. Afficher la photo a gauche de chaque carte (miniature carree 64x64).
+Creer une edge function `sync-challenge-sheet` qui envoie les donnees de chaque defi paye vers un second webhook Google Sheets (ou le meme, sur un onglet different). La fonction est appelee automatiquement a chaque validation de paiement d'un defi.
 
-2. **Barre de progression visuelle** -- Sous chaque carte, ajouter une barre horizontale a 5 etapes (En attente, Preparation, Livraison, Arrive bientot, Arrive). La portion remplie correspond au statut calcule dynamiquement. Couleur degradee selon l'avancement.
+### Donnees envoyees pour chaque defi
 
-3. **Navigation vers le produit** -- Rendre chaque carte cliquable. Au clic, naviguer vers `/shopify/{handle}` en retrouvant le handle du produit grace aux donnees Shopify chargees.
+- **Pseudo** (username)
+- **Age**
+- **Sexe** (gender)
+- **Email**
+- **Type** : perso ou social (offert/defi entre amis)
+- **Mise totale** (bet_per_month x duration_months)
+- **Mise par mois** (bet_per_month)
+- **Nombre de seances/semaine** (sessions_per_week)
+- **Nombre de mois** (duration_months)
+- **Total seances** (total_sessions)
+- **Pieces estimees** (calcul de la formule coins)
+- **Statut** (active, completed, failed)
+- **Date de creation**
+- **Date de fin estimee** (created_at + duration_months)
+- **Stripe Payment Intent ID** (pour la compta)
+- **Code promo utilise** (loubou ou non)
 
-4. **Amelioration esthetique** -- Nouvelle mise en page : image a gauche, infos a droite, badge statut en haut a droite, barre de progression en bas de la carte.
+### Colonnes calculees cote Google Sheets (a configurer dans le Sheet)
 
----
+Le webhook recevra toutes les donnees brutes. Tu pourras ensuite ajouter des colonnes calculees dans ton Google Sheet :
 
-### Details techniques
+- **Argent des defis perdus (= mon revenu)** : filtrer les lignes avec statut "failed", sommer les mises totales
+- **Argent encore en jeu** : filtrer les lignes avec statut "active", sommer les mises totales
+- **Argent a rembourser estime** : filtrer les lignes avec statut "active", sommer les mises (pire cas = tout rembourser)
+- **Date de fin estimee** : deja envoyee, permet de voir quand les remboursements arriveront
+- **Tableau de bord visuel** : graphiques par mois, par sexe, par tranche d'age, taux de reussite
 
-**Chargement des images Shopify**
-- Appeler `fetchShopifyProducts(50)` dans un `useEffect` au montage de la page `Orders.tsx`
-- Construire un dictionnaire `variantId -> { imageUrl, handle }` a partir des produits retournes
-- Matcher chaque `order.variant_id` avec ce dictionnaire pour afficher l'image et permettre la navigation
+### Implementation technique
 
-**Barre de progression**
-- Mapper les 5 statuts a un index numerique (0-4) : pending=0, preparing=1, shipping=2, arriving=3, delivered=4
-- Afficher une barre `Progress` ou une barre custom avec 5 segments/points
-- La barre se remplit proportionnellement : `(statusIndex + 1) / 5 * 100`
+**1. Nouveau secret necessaire**
+- `GOOGLE_SHEETS_CHALLENGE_WEBHOOK_URL` : URL du webhook Google Apps Script pour l'onglet defis (peut etre le meme script que les commandes si tu geres par onglet)
 
-**Structure de la carte**
-```
-+--------------------------------------------------+
-| [Image 64x64] | Titre produit      [Badge statut]|
-|                | Variante (S, M...)               |
-|                | 500 pieces       21 fev. 2026    |
-+--------------------------------------------------+
-| [===progress bar===============-------]          |
-| En attente  Prep.  Livraison  Bientot  Arrive    |
-+--------------------------------------------------+
-```
+**2. Edge function `sync-challenge-sheet/index.ts`**
+- Recoit les donnees du defi + profil utilisateur
+- Les envoie au webhook via POST
+- Retourne succes/erreur
 
-**Fichier modifie** : `src/pages/Orders.tsx` uniquement
-- Import de `fetchShopifyProducts` depuis `@/lib/shopify`
-- Ajout d'un `useState` + `useEffect` pour les produits Shopify
-- Carte rendue cliquable avec `onClick={() => navigate(/shopify/${handle})}`
-- Ajout de la barre de progression sous chaque carte
+**3. Modifications des fonctions existantes**
+- **`verify-payment/index.ts`** : apres confirmation du paiement d'un defi, recuperer le profil utilisateur (username, age, gender) et appeler `sync-challenge-sheet` avec toutes les infos
+- **`create-challenge-payment/index.ts`** : meme chose dans le cas du code promo "loubou" (bypass Stripe)
+- **`complete-challenge/index.ts`** : envoyer une mise a jour au sheet quand un defi est complete (statut = completed)
+- **`check-challenge-peril/index.ts`** : pas de modification, le statut "failed" est gere ailleurs
+
+**4. Fichier `supabase/config.toml`**
+- Ajouter `[functions.sync-challenge-sheet]` avec `verify_jwt = false`
+
+### Etape prealable
+
+Il faudra que tu crees un nouveau Google Apps Script / webhook pour recevoir les donnees des defis (ou ajouter un onglet au script existant). Une fois l'URL prete, je te demanderai de la renseigner comme secret.
 
