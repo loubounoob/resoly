@@ -220,7 +220,7 @@ const Dashboard = () => {
             <div className="absolute inset-0 rounded-full animate-ping opacity-10" style={{ background: ringColors.start }} />
           )}
           <svg className="w-full h-full -rotate-90 relative z-10" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="52" fill="none" stroke="hsl(220, 15%, 18%)" strokeWidth="8" />
+            <circle cx="60" cy="60" r="52" fill="hsl(220, 20%, 6%)" stroke="hsl(220, 15%, 12%)" strokeWidth="8" />
             <circle
               cx="60" cy="60" r="52" fill="none"
               stroke="url(#progressGrad)"
