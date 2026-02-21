@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import UsernameGuard from "./components/UsernameGuard";
 import Dashboard from "./pages/Dashboard";
 import CreateChallenge from "./pages/CreateChallenge";
+import OnboardingChallenge from "./pages/OnboardingChallenge";
 import PhotoVerify from "./pages/PhotoVerify";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import Shop from "./pages/Shop";
@@ -58,6 +59,7 @@ const AppRoutes = () => {
       <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
       <Route path="/auth" element={user ? <Navigate to="/dashboard" replace /> : <Auth />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/onboarding-challenge" element={<ProtectedRoute><OnboardingChallenge /></ProtectedRoute>} />
       <Route path="/create" element={<ProtectedRoute><CreateChallenge /></ProtectedRoute>} />
       <Route path="/verify" element={<ProtectedRoute><PhotoVerify /></ProtectedRoute>} />
       <Route path="/shop" element={<ProtectedRoute><Shop /></ProtectedRoute>} />

@@ -116,7 +116,7 @@ const Dashboard = () => {
             <p className="text-muted-foreground text-sm">Crée ton premier défi fitness et commence à gagner des pièces !</p>
           </div>
           <Button
-            onClick={() => navigate("/create")}
+            onClick={() => navigate("/onboarding-challenge")}
             className="h-14 px-8 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
             <Plus className="w-5 h-5 mr-2" />
