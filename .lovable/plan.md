@@ -1,52 +1,58 @@
 
 
-## Ajouter un parcours de motivation avant "Offrir un defi"
+## Refonte du parcours motivation "Offrir un defi" -- Version motivante et dynamique
 
-### Concept
+### Probleme actuel
 
-Avant d'arriver sur les parametres du defi (mise, seances, duree), l'utilisateur traversera un parcours emotionnel en 3 ecrans courts, type storytelling. Chaque ecran pose une question simple avec des choix rapides (boutons). Le ton est chaleureux, valorisant, et met en avant le geste noble d'offrir un defi sante a un proche.
+Le ton actuel est trop emotionnel/sentimental ("quelqu'un de special", "chaque geste compte", "prendre soin de ses proches c'est rare"). Ca peut mettre mal a l'aise ou decourager certains utilisateurs, surtout entre potes ou avec un proche ou la relation est plus decontractee.
 
-### Parcours en 3 etapes
+### Nouveau parcours -- 5 etapes courtes, ton motivant et direct
+
+Le nouveau flow sera plus energique, oriente action et challenge, avec un ton complice plutot que sentimental.
 
 **Etape 1 -- "C'est pour qui ?"**
-- Titre : "Tu fais ca pour quelqu'un de special."
-- Sous-titre : "C'est qui ?"
-- Choix (boutons) : Mon pere / Ma mere / Un(e) ami(e) / Mon frere ou ma soeur / Autre
-- Icone coeur ou cadeau en haut
+- Icone : Target
+- Titre : "Tu veux remettre qui sur les rails ?"
+- Sous-titre : "Choisis ta cible."
+- Options : Mon pere / Ma mere / Un(e) pote / Mon frere ou ma soeur / Autre
 
-**Etape 2 -- "Pourquoi tu lui offres ?"**
-- Titre : "Chaque geste compte."
-- Sous-titre : "Pourquoi tu veux l'aider ?"
-- Choix : Il/elle en a besoin / Pour qu'on se motive ensemble / Pour lui montrer que j'y crois / Juste pour lui faire plaisir
+**Etape 2 -- "Il/elle fait du sport en ce moment ?"**
+- Icone : Dumbbell (via Activity)
+- Titre : "Niveau sport, il/elle en est ou ?"
+- Options : Pas du tout / De temps en temps / Regulierement mais peut mieux faire / Il/elle a lache depuis un moment
 
-**Etape 3 -- "Pourquoi c'est important"**
-- Titre : "Prendre soin de ses proches, c'est rare."
-- Sous-titre : "Peu de gens le font. Toi, tu le fais."
-- Message court valorisant + bouton "Creer le defi"
-- Phrase d'impact en dessous : "La sante de ceux qu'on aime, ca n'a pas de prix."
+**Etape 3 -- "Pourquoi maintenant ?"**
+- Icone : Zap
+- Titre : "Qu'est-ce qui t'a decide ?"
+- Options : Je veux qu'on s'y mette ensemble / Il/elle a besoin d'un coup de boost / Je veux lui prouver que j'y crois / C'est un cadeau qui change vraiment quelque chose
 
-Apres l'etape 3, on arrive sur le formulaire actuel (parametres du defi).
+**Etape 4 -- "Tu vises quoi pour lui/elle ?"**
+- Icone : Trophy
+- Titre : "L'objectif, c'est quoi ?"
+- Options : Qu'il/elle reprenne une routine / Qu'il/elle se sente mieux / Qu'on se challenge a deux / Qu'il/elle se depasse
+
+**Etape 5 -- Ecran de validation motivant**
+- Icone : Rocket
+- Titre : "Les vrais passent a l'action."
+- Sous-titre : "Offrir un defi, c'est parier sur quelqu'un. Et ca, c'est fort."
+- Bouton : "C'est parti" avec icone fusee
+- Phrase en bas : "Un defi offert, c'est un game changer."
 
 ### Changements techniques
 
-**Fichier modifie : `src/pages/CreateSocialChallenge.tsx`**
+**Fichier : `src/components/MotivationSteps.tsx`**
+- Passer de 3 a 5 etapes : `motivation1` a `motivation5`
+- Remplacer toutes les questions et options par le nouveau contenu
+- Changer les icones : Gift/Heart/Star vers Target/Activity/Zap/Trophy/Rocket
+- Ton direct et motivant partout
 
-- Ajouter un nouveau type d'etape au state `step` : `"motivation1" | "motivation2" | "motivation3" | "params" | "target" | "confirm"`
-- Le state initial passe de `"params"` a `"motivation1"`
-- Ajouter 3 nouveaux blocs conditionnels pour les ecrans de motivation
-- Stocker les reponses dans un state local (pas envoye en base, purement UX)
-- Le bouton retour navigue entre les etapes de motivation avant d'arriver aux params
-- Aucune modification de base de donnees necessaire
-- Aucune nouvelle dependance
+**Fichier : `src/pages/CreateSocialChallenge.tsx`**
+- Mettre a jour le type du state `step` pour inclure `motivation4` et `motivation5`
+- Mettre a jour la logique `goBack` pour gerer les 5 etapes
+- Mettre a jour le bloc conditionnel qui rend `MotivationSteps` pour inclure les nouvelles etapes
 
-### Design visuel
-
-Chaque ecran de motivation :
-- Fond uni, centre verticalement
-- Grande icone/emoji en haut (Heart, Gift, Star)
-- Titre en `text-xl font-bold`
-- Sous-titre en `text-sm text-muted-foreground`
-- Boutons de choix en `rounded-xl` empiles verticalement, style carte
-- Le choix selectionne passe automatiquement a l'ecran suivant (pas de bouton "Suivant")
-- Animation fluide grace au changement de step
+### Design
+- Meme structure visuelle (icone ronde en haut, titre, boutons empiles)
+- Transition automatique au clic sur une option (etapes 1 a 4)
+- Bouton d'action uniquement sur l'etape 5
 
