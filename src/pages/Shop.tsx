@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { CartDrawer } from "@/components/CartDrawer";
 import BottomNav from "@/components/BottomNav";
+import BuyCoinsDrawer from "@/components/BuyCoinsDrawer";
 import { toast } from "sonner";
 
 const COINS_PER_EURO = 50;
@@ -58,6 +59,7 @@ const Shop = () => {
   const [products, setProducts] = useState<ShopifyProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [buyCoinsOpen, setBuyCoinsOpen] = useState(false);
   const { data: coins, isLoading: coinsLoading } = useUserCoins();
 
   useEffect(() => {
@@ -109,10 +111,13 @@ const Shop = () => {
           <h1 className="text-xl font-bold">Shop</h1>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-gradient-card border border-border rounded-full px-3 py-1.5 shadow-card">
+          <button
+            onClick={() => setBuyCoinsOpen(true)}
+            className="flex items-center gap-1.5 bg-gradient-card border border-border rounded-full px-3 py-1.5 shadow-card cursor-pointer hover:border-primary/50 transition-all"
+          >
             <CoinIcon size={16} />
             <span className="font-bold text-sm">{coins ?? 0}</span>
-          </div>
+          </button>
           <CartDrawer />
         </div>
       </div>
@@ -129,6 +134,7 @@ const Shop = () => {
         </div>
       )}
 
+      <BuyCoinsDrawer open={buyCoinsOpen} onOpenChange={setBuyCoinsOpen} />
       <BottomNav />
     </div>
   );
