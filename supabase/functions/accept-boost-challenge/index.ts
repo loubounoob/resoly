@@ -159,6 +159,28 @@ serve(async (req) => {
       .eq("type", "social_challenge")
       .filter("data->>socialChallengeId", "eq", socialChallengeId);
 
+    // Notify the creator that the challenge was accepted
+    try {
+      const { data: receiverProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("username")
+        .eq("user_id", user.id)
+        .single();
+      const username = receiverProfile?.username || "Quelqu'un";
+
+      await supabaseAdmin.functions.invoke("send-notification", {
+        body: {
+          user_id: sc.created_by,
+          type: "challenge_accepted",
+          title: "Défi accepté ! 🔥",
+          body: `@${username} a accepté ton défi ! C'est parti`,
+          data: { socialChallengeId },
+        },
+      });
+    } catch (notifErr) {
+      console.error("Failed to notify creator:", notifErr);
+    }
+
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,

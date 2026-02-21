@@ -91,6 +91,32 @@ serve(async (req) => {
       .eq("type", "social_challenge")
       .filter("data->>socialChallengeId", "eq", socialChallengeId);
 
+    // Notify the creator that the challenge was declined
+    try {
+      const { data: receiverProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("username")
+        .eq("user_id", user.id)
+        .single();
+      const username = receiverProfile?.username || "Quelqu'un";
+
+      const notifBody = refunded
+        ? `@${username} a refusé le défi. Tu as été remboursé.`
+        : `@${username} a refusé le défi.`;
+
+      await supabaseAdmin.functions.invoke("send-notification", {
+        body: {
+          user_id: sc.created_by,
+          type: "challenge_declined",
+          title: "Défi refusé",
+          body: notifBody,
+          data: { socialChallengeId },
+        },
+      });
+    } catch (notifErr) {
+      console.error("Failed to notify creator:", notifErr);
+    }
+
     return new Response(
       JSON.stringify({ success: true, refunded }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
