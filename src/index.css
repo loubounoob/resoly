@@ -102,4 +102,19 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 1rem);
   }
+  .animate-slide-out-left {
+    animation: slide-out-left 0.4s ease-in forwards;
+  }
+  .animate-scale-fade-out {
+    animation: scale-fade-out 0.4s ease-in forwards;
+  }
+}
+
+@keyframes slide-out-left {
+  0% { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(-100%); opacity: 0; }
+}
+@keyframes scale-fade-out {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.85); opacity: 0; }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, UserPlus, UserCheck, Swords, Flame, Check, X, Gift, Loader2 } from "lucide-react";
+import { ArrowLeft, UserPlus, UserCheck, Swords, Flame, Check, X, Gift, Loader2, Trophy, ThumbsDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useNotifications, useMarkNotificationsRead } from "@/hooks/useNotifications";
 import { useRespondFriendRequestByUserId } from "@/hooks/useFriends";
@@ -9,24 +9,30 @@ import { fr } from "date-fns/locale";
 import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import ChallengeAcceptedOverlay from "@/components/ChallengeAcceptedOverlay";
 
 const typeConfig: Record<string, { icon: typeof UserPlus; color: string }> = {
   friend_request: { icon: UserPlus, color: "text-blue-400" },
   friend_accepted: { icon: UserCheck, color: "text-green-400" },
   challenge_invite: { icon: Swords, color: "text-purple-400" },
   social_challenge: { icon: Gift, color: "text-accent" },
+  challenge_accepted: { icon: Trophy, color: "text-primary" },
+  challenge_declined: { icon: ThumbsDown, color: "text-destructive" },
   cheer: { icon: Flame, color: "text-orange-400" },
 };
 
 const Notifications = () => {
   const navigate = useNavigate();
-  const { data: notifications, isLoading } = useNotifications();
+  const { data: notifications, isLoading, refetch } = useNotifications();
   const markRead = useMarkNotificationsRead();
   const respondMutation = useRespondFriendRequestByUserId();
   const [respondedIds, setRespondedIds] = useState<Set<string>>(new Set());
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [ibanInputId, setIbanInputId] = useState<string | null>(null);
   const [ibanValue, setIbanValue] = useState("");
+  const [showAcceptOverlay, setShowAcceptOverlay] = useState(false);
+  const [animatingOutId, setAnimatingOutId] = useState<string | null>(null);
+  const [animatingOutType, setAnimatingOutType] = useState<"accept" | "decline" | null>(null);
 
   useEffect(() => {
     markRead.mutate();
@@ -56,6 +62,17 @@ const Notifications = () => {
     );
   };
 
+  const animateOut = (notifId: string, type: "accept" | "decline", callback: () => void) => {
+    setAnimatingOutId(notifId);
+    setAnimatingOutType(type);
+    setTimeout(() => {
+      setAnimatingOutId(null);
+      setAnimatingOutType(null);
+      setRespondedIds(prev => new Set(prev).add(notifId));
+      callback();
+    }, 450);
+  };
+
   const handleAcceptSocialChallenge = async (notifId: string, socialChallengeId: string) => {
     if (!ibanValue.trim()) {
       setIbanInputId(notifId);
@@ -64,18 +81,16 @@ const Notifications = () => {
     setAcceptingId(notifId);
     try {
       const { data, error } = await supabase.functions.invoke("accept-boost-challenge", {
-        body: {
-          socialChallengeId,
-          iban: ibanValue.trim(),
-        },
+        body: { socialChallengeId, iban: ibanValue.trim() },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Erreur");
-      setRespondedIds(prev => new Set(prev).add(notifId));
-      toast.success("Défi accepté ! C'est parti 🔥");
       setIbanValue("");
       setIbanInputId(null);
-      navigate("/dashboard");
+      // Animate the card out, then show celebration overlay
+      animateOut(notifId, "accept", () => {
+        setShowAcceptOverlay(true);
+      });
     } catch (err: any) {
       toast.error(err?.message || "Erreur lors de l'acceptation");
       setAcceptingId(null);
@@ -92,13 +107,23 @@ const Notifications = () => {
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Erreur");
-      setRespondedIds(prev => new Set(prev).add(notifId));
-      toast.info(data.refunded ? "Défi refusé, remboursement effectué" : "Défi refusé");
+      // Animate slide-out then remove
+      animateOut(notifId, "decline", () => {
+        toast.info(data.refunded ? "Défi refusé, remboursement effectué" : "Défi refusé");
+        refetch();
+      });
     } catch (err: any) {
       toast.error(err?.message || "Erreur lors du refus");
     } finally {
       setDecliningId(null);
     }
+  };
+
+  const getCardAnimationClass = (notifId: string) => {
+    if (animatingOutId !== notifId) return "";
+    if (animatingOutType === "accept") return "animate-scale-fade-out";
+    if (animatingOutType === "decline") return "animate-slide-out-left";
+    return "";
   };
 
   return (
@@ -129,13 +154,16 @@ const Notifications = () => {
             const fromUserId = notif.data?.from_user_id;
             const socialChallengeId = notif.data?.socialChallengeId;
             const alreadyResponded = respondedIds.has(notif.id);
+            const cardAnim = getCardAnimationClass(notif.id);
+
+            if (alreadyResponded && !cardAnim) return null;
 
             return (
               <div
                 key={notif.id}
                 className={`bg-gradient-card rounded-xl border p-4 flex flex-col gap-3 transition-all ${
                   !notif.read ? "border-primary/30" : "border-border"
-                }`}
+                } ${cardAnim}`}
               >
                 <div className="flex items-start gap-3">
                   <div className={`mt-0.5 ${cfg.color}`}>
@@ -184,7 +212,6 @@ const Notifications = () => {
                 {/* Social challenge actions */}
                 {isSocialChallenge && socialChallengeId && !alreadyResponded && (
                   <div className="space-y-2">
-                    {/* IBAN input */}
                     {ibanInputId === notif.id && (
                       <div>
                         <label className="text-xs text-muted-foreground mb-1.5 block">
@@ -220,19 +247,24 @@ const Notifications = () => {
                         onClick={() => handleDeclineSocialChallenge(notif.id, socialChallengeId)}
                         disabled={decliningId === notif.id}
                       >
-                        <X className="w-3.5 h-3.5 mr-1" />
+                        {decliningId === notif.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                        ) : (
+                          <X className="w-3.5 h-3.5 mr-1" />
+                        )}
                         Refuser
                       </Button>
                     </div>
                   </div>
                 )}
-                {isSocialChallenge && alreadyResponded && (
-                  <p className="text-xs text-muted-foreground italic">Répondu ✓</p>
-                )}
               </div>
             );
           })}
         </div>
+      )}
+
+      {showAcceptOverlay && (
+        <ChallengeAcceptedOverlay onClose={() => setShowAcceptOverlay(false)} />
       )}
 
       <BottomNav />
