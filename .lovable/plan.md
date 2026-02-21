@@ -1,54 +1,43 @@
 
 
-# Stories Instagram-style sur le Dashboard
+# Parcours de motivation avant creation de defi
 
 ## Concept
-Afficher les photos de check-in validees des amis (et de soi-meme) sous forme de stories cliquables, visibles pendant 24h puis automatiquement supprimees.
+Quand l'utilisateur clique sur "Creer un defi", au lieu d'arriver directement sur la page de configuration, il passe d'abord par un parcours de 5-6 slides motivationnelles. Ce parcours cerne ses objectifs, lui explique le concept de l'app (miser sur soi) et le met dans un etat d'esprit engage avant de configurer son defi.
 
-## Emplacement
-Entre la carte "Ta semaine" (week tracker) et la carte "Mise/Pieces en jeu", sous forme d'une rangee horizontale compacte d'avatars (style Instagram Stories).
+## Flow des slides
 
----
+| Slide | Type | Contenu |
+|-------|------|---------|
+| 1 | Choix unique | **"Quel est ton objectif ?"** - Perdre du poids / Prendre du muscle / Etre plus regulier / Me sentir mieux |
+| 2 | Choix multiple | **"Qu'est-ce qui t'a freine jusqu'ici ?"** - Manque de motivation / Pas de regularite / Personne pour me pousser / Trop de flemme |
+| 3 | Info percutante | **"Le seul secret, c'est la regularite."** - 90% des gens abandonnent avant 3 mois. Pas toi. |
+| 4 | Info concept | **"Mise sur toi-meme."** - Tu mets de l'argent en jeu. Si tu tiens, tu recuperes tout + des recompenses. Ce systeme provoque 7x plus de regularite. |
+| 5 | Choix unique | **"A quel point es-tu determine ?"** - Je vais essayer / Je suis motive / Rien ne m'arretera |
+| 6 | Transition finale | **"Parfait. Cree ton defi."** - Message personnalise selon les reponses + bouton vers la config du defi |
 
-## Etapes techniques
+## Design
+- Plein ecran, fond sombre, texte centre
+- Barre de progression en haut (dots ou barre fine)
+- Animations de transition entre slides (fade/slide)
+- Boutons de choix style cartes cliquables avec feedback visuel (bordure primary)
+- Phrases courtes, percutantes, une idee par slide
+- Bouton "Continuer" en bas apres selection
 
-### 1. Storage bucket pour les photos de stories
-- Creer un bucket `check-in-photos` (public) via migration SQL
-- Ajouter des policies RLS pour que les utilisateurs puissent uploader leurs propres photos et que les amis puissent les lire
+## Implementation technique
 
-### 2. Sauvegarder la photo lors du check-in
-- Modifier `PhotoVerify.tsx` : lors d'un check-in verifie avec succes, uploader la photo dans le bucket `check-in-photos` et mettre a jour le champ `photo_url` (deja existant dans la table `check_ins`)
+### Fichier cree
+- **`src/pages/OnboardingChallenge.tsx`** : Page complete avec gestion des slides, etat des reponses, animations et redirection vers `/create` a la fin
 
-### 3. Nettoyage automatique apres 24h (pg_cron)
-- Migration SQL : creer un job pg_cron qui tourne toutes les heures
-- Le job supprime les fichiers du bucket storage et met `photo_url = NULL` pour les check-ins de plus de 24h
+### Fichiers modifies
+- **`src/pages/Dashboard.tsx`** : Le bouton "Creer un defi" redirige vers `/onboarding-challenge` au lieu de `/create`
+- **`src/App.tsx`** : Ajouter la route `/onboarding-challenge` (protegee)
 
-### 4. Hook `useStories`
-- Nouveau hook dans `src/hooks/useStories.ts`
-- Requete les check-ins verifies des amis + les siens des dernieres 24h ayant un `photo_url` non null
-- Joint avec les profils pour avoir avatar et username
-- Regroupe par utilisateur (un avatar = toutes les stories recentes d'un user)
-
-### 5. Composant `StoriesBar` sur le Dashboard
-- Nouveau composant `src/components/StoriesBar.tsx`
-- Rangee horizontale scrollable d'avatars avec bordure coloree (vert = story non vue)
-- Chaque avatar est cliquable et ouvre un Dialog/Drawer plein ecran avec la photo
-- Design compact : hauteur ~70px max pour ne pas casser la mise en page
-- Place entre le week tracker et la carte mise/pieces
-
-### 6. Viewer de story
-- Dialog plein ecran avec la photo, le nom de l'utilisateur et l'heure du check-in
-- Swipe ou boutons pour naviguer entre les stories d'un meme utilisateur
-
----
-
-## Structure des fichiers modifies/crees
-
-| Fichier | Action |
-|---|---|
-| Migration SQL (bucket + pg_cron) | Creer |
-| `src/hooks/useStories.ts` | Creer |
-| `src/components/StoriesBar.tsx` | Creer |
-| `src/pages/PhotoVerify.tsx` | Modifier (upload photo) |
-| `src/pages/Dashboard.tsx` | Modifier (ajouter StoriesBar) |
+### Details techniques
+- Etat local avec `useState` pour le slide actif et les reponses
+- Chaque slide est un objet dans un tableau (type, question, options, texte)
+- Transition CSS entre slides (opacity + translateX)
+- A la derniere slide, navigation vers `/create` avec `useNavigate`
+- Le composant adapte le message final selon le niveau de determination choisi
+- Pas de sauvegarde en base des reponses (donnees ephemeres, uniquement pour l'experience)
 
