@@ -162,7 +162,7 @@ const Dashboard = () => {
   const isUrgent = !isGoalMet && sessionsRemaining >= daysLeftInWeek;
 
   const ringColors = isGoalMet
-    ? { start: "hsl(82, 85%, 55%)", end: "hsl(82, 85%, 40%)" }
+    ? { start: "hsl(210, 85%, 55%)", end: "hsl(210, 85%, 40%)" }
     : isUrgent
     ? { start: "hsl(0, 85%, 55%)", end: "hsl(0, 70%, 45%)" }
     : { start: "hsl(35, 95%, 55%)", end: "hsl(25, 90%, 45%)" };
