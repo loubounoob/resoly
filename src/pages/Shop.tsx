@@ -5,6 +5,9 @@ import CoinIcon from "@/components/CoinIcon";
 import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 import { useCartStore } from "@/stores/cartStore";
 import { useUserCoins } from "@/hooks/useChallenge";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -61,6 +64,21 @@ const Shop = () => {
   const [error, setError] = useState(false);
   const [buyCoinsOpen, setBuyCoinsOpen] = useState(false);
   const { data: coins, isLoading: coinsLoading } = useUserCoins();
+  const { user } = useAuth();
+
+  const { data: inviteCode } = useQuery({
+    queryKey: ["invite-code", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("invite_code")
+        .eq("user_id", user.id)
+        .single();
+      return data?.invite_code ?? null;
+    },
+    enabled: !!user,
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -134,7 +152,7 @@ const Shop = () => {
         </div>
       )}
 
-      <BuyCoinsDrawer open={buyCoinsOpen} onOpenChange={setBuyCoinsOpen} />
+      <BuyCoinsDrawer open={buyCoinsOpen} onOpenChange={setBuyCoinsOpen} inviteCode={inviteCode} />
       <BottomNav />
     </div>
   );
