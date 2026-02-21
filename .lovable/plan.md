@@ -1,114 +1,83 @@
 
 
-## Corriger le flux complet des defis offerts (Boost)
+## Animations et notifications pour l'acceptation/refus des defis offerts
 
-### Problemes identifies
+### Ce qui va changer
 
-1. **Acceptation echoue** : L'edge function `accept-boost-challenge` verifie si l'utilisateur a deja un defi actif, mais ne verifie pas si l'utilisateur a deja rejoint CE defi specifique. De plus, les anciennes notifications de boost deja traites restent visibles.
-
-2. **Refus ne rembourse pas** : `handleDeclineSocialChallenge` ne fait rien cote serveur -- il cache juste la notification localement. Pas de remboursement Stripe, pas de mise a jour du statut.
-
-3. **Pas de `stripe_payment_intent_id` sur les membres sociaux** : Le paiement Stripe du createur n'est pas stocke sur `social_challenge_members`, donc impossible de rembourser en cas de refus.
-
-4. **Completion du defi offert** : `complete-challenge` rembourse le createur via Stripe mais ne gere pas le versement au beneficiaire via IBAN. Il faut marquer l'IBAN et le montant a verser pour traitement.
-
-5. **Pas de modification d'IBAN** : Aucun ecran ne permet de changer l'IBAN apres acceptation.
+Quand un utilisateur accepte ou refuse un defi offert, les deux personnes (le createur et la cible) seront notifiees avec des animations visuelles.
 
 ---
 
-### Plan de corrections
+### 1. Animation plein ecran a l'acceptation (cote receveur)
 
-#### 1. Migration base de donnees
+Quand la cible clique sur "Confirmer" et que l'acceptation reussit, au lieu de juste un toast + redirection :
 
-Ajouter une colonne `stripe_payment_intent_id` a la table `social_challenge_members` pour pouvoir rembourser le createur si le defi est refuse.
+- Un overlay plein ecran apparait avec une animation de celebration
+- Confettis (via `canvas-confetti` deja installe)
+- Grande icone animee (flamme/fusee) avec un effet de scale-in
+- Titre motivant : "C'est parti ! Le defi est lance"
+- Sous-titre : "Montre ce que tu vaux."
+- Bouton "Go" qui redirige vers le dashboard
+- L'overlay se ferme automatiquement apres 4 secondes si pas de clic
 
-```text
-ALTER TABLE social_challenge_members
-  ADD COLUMN stripe_payment_intent_id text;
-```
+### 2. Animation a l'acceptation (cote notification card)
 
-#### 2. Edge function `verify-payment` -- stocker le payment intent
+- La carte de notification fait un effet de "scale-out + fade" avant de disparaitre de la liste
+- Remplacement par un message de confirmation anime "Defi accepte" avec un check vert
 
-Quand le paiement social est verifie, sauvegarder `session.payment_intent` sur le `social_challenge_members` du createur.
+### 3. Animation au refus
 
-#### 3. Edge function `create-challenge-payment` -- stocker le payment intent (promo code)
+- La carte de notification fait un slide-out vers la gauche avant de disparaitre
+- Toast avec message de confirmation
 
-Quand le code promo est utilise, pas de payment intent (c'est normal, rien a rembourser).
+### 4. Notifications aux deux parties
 
-#### 4. Nouvelle edge function `decline-boost-challenge`
+**Cote backend (edge functions)** :
 
-- Authentifie l'utilisateur (doit etre le `target_user_id`)
-- Met le statut du `social_challenges` a `"declined"`
-- Recupere le `stripe_payment_intent_id` du membre createur
-- Si present, rembourse via Stripe
-- Supprime la notification associee
-- Retourne `{ success: true, refunded: true/false }`
+- **`accept-boost-challenge`** : Apres l'acceptation, envoyer une notification au createur via `send-notification` :
+  - Type : `challenge_accepted`
+  - Titre : "Defi accepte !"
+  - Body : "@username a accepte ton defi ! C'est parti"
 
-#### 5. Edge function `accept-boost-challenge` -- corrections
+- **`decline-boost-challenge`** : Apres le refus, envoyer une notification au createur :
+  - Type : `challenge_declined`
+  - Titre : "Defi refuse"
+  - Body : "@username a refuse le defi. Tu as ete rembourse." (ou sans remboursement)
 
-- Avant de verifier "deja un defi actif", verifier d'abord si l'utilisateur a deja rejoint CE defi specifique (eviter les doublons)
-- Nettoyer la notification apres acceptation reussie
+**Cote frontend** :
 
-#### 6. Edge function `complete-challenge` -- gerer les defis offerts
+- Ajouter les types `challenge_accepted` et `challenge_declined` dans `typeConfig` sur la page Notifications (icones + couleurs)
 
-- Detecter si le defi est lie a un `social_challenge_id`
-- Si oui, recuperer l'IBAN du beneficiaire depuis `social_challenge_members`
-- Au lieu de rembourser le createur via Stripe, creer une entree dans une nouvelle table `pending_payouts` (ou simplement logger/notifier) avec l'IBAN et le montant a verser
-- Attribuer les pieces normalement
+### 5. Suppression de la notification apres traitement
 
-Pour simplifier : on ajoute une table `pending_payouts` pour tracer les versements IBAN a faire.
-
-```text
-CREATE TABLE pending_payouts (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  challenge_id uuid NOT NULL,
-  social_challenge_id uuid NOT NULL,
-  amount numeric NOT NULL,
-  iban text NOT NULL,
-  status text NOT NULL DEFAULT 'pending',
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-ALTER TABLE pending_payouts ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can view their own payouts"
-  ON pending_payouts FOR SELECT USING (auth.uid() = user_id);
-```
-
-#### 7. Frontend -- Notifications (`src/pages/Notifications.tsx`)
-
-- `handleDeclineSocialChallenge` : appeler la nouvelle edge function `decline-boost-challenge` au lieu de juste cacher la notification
-- Ajouter un etat de chargement pour le refus
-- Supprimer la notification de la liste apres traitement
-
-#### 8. Frontend -- Settings (`src/pages/Settings.tsx`)
-
-Ajouter une section "IBAN" dans les parametres :
-- Afficher l'IBAN actuel (depuis `social_challenge_members` ou un champ `iban` sur `profiles`)
-- Permettre de le modifier
-
-Pour plus de coherence, ajouter une colonne `iban` sur la table `profiles` et la synchroniser.
-
-```text
-ALTER TABLE profiles ADD COLUMN iban text;
-```
-
-#### 9. Config `supabase/config.toml`
-
-Ajouter la config pour la nouvelle edge function :
-```text
-[functions.decline-boost-challenge]
-verify_jwt = false
-```
+La notification du receveur est deja supprimee cote serveur. Cote client, on va aussi la retirer visuellement de la liste avec une animation de sortie.
 
 ---
 
-### Resume des fichiers modifies
+### Changements techniques
 
-- **Migration SQL** : ajouter `stripe_payment_intent_id` sur `social_challenge_members`, ajouter `iban` sur `profiles`, creer table `pending_payouts`
-- **`supabase/functions/decline-boost-challenge/index.ts`** : nouvelle function
-- **`supabase/functions/accept-boost-challenge/index.ts`** : fix doublons
-- **`supabase/functions/verify-payment/index.ts`** : stocker payment intent sur membre
-- **`supabase/functions/complete-challenge/index.ts`** : gerer les payouts IBAN
-- **`src/pages/Notifications.tsx`** : appeler decline cote serveur
-- **`src/pages/Settings.tsx`** : ajouter gestion IBAN
+**Nouveau composant : `src/components/ChallengeAcceptedOverlay.tsx`**
+- Overlay plein ecran avec fond semi-transparent
+- Animation scale-in + fade-in pour le contenu central
+- Declenchement de confettis via `canvas-confetti`
+- Bouton "Go" pour naviguer vers /dashboard
+- Auto-dismiss apres 4 secondes
+
+**Fichier modifie : `src/pages/Notifications.tsx`**
+- Ajouter un state `showAcceptOverlay` pour afficher l'overlay
+- Dans `handleAcceptSocialChallenge` : au lieu de `navigate("/dashboard")`, afficher l'overlay
+- Ajouter les types `challenge_accepted` et `challenge_declined` dans `typeConfig`
+- Ajouter une animation CSS de sortie sur les cartes traitees (scale-out ou slide-left)
+- Gerer un state `animatingOutId` pour les cartes en cours de disparition
+
+**Fichier modifie : `supabase/functions/accept-boost-challenge/index.ts`**
+- Apres la logique d'acceptation, recuperer le username du receveur depuis `profiles`
+- Appeler `send-notification` pour notifier le createur (`sc.created_by`) avec type `challenge_accepted`
+
+**Fichier modifie : `supabase/functions/decline-boost-challenge/index.ts`**
+- Apres le refus, recuperer le username du receveur
+- Appeler `send-notification` pour notifier le createur avec type `challenge_declined` et info de remboursement
+
+**Fichier modifie : `src/index.css`** (ou inline styles)
+- Ajouter keyframes pour `slide-out-left` et `scale-fade-out` pour les animations de sortie des cartes
 
