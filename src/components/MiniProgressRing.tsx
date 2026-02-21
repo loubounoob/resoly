@@ -13,7 +13,7 @@ const MiniProgressRing = ({ done, goal, isGoalMet, isUrgent, size = 48 }: MiniPr
   const offset = circumference * (1 - progress / 100);
 
   const colors = isGoalMet
-    ? { start: "hsl(210, 85%, 55%)", end: "hsl(210, 85%, 40%)" }
+    ? { start: "hsl(82, 85%, 55%)", end: "hsl(82, 85%, 40%)" }
     : isUrgent
     ? { start: "hsl(0, 85%, 55%)", end: "hsl(0, 70%, 45%)" }
     : { start: "hsl(35, 95%, 55%)", end: "hsl(25, 90%, 45%)" };
