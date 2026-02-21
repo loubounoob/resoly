@@ -175,7 +175,7 @@ const CreateSocialChallenge = () => {
                       <div className="p-2 space-y-1">
                         <p className="text-xs font-medium truncate">{product.node.title}</p>
                         <div className="flex items-center gap-1 text-xs font-bold text-primary"><CoinIcon size={12} /> {coinsPrice}</div>
-                        {isAccessible && <Badge className="text-[10px] px-1.5 py-0 bg-primary/20 text-primary border-primary/30">Accessible</Badge>}
+                        {isAccessible && <Badge className="text-[10px] px-1.5 py-0 bg-green-500/20 text-green-400 border-green-500/30">Accessible</Badge>}
                       </div>
                     </div>
                   );

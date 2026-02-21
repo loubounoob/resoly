@@ -269,7 +269,7 @@ const CreateChallenge = () => {
                       <CoinIcon size={12} /> {coinsPrice}
                     </div>
                     {isAccessible && (
-                      <Badge className="text-[10px] px-1.5 py-0 bg-primary/20 text-primary border-primary/30">
+                      <Badge className="text-[10px] px-1.5 py-0 bg-green-500/20 text-green-400 border-green-500/30">
                         Accessible
                       </Badge>
                     )}

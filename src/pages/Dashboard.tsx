@@ -220,7 +220,7 @@ const Dashboard = () => {
             <div className="absolute inset-0 rounded-full animate-ping opacity-10" style={{ background: ringColors.start }} />
           )}
           <svg className="w-full h-full -rotate-90 relative z-10" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="52" fill="hsl(220, 20%, 6%)" stroke="hsl(220, 15%, 12%)" strokeWidth="8" />
+            <circle cx="60" cy="60" r="52" fill="none" stroke="hsl(220, 15%, 18%)" strokeWidth="8" />
             <circle
               cx="60" cy="60" r="52" fill="none"
               stroke="url(#progressGrad)"
@@ -285,7 +285,7 @@ const Dashboard = () => {
               <div
                 className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
                   weekStatus[i] === true
-                    ? "border-2 border-primary bg-primary/15 text-primary shadow-glow"
+                    ? "bg-gradient-primary text-primary-foreground shadow-glow"
                     : weekStatus[i] === false
                     ? "bg-destructive/20 text-destructive"
                     : "bg-secondary text-muted-foreground"

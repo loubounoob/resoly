@@ -16,7 +16,7 @@
     --popover-foreground: 0 0% 95%;
 
     --primary: 82 85% 55%;
-    --primary-foreground: 0 0% 100%;
+    --primary-foreground: 220 20% 6%;
 
     --secondary: 220 15% 16%;
     --secondary-foreground: 0 0% 85%;
@@ -33,6 +33,7 @@
     --border: 220 15% 18%;
     --input: 220 15% 18%;
     --ring: 82 85% 55%;
+
     --radius: 0.75rem;
 
     --gradient-primary: linear-gradient(135deg, hsl(82, 85%, 55%), hsl(82, 85%, 40%));

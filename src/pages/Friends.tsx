@@ -363,7 +363,7 @@ const Friends = () => {
                               <span className="text-[10px] text-muted-foreground">{day}</span>
                               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
                                 f.weekStatus[i] === true
-                                  ? "border-2 border-primary bg-primary/15 text-primary shadow-glow"
+                                  ? "bg-gradient-primary text-primary-foreground shadow-glow"
                                   : f.weekStatus[i] === false
                                   ? "bg-destructive/20 text-destructive"
                                   : "bg-secondary text-muted-foreground"
