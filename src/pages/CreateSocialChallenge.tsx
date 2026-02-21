@@ -19,7 +19,7 @@ const SESSIONS_OPTIONS = [2, 3, 4, 5, 6];
 
 const CreateSocialChallenge = () => {
   const navigate = useNavigate();
-  const [step, setStep] = useState<"motivation1" | "motivation2" | "motivation3" | "params" | "target" | "confirm">("motivation1");
+  const [step, setStep] = useState<"motivation1" | "motivation2" | "motivation3" | "motivation4" | "motivation5" | "params" | "target" | "confirm">("motivation1");
   const [betAmount, setBetAmount] = useState(100);
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
@@ -98,7 +98,9 @@ const CreateSocialChallenge = () => {
     if (step === "motivation1") navigate(-1);
     else if (step === "motivation2") setStep("motivation1");
     else if (step === "motivation3") setStep("motivation2");
-    else if (step === "params") setStep("motivation3");
+    else if (step === "motivation4") setStep("motivation3");
+    else if (step === "motivation5") setStep("motivation4");
+    else if (step === "params") setStep("motivation5");
     else if (step === "target") setStep("params");
     else setStep("target");
   };
@@ -112,12 +114,14 @@ const CreateSocialChallenge = () => {
         <h1 className="text-2xl font-bold">Offrir un défi</h1>
       </div>
 
-      {(step === "motivation1" || step === "motivation2" || step === "motivation3") && (
+      {(step === "motivation1" || step === "motivation2" || step === "motivation3" || step === "motivation4" || step === "motivation5") && (
         <MotivationSteps
           step={step}
           onSelect={(s, _v) => {
             if (s === "motivation1") setStep("motivation2");
             else if (s === "motivation2") setStep("motivation3");
+            else if (s === "motivation3") setStep("motivation4");
+            else if (s === "motivation4") setStep("motivation5");
           }}
           onFinish={() => setStep("params")}
         />
