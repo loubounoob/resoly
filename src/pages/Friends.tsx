@@ -297,7 +297,7 @@ const Friends = () => {
                 const f = selectedFriend;
                 const weeklyProgress = f.weeklyGoal > 0 ? Math.min(100, Math.round((f.weeklyDone / f.weeklyGoal) * 100)) : 0;
                 const ringColors = f.isGoalMet
-                  ? { start: "hsl(82, 85%, 55%)", end: "hsl(82, 85%, 40%)" }
+                  ? { start: "hsl(210, 85%, 55%)", end: "hsl(210, 85%, 40%)" }
                   : f.isUrgent
                   ? { start: "hsl(0, 85%, 55%)", end: "hsl(0, 70%, 45%)" }
                   : { start: "hsl(35, 95%, 55%)", end: "hsl(25, 90%, 45%)" };
