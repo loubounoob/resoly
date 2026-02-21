@@ -303,6 +303,7 @@ export type Database = {
         Row: {
           address1: string | null
           address2: string | null
+          age: number | null
           avatar_url: string | null
           city: string | null
           coins: number
@@ -310,6 +311,7 @@ export type Database = {
           created_at: string
           display_name: string | null
           first_name: string | null
+          gender: string | null
           gym_latitude: number | null
           gym_longitude: number | null
           gym_name: string | null
@@ -327,6 +329,7 @@ export type Database = {
         Insert: {
           address1?: string | null
           address2?: string | null
+          age?: number | null
           avatar_url?: string | null
           city?: string | null
           coins?: number
@@ -334,6 +337,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           first_name?: string | null
+          gender?: string | null
           gym_latitude?: number | null
           gym_longitude?: number | null
           gym_name?: string | null
@@ -351,6 +355,7 @@ export type Database = {
         Update: {
           address1?: string | null
           address2?: string | null
+          age?: number | null
           avatar_url?: string | null
           city?: string | null
           coins?: number
@@ -358,6 +363,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           first_name?: string | null
+          gender?: string | null
           gym_latitude?: number | null
           gym_longitude?: number | null
           gym_name?: string | null
