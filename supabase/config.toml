@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.check-challenge-peril]
 verify_jwt = false
+
+[functions.sync-order-sheet]
+verify_jwt = false

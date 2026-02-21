@@ -97,6 +97,35 @@ serve(async (req) => {
       throw new Error("Failed to create order");
     }
 
+    // Sync to Google Sheets (fire and forget)
+    try {
+      const webhookUrl = Deno.env.get("GOOGLE_SHEETS_WEBHOOK_URL");
+      if (webhookUrl) {
+        await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            created_at: new Date().toISOString(),
+            product_title: productTitle,
+            variant_title: variantTitle || "",
+            coins_spent: coinsNeeded,
+            price_amount: parseFloat(priceAmount) * qty,
+            shipping_first_name: shipping?.firstName || "",
+            shipping_last_name: shipping?.lastName || "",
+            email: user.email || "",
+            shipping_phone: shipping?.phone || "",
+            shipping_address1: shipping?.address1 || "",
+            shipping_city: shipping?.city || "",
+            shipping_zip: shipping?.zip || "",
+            shipping_country: shipping?.country || "FR",
+            status: "pending",
+          }),
+        });
+      }
+    } catch (syncErr) {
+      console.error("Google Sheets sync failed (non-blocking):", syncErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
