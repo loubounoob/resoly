@@ -6,6 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import CoinIcon from "@/components/CoinIcon";
+import MotivationSteps from "@/components/MotivationSteps";
 import { useCreateSocialChallenge, useFriendsWithActiveChallenge } from "@/hooks/useSocialChallenges";
 import { useFriendsList } from "@/hooks/useFriends";
 import { calculateCoins } from "@/lib/coins";
@@ -18,7 +19,7 @@ const SESSIONS_OPTIONS = [2, 3, 4, 5, 6];
 
 const CreateSocialChallenge = () => {
   const navigate = useNavigate();
-  const [step, setStep] = useState<"params" | "target" | "confirm">("params");
+  const [step, setStep] = useState<"motivation1" | "motivation2" | "motivation3" | "params" | "target" | "confirm">("motivation1");
   const [betAmount, setBetAmount] = useState(100);
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
@@ -94,7 +95,10 @@ const CreateSocialChallenge = () => {
   const getInitials = (p: any) => (p?.display_name || p?.first_name || "?").charAt(0).toUpperCase();
 
   const goBack = () => {
-    if (step === "params") navigate(-1);
+    if (step === "motivation1") navigate(-1);
+    else if (step === "motivation2") setStep("motivation1");
+    else if (step === "motivation3") setStep("motivation2");
+    else if (step === "params") setStep("motivation3");
     else if (step === "target") setStep("params");
     else setStep("target");
   };
@@ -107,6 +111,17 @@ const CreateSocialChallenge = () => {
         </button>
         <h1 className="text-2xl font-bold">Offrir un défi</h1>
       </div>
+
+      {(step === "motivation1" || step === "motivation2" || step === "motivation3") && (
+        <MotivationSteps
+          step={step}
+          onSelect={(s, _v) => {
+            if (s === "motivation1") setStep("motivation2");
+            else if (s === "motivation2") setStep("motivation3");
+          }}
+          onFinish={() => setStep("params")}
+        />
+      )}
 
       {step === "params" && (
         <div className="flex-1 space-y-8">
