@@ -13,7 +13,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   preparing: { label: "Préparation", color: "bg-orange-500/20 text-orange-400" },
   shipping: { label: "Livraison en cours", color: "bg-blue-500/20 text-blue-400" },
   arriving: { label: "Arrive bientôt", color: "bg-primary/20 text-primary" },
-  delivered: { label: "Arrivé", color: "bg-green-500/20 text-green-400" },
+  delivered: { label: "Arrivé", color: "bg-primary/20 text-primary" },
   cancelled: { label: "Annulée", color: "bg-destructive/20 text-destructive" },
 };
 

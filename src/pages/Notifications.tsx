@@ -12,7 +12,7 @@ import { toast } from "sonner";
 
 const typeConfig: Record<string, { icon: typeof UserPlus; color: string }> = {
   friend_request: { icon: UserPlus, color: "text-blue-400" },
-  friend_accepted: { icon: UserCheck, color: "text-green-400" },
+  friend_accepted: { icon: UserCheck, color: "text-primary" },
   challenge_invite: { icon: Swords, color: "text-purple-400" },
   social_challenge: { icon: Gift, color: "text-accent" },
   cheer: { icon: Flame, color: "text-orange-400" },
