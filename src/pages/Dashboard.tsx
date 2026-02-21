@@ -285,9 +285,9 @@ const Dashboard = () => {
               <div
                 className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
                   weekStatus[i] === true
-                    ? "bg-gradient-primary text-primary-foreground shadow-glow"
+                    ? "bg-primary/15 border border-primary/40 text-primary shadow-glow"
                     : weekStatus[i] === false
-                    ? "bg-destructive/20 text-destructive"
+                    ? "bg-destructive/15 border border-destructive/30 text-destructive"
                     : "bg-secondary text-muted-foreground"
                 }`}
               >
