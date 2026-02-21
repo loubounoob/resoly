@@ -1,41 +1,39 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useStories, type StoryGroup, type Story } from "@/hooks/useStories";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { X, Trash2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 const StoriesBar = () => {
   const { data: storyGroups, isLoading } = useStories();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [selectedGroup, setSelectedGroup] = useState<StoryGroup | null>(null);
   const [storyIndex, setStoryIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef<number | null>(null);
+  const startTimeRef = useRef(0);
+  const elapsedRef = useRef(0);
 
-  if (isLoading || !storyGroups || storyGroups.length === 0) return null;
+  const STORY_DURATION = 4000;
 
   const currentStory: Story | null =
     selectedGroup && selectedGroup.stories[storyIndex]
       ? selectedGroup.stories[storyIndex]
       : null;
 
-  const openStory = (group: StoryGroup) => {
-    setSelectedGroup(group);
-    setStoryIndex(0);
-  };
-
-  const closeStory = () => {
-    setSelectedGroup(null);
-    setStoryIndex(0);
-  };
-
-  const nextStory = () => {
-    if (!selectedGroup) return;
+  const advanceStory = useCallback(() => {
+    if (!selectedGroup || !storyGroups) return;
     if (storyIndex < selectedGroup.stories.length - 1) {
       setStoryIndex((i) => i + 1);
     } else {
-      // Move to next group
       const idx = storyGroups.findIndex((g) => g.userId === selectedGroup.userId);
       if (idx < storyGroups.length - 1) {
         setSelectedGroup(storyGroups[idx + 1]);
@@ -44,11 +42,94 @@ const StoriesBar = () => {
         closeStory();
       }
     }
+  }, [selectedGroup, storyGroups, storyIndex]);
+
+  // Timer logic
+  useEffect(() => {
+    if (!selectedGroup) return;
+    // Reset on story change
+    elapsedRef.current = 0;
+    setProgress(0);
+
+    if (paused) return;
+
+    startTimeRef.current = Date.now();
+
+    const tick = () => {
+      const now = Date.now();
+      const total = elapsedRef.current + (now - startTimeRef.current);
+      const pct = Math.min(total / STORY_DURATION, 1);
+      setProgress(pct);
+      if (pct >= 1) {
+        advanceStory();
+      } else {
+        timerRef.current = requestAnimationFrame(tick);
+      }
+    };
+    timerRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (timerRef.current) cancelAnimationFrame(timerRef.current);
+    };
+  }, [selectedGroup, storyIndex, paused, advanceStory]);
+
+  // Pause / resume helpers
+  const handlePointerDown = () => {
+    elapsedRef.current += Date.now() - startTimeRef.current;
+    if (timerRef.current) cancelAnimationFrame(timerRef.current);
+    setPaused(true);
+  };
+
+  const handlePointerUp = () => {
+    setPaused(false);
+  };
+
+  if (isLoading || !storyGroups || storyGroups.length === 0) return null;
+
+  const openStory = (group: StoryGroup) => {
+    setSelectedGroup(group);
+    setStoryIndex(0);
+    setPaused(false);
+  };
+
+  const closeStory = () => {
+    setSelectedGroup(null);
+    setStoryIndex(0);
+    setPaused(false);
   };
 
   const prevStory = () => {
     if (storyIndex > 0) {
       setStoryIndex((i) => i - 1);
+    }
+  };
+
+  const deleteStory = async () => {
+    if (!currentStory || !user) return;
+    // Extract file path from URL
+    const url = currentStory.photoUrl;
+    const pathMatch = url.match(/check-in-photos\/(.+)$/);
+    const filePath = pathMatch ? pathMatch[1] : null;
+
+    // Remove photo_url from check_in
+    await supabase
+      .from("check_ins")
+      .update({ photo_url: null })
+      .eq("id", currentStory.checkInId);
+
+    // Delete file from storage
+    if (filePath) {
+      await supabase.storage.from("check-in-photos").remove([filePath]);
+    }
+
+    toast.success("Story supprimée");
+    queryClient.invalidateQueries({ queryKey: ["stories"] });
+
+    // Advance or close
+    if (selectedGroup && selectedGroup.stories.length <= 1) {
+      closeStory();
+    } else {
+      advanceStory();
     }
   };
 
@@ -85,15 +166,27 @@ const StoriesBar = () => {
       <Dialog open={!!selectedGroup} onOpenChange={(open) => !open && closeStory()}>
         <DialogContent className="max-w-md w-full h-[85vh] p-0 border-0 bg-black rounded-2xl overflow-hidden [&>button]:hidden">
           {currentStory && selectedGroup && (
-            <div className="relative w-full h-full flex flex-col">
+            <div
+              className="relative w-full h-full flex flex-col select-none"
+              onPointerDown={handlePointerDown}
+              onPointerUp={handlePointerUp}
+              onPointerLeave={handlePointerUp}
+            >
               {/* Progress bars */}
               <div className="absolute top-0 left-0 right-0 z-30 flex gap-1 p-2">
                 {selectedGroup.stories.map((_, i) => (
                   <div key={i} className="flex-1 h-[3px] rounded-full bg-white/30 overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all duration-300 ${
-                        i < storyIndex ? "bg-white w-full" : i === storyIndex ? "bg-white w-full" : "w-0"
-                      }`}
+                      className="h-full rounded-full bg-white"
+                      style={{
+                        width:
+                          i < storyIndex
+                            ? "100%"
+                            : i === storyIndex
+                            ? `${progress * 100}%`
+                            : "0%",
+                        transition: i === storyIndex ? "none" : undefined,
+                      }}
                     />
                   </div>
                 ))}
@@ -117,26 +210,43 @@ const StoriesBar = () => {
                     </p>
                   </div>
                 </div>
-                <button onClick={closeStory} className="p-1 rounded-full bg-white/10 hover:bg-white/20">
-                  <X className="w-5 h-5 text-white" />
-                </button>
+                <div className="flex items-center gap-1">
+                  {currentStory.userId === user?.id && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteStory(); }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="p-1 rounded-full bg-white/10 hover:bg-red-500/40"
+                    >
+                      <Trash2 className="w-5 h-5 text-white" />
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); closeStory(); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="p-1 rounded-full bg-white/10 hover:bg-white/20"
+                  >
+                    <X className="w-5 h-5 text-white" />
+                  </button>
+                </div>
               </div>
 
               {/* Photo */}
               <img
                 src={currentStory.photoUrl}
                 alt="Story"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover pointer-events-none"
               />
 
               {/* Navigation zones */}
               <button
                 onClick={prevStory}
+                onPointerDown={(e) => e.stopPropagation()}
                 className="absolute left-0 top-0 bottom-0 w-1/3 z-20"
                 aria-label="Précédent"
               />
               <button
-                onClick={nextStory}
+                onClick={advanceStory}
+                onPointerDown={(e) => e.stopPropagation()}
                 className="absolute right-0 top-0 bottom-0 w-2/3 z-20"
                 aria-label="Suivant"
               />
