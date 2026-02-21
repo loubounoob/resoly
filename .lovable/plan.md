@@ -1,43 +1,46 @@
 
 
-# Parcours de motivation avant creation de defi
+## Refonte des cartes commandes
 
-## Concept
-Quand l'utilisateur clique sur "Creer un defi", au lieu d'arriver directement sur la page de configuration, il passe d'abord par un parcours de 5-6 slides motivationnelles. Ce parcours cerne ses objectifs, lui explique le concept de l'app (miser sur soi) et le met dans un etat d'esprit engage avant de configurer son defi.
+### Ce qui change
 
-## Flow des slides
+1. **Photo produit** -- Charger les produits Shopify au montage de la page, puis associer chaque commande a son image via le `variant_id` stocke dans `coin_orders`. Afficher la photo a gauche de chaque carte (miniature carree 64x64).
 
-| Slide | Type | Contenu |
-|-------|------|---------|
-| 1 | Choix unique | **"Quel est ton objectif ?"** - Perdre du poids / Prendre du muscle / Etre plus regulier / Me sentir mieux |
-| 2 | Choix multiple | **"Qu'est-ce qui t'a freine jusqu'ici ?"** - Manque de motivation / Pas de regularite / Personne pour me pousser / Trop de flemme |
-| 3 | Info percutante | **"Le seul secret, c'est la regularite."** - 90% des gens abandonnent avant 3 mois. Pas toi. |
-| 4 | Info concept | **"Mise sur toi-meme."** - Tu mets de l'argent en jeu. Si tu tiens, tu recuperes tout + des recompenses. Ce systeme provoque 7x plus de regularite. |
-| 5 | Choix unique | **"A quel point es-tu determine ?"** - Je vais essayer / Je suis motive / Rien ne m'arretera |
-| 6 | Transition finale | **"Parfait. Cree ton defi."** - Message personnalise selon les reponses + bouton vers la config du defi |
+2. **Barre de progression visuelle** -- Sous chaque carte, ajouter une barre horizontale a 5 etapes (En attente, Preparation, Livraison, Arrive bientot, Arrive). La portion remplie correspond au statut calcule dynamiquement. Couleur degradee selon l'avancement.
 
-## Design
-- Plein ecran, fond sombre, texte centre
-- Barre de progression en haut (dots ou barre fine)
-- Animations de transition entre slides (fade/slide)
-- Boutons de choix style cartes cliquables avec feedback visuel (bordure primary)
-- Phrases courtes, percutantes, une idee par slide
-- Bouton "Continuer" en bas apres selection
+3. **Navigation vers le produit** -- Rendre chaque carte cliquable. Au clic, naviguer vers `/shopify/{handle}` en retrouvant le handle du produit grace aux donnees Shopify chargees.
 
-## Implementation technique
+4. **Amelioration esthetique** -- Nouvelle mise en page : image a gauche, infos a droite, badge statut en haut a droite, barre de progression en bas de la carte.
 
-### Fichier cree
-- **`src/pages/OnboardingChallenge.tsx`** : Page complete avec gestion des slides, etat des reponses, animations et redirection vers `/create` a la fin
-
-### Fichiers modifies
-- **`src/pages/Dashboard.tsx`** : Le bouton "Creer un defi" redirige vers `/onboarding-challenge` au lieu de `/create`
-- **`src/App.tsx`** : Ajouter la route `/onboarding-challenge` (protegee)
+---
 
 ### Details techniques
-- Etat local avec `useState` pour le slide actif et les reponses
-- Chaque slide est un objet dans un tableau (type, question, options, texte)
-- Transition CSS entre slides (opacity + translateX)
-- A la derniere slide, navigation vers `/create` avec `useNavigate`
-- Le composant adapte le message final selon le niveau de determination choisi
-- Pas de sauvegarde en base des reponses (donnees ephemeres, uniquement pour l'experience)
+
+**Chargement des images Shopify**
+- Appeler `fetchShopifyProducts(50)` dans un `useEffect` au montage de la page `Orders.tsx`
+- Construire un dictionnaire `variantId -> { imageUrl, handle }` a partir des produits retournes
+- Matcher chaque `order.variant_id` avec ce dictionnaire pour afficher l'image et permettre la navigation
+
+**Barre de progression**
+- Mapper les 5 statuts a un index numerique (0-4) : pending=0, preparing=1, shipping=2, arriving=3, delivered=4
+- Afficher une barre `Progress` ou une barre custom avec 5 segments/points
+- La barre se remplit proportionnellement : `(statusIndex + 1) / 5 * 100`
+
+**Structure de la carte**
+```
++--------------------------------------------------+
+| [Image 64x64] | Titre produit      [Badge statut]|
+|                | Variante (S, M...)               |
+|                | 500 pieces       21 fev. 2026    |
++--------------------------------------------------+
+| [===progress bar===============-------]          |
+| En attente  Prep.  Livraison  Bientot  Arrive    |
++--------------------------------------------------+
+```
+
+**Fichier modifie** : `src/pages/Orders.tsx` uniquement
+- Import de `fetchShopifyProducts` depuis `@/lib/shopify`
+- Ajout d'un `useState` + `useEffect` pour les produits Shopify
+- Carte rendue cliquable avec `onClick={() => navigate(/shopify/${handle})}`
+- Ajout de la barre de progression sous chaque carte
 
