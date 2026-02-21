@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Flame, TrendingUp, Shield } from "lucide-react";
-import heroGym from "@/assets/hero-gym.jpg";
+
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -16,11 +16,6 @@ const Landing = () => {
           <span className="text-2xl font-display font-bold">Resoly</span>
         </div>
 
-        {/* Hero Image */}
-        <div className="relative rounded-2xl overflow-hidden mb-8">
-          <img src={heroGym} alt="Fitness transformation" className="w-full h-64 object-cover object-top" />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
-        </div>
 
         {/* Hero Text */}
         <div className="mb-8 animate-slide-up">
