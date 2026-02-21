@@ -111,6 +111,24 @@ serve(async (req) => {
       .update({ status: "completed", coins_awarded: coinsToEarn })
       .eq("id", challengeId);
 
+    // Sync status update to Google Sheets
+    try {
+      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-challenge-sheet`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          challenge_id: challengeId,
+          status: "completed",
+          update_only: true,
+        }),
+      });
+    } catch (syncErr) {
+      console.error("Sheet sync error:", syncErr);
+    }
+
     return new Response(
       JSON.stringify({ success: true, refunded, coinsAwarded: coinsToEarn }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }

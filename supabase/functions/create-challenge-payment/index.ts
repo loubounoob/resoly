@@ -42,6 +42,68 @@ serve(async (req) => {
           .eq("id", challengeId)
           .eq("user_id", user.id);
         if (updateError) throw new Error("Failed to apply promo code");
+
+        // Sync to Google Sheets
+        try {
+          const { data: challenge } = await supabaseAdmin
+            .from("challenges")
+            .select("*")
+            .eq("id", challengeId)
+            .single();
+          const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("username, age, gender")
+            .eq("user_id", user.id)
+            .single();
+          if (challenge && profile) {
+            const I = challenge.bet_per_month * challenge.duration_months;
+            const M = challenge.duration_months;
+            const S = challenge.sessions_per_week;
+            const getCoefficientDeMise = (i: number): number => {
+              if (i <= 50) return 1 + 0.004 * i;
+              if (i <= 75) return 1.2 + 0.012 * (i - 50);
+              if (i <= 100) return 1.5 + 0.02 * (i - 75);
+              if (i <= 300) return 2 - 0.0045 * (i - 100);
+              if (i <= 1000) return 1.1 - 0.000785 * (i - 300);
+              return Math.max(0, 0.55 - 0.00055 * (i - 1000));
+            };
+            const CI = getCoefficientDeMise(I);
+            const monthFactor = 0.3 + 0.6 * Math.pow(M, 1.5);
+            const sessionFactor = Math.pow(S / 3, 1.1);
+            const estimatedCoins = Math.round(I * CI * monthFactor * sessionFactor);
+            const endDate = new Date(challenge.created_at);
+            endDate.setMonth(endDate.getMonth() + challenge.duration_months);
+
+            await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-challenge-sheet`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({
+                challenge_id: challengeId,
+                username: profile.username,
+                age: profile.age,
+                gender: profile.gender,
+                email: user.email,
+                type: challenge.social_challenge_id ? "social" : "perso",
+                mise_totale: challenge.bet_per_month * challenge.duration_months,
+                mise_par_mois: challenge.bet_per_month,
+                sessions_per_week: challenge.sessions_per_week,
+                duration_months: challenge.duration_months,
+                total_sessions: challenge.total_sessions,
+                estimated_coins: estimatedCoins,
+                status: "active",
+                created_at: challenge.created_at,
+                estimated_end_date: endDate.toISOString(),
+                stripe_payment_intent_id: "",
+                promo_code: "loubou",
+              }),
+            });
+          }
+        } catch (syncErr) {
+          console.error("Sheet sync error:", syncErr);
+        }
       }
 
       if (socialChallengeId && memberId) {
