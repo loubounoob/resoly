@@ -47,6 +47,17 @@ serve(async (req) => {
       throw new Error("This challenge is no longer available");
     }
 
+    // 1b. Check if user already joined THIS specific challenge
+    const { data: alreadyJoined } = await supabaseAdmin
+      .from("social_challenge_members")
+      .select("id")
+      .eq("social_challenge_id", socialChallengeId)
+      .eq("user_id", user.id)
+      .limit(1);
+    if (alreadyJoined && alreadyJoined.length > 0) {
+      throw new Error("Tu as déjà rejoint ce défi");
+    }
+
     // 2. Check user doesn't already have an active challenge
     const { data: existingChallenge } = await supabaseAdmin
       .from("challenges")
@@ -131,6 +142,22 @@ serve(async (req) => {
           .eq("id", m.id);
       }
     }
+
+    // Also save IBAN to user's profile
+    if (iban) {
+      await supabaseAdmin
+        .from("profiles")
+        .update({ iban })
+        .eq("user_id", user.id);
+    }
+
+    // Clean up the notification
+    await supabaseAdmin
+      .from("notifications")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("type", "social_challenge")
+      .filter("data->>socialChallengeId", "eq", socialChallengeId);
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -299,6 +299,39 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_payouts: {
+        Row: {
+          amount: number
+          challenge_id: string
+          created_at: string
+          iban: string
+          id: string
+          social_challenge_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          challenge_id: string
+          created_at?: string
+          iban: string
+          id?: string
+          social_challenge_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          challenge_id?: string
+          created_at?: string
+          iban?: string
+          id?: string
+          social_challenge_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           address1: string | null
@@ -315,6 +348,7 @@ export type Database = {
           gym_latitude: number | null
           gym_longitude: number | null
           gym_name: string | null
+          iban: string | null
           id: string
           invite_code: string | null
           last_name: string | null
@@ -341,6 +375,7 @@ export type Database = {
           gym_latitude?: number | null
           gym_longitude?: number | null
           gym_name?: string | null
+          iban?: string | null
           id?: string
           invite_code?: string | null
           last_name?: string | null
@@ -367,6 +402,7 @@ export type Database = {
           gym_latitude?: number | null
           gym_longitude?: number | null
           gym_name?: string | null
+          iban?: string | null
           id?: string
           invite_code?: string | null
           last_name?: string | null
@@ -570,6 +606,7 @@ export type Database = {
           payment_status: string
           social_challenge_id: string
           status: string
+          stripe_payment_intent_id: string | null
           user_id: string
         }
         Insert: {
@@ -581,6 +618,7 @@ export type Database = {
           payment_status?: string
           social_challenge_id: string
           status?: string
+          stripe_payment_intent_id?: string | null
           user_id: string
         }
         Update: {
@@ -592,6 +630,7 @@ export type Database = {
           payment_status?: string
           social_challenge_id?: string
           status?: string
+          stripe_payment_intent_id?: string | null
           user_id?: string
         }
         Relationships: [

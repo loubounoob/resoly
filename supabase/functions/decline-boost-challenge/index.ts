@@ -1,0 +1,105 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import Stripe from "https://esm.sh/stripe@18.5.0";
+import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const supabaseClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!
+  );
+  const supabaseAdmin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const token = authHeader.replace("Bearer ", "");
+    const { data: authData } = await supabaseClient.auth.getUser(token);
+    const user = authData.user;
+    if (!user) throw new Error("User not authenticated");
+
+    const { socialChallengeId } = await req.json();
+    if (!socialChallengeId) throw new Error("Missing socialChallengeId");
+
+    // Fetch the social challenge
+    const { data: sc, error: scErr } = await supabaseAdmin
+      .from("social_challenges")
+      .select("*")
+      .eq("id", socialChallengeId)
+      .single();
+    if (scErr || !sc) throw new Error("Social challenge not found");
+
+    // Verify user is the target
+    if (sc.target_user_id !== user.id) {
+      throw new Error("You are not the target of this challenge");
+    }
+    if (sc.status !== "pending" && sc.status !== "active") {
+      throw new Error("This challenge is no longer available");
+    }
+
+    // Mark as declined
+    await supabaseAdmin
+      .from("social_challenges")
+      .update({ status: "declined" })
+      .eq("id", socialChallengeId);
+
+    // Find the creator's member record to get stripe_payment_intent_id
+    let refunded = false;
+    const { data: creatorMember } = await supabaseAdmin
+      .from("social_challenge_members")
+      .select("stripe_payment_intent_id")
+      .eq("social_challenge_id", socialChallengeId)
+      .eq("user_id", sc.created_by)
+      .single();
+
+    if (creatorMember?.stripe_payment_intent_id) {
+      try {
+        const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+          apiVersion: "2025-08-27.basil",
+        });
+        await stripe.refunds.create({
+          payment_intent: creatorMember.stripe_payment_intent_id,
+        });
+        refunded = true;
+      } catch (refundErr) {
+        console.error("Refund error:", refundErr);
+      }
+    }
+
+    // Delete related notifications
+    await supabaseAdmin
+      .from("notifications")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("type", "social_challenge")
+      .filter("data->>socialChallengeId", "eq", socialChallengeId);
+
+    return new Response(
+      JSON.stringify({ success: true, refunded }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+    );
+  } catch (error) {
+    console.error("Error:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+    );
+  }
+});
