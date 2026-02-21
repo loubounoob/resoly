@@ -312,7 +312,7 @@ const Dashboard = () => {
           </div>
           <div className="flex-1 space-y-1.5">
             <div className="flex items-baseline gap-2">
-              <span className="text-xl font-display font-bold tracking-tight">{totalBet}€</span>
+              <span className="text-3xl font-display font-bold tracking-tight">{totalBet}€</span>
               <span className="text-xs text-muted-foreground font-medium">en jeu</span>
             </div>
             <p className="text-xs text-muted-foreground">Tiens bon pour tout récupérer !</p>
