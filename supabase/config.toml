@@ -38,3 +38,9 @@ verify_jwt = false
 
 [functions.sync-challenge-sheet]
 verify_jwt = false
+
+[functions.decline-boost-challenge]
+verify_jwt = false
+
+[functions.accept-boost-challenge]
+verify_jwt = false

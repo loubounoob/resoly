@@ -153,7 +153,10 @@ serve(async (req) => {
       if (socialChallengeId && memberId) {
         const { error } = await supabaseAdmin
           .from("social_challenge_members")
-          .update({ payment_status: "paid" })
+          .update({
+            payment_status: "paid",
+            stripe_payment_intent_id: session.payment_intent as string,
+          })
           .eq("id", memberId)
           .eq("user_id", user.id);
         if (error) throw error;

@@ -82,9 +82,23 @@ const Notifications = () => {
     }
   };
 
-  const handleDeclineSocialChallenge = (notifId: string) => {
-    setRespondedIds(prev => new Set(prev).add(notifId));
-    toast.info("Défi refusé");
+  const [decliningId, setDecliningId] = useState<string | null>(null);
+
+  const handleDeclineSocialChallenge = async (notifId: string, socialChallengeId: string) => {
+    setDecliningId(notifId);
+    try {
+      const { data, error } = await supabase.functions.invoke("decline-boost-challenge", {
+        body: { socialChallengeId },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Erreur");
+      setRespondedIds(prev => new Set(prev).add(notifId));
+      toast.info(data.refunded ? "Défi refusé, remboursement effectué" : "Défi refusé");
+    } catch (err: any) {
+      toast.error(err?.message || "Erreur lors du refus");
+    } finally {
+      setDecliningId(null);
+    }
   };
 
   return (
@@ -203,7 +217,8 @@ const Notifications = () => {
                         size="sm"
                         variant="outline"
                         className="h-9 text-xs"
-                        onClick={() => handleDeclineSocialChallenge(notif.id)}
+                        onClick={() => handleDeclineSocialChallenge(notif.id, socialChallengeId)}
+                        disabled={decliningId === notif.id}
                       >
                         <X className="w-3.5 h-3.5 mr-1" />
                         Refuser
