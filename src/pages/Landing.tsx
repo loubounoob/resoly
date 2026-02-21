@@ -7,19 +7,19 @@ const Landing = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="relative min-h-screen flex flex-col">
-      {/* Hero Image */}
-      <div className="absolute inset-0">
-        <img src={heroGym} alt="Gym" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/70 to-background" />
-      </div>
-
+    <div className="min-h-screen flex flex-col bg-background">
       {/* Content */}
-      <div className="relative z-10 flex flex-col flex-1 px-6 pt-16 pb-10">
+      <div className="flex flex-col flex-1 px-6 pt-10 pb-10">
         {/* Logo */}
-        <div className="flex items-center gap-2 mb-auto">
+        <div className="flex items-center gap-2 mb-6">
           <Flame className="w-8 h-8 text-primary" />
           <span className="text-2xl font-display font-bold">Resoly</span>
+        </div>
+
+        {/* Hero Image */}
+        <div className="relative rounded-2xl overflow-hidden mb-8">
+          <img src={heroGym} alt="Fitness transformation" className="w-full h-64 object-cover object-top" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
         </div>
 
         {/* Hero Text */}
@@ -49,7 +49,7 @@ const Landing = () => {
         </div>
 
         {/* CTA */}
-        <div className="space-y-3">
+        <div className="space-y-3 mt-auto">
           <Button
             onClick={() => navigate("/auth")}
             className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity shadow-glow animate-pulse-glow rounded-xl"
