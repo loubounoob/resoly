@@ -25,7 +25,7 @@ const MiniProgressRing = ({ done, goal, isGoalMet, isUrgent, size = 48 }: MiniPr
       <svg className="w-full h-full -rotate-90" viewBox={`0 0 ${size} ${size}`}>
         <circle
           cx={size / 2} cy={size / 2} r={r}
-          fill="none" stroke="hsl(220, 15%, 18%)" strokeWidth="4"
+          fill="hsl(220, 20%, 6%)" stroke="hsl(220, 15%, 12%)" strokeWidth="4"
         />
         <circle
           cx={size / 2} cy={size / 2} r={r}
