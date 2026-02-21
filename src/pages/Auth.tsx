@@ -3,13 +3,16 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Flame, Mail, Lock, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Flame, Mail, Lock, Loader2, User, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -34,12 +37,17 @@ const Auth = () => {
         navigate("/dashboard");
       } else {
         const inviteCode = localStorage.getItem("resoly_invite_code") || undefined;
+        const metadata: Record<string, any> = {};
+        if (inviteCode) metadata.invite_code_used = inviteCode;
+        if (age) metadata.age = parseInt(age);
+        if (gender) metadata.gender = gender;
+
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: window.location.origin,
-            data: inviteCode ? { invite_code_used: inviteCode } : undefined,
+            data: Object.keys(metadata).length > 0 ? metadata : undefined,
           },
         });
         if (!error) localStorage.removeItem("resoly_invite_code");
@@ -97,6 +105,37 @@ const Auth = () => {
             required
           />
         </div>
+
+        {!isLogin && (
+          <>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                type="number"
+                placeholder="Âge"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                className="h-12 pl-11 bg-secondary border-border rounded-xl"
+                min={13}
+                max={99}
+                required
+              />
+            </div>
+
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Select value={gender} onValueChange={setGender} required>
+                <SelectTrigger className="h-12 pl-11 bg-secondary border-border rounded-xl">
+                  <SelectValue placeholder="Sexe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Homme</SelectItem>
+                  <SelectItem value="female">Femme</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
 
         <Button
           type="submit"
