@@ -118,14 +118,8 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
               challenge_id: challenge.id,
-              user_id: challenge.user_id,
               status: "failed",
-              sessions_per_week: challenge.sessions_per_week,
-              duration_months: challenge.duration_months,
-              bet_per_month: challenge.bet_per_month,
-              weekly_done: weeklyDone,
-              weekly_goal: weeklyGoal,
-              failed_at: now.toISOString(),
+              update_only: true,
             }),
           });
         } catch (sheetErr) {
