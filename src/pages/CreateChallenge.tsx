@@ -33,6 +33,13 @@ function computeFirstWeekGoal(sessionsPerWeek: number): { firstWeekGoal: number;
   const dayOfWeek = getDay(today); // 0=Sun, 1=Mon...
   // Days left in the week (Mon=1 to Sun=0): Mon→7, Tue→6, Wed→5, Thu→4, Fri→3, Sat→2, Sun→1
   const daysLeft = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+
+  // On weekends (Sat/Sun), don't force sessions — first real week starts Monday
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    return { firstWeekGoal: 0, daysLeft, dayName: DAY_NAMES[dayOfWeek], needsAdjustment: true };
+  }
+
+  // On Friday with high sessions, cap at 1 to be lenient
   const firstWeekGoal = Math.max(1, Math.floor(sessionsPerWeek * daysLeft / 7));
   const needsAdjustment = dayOfWeek !== 1; // not Monday
   return { firstWeekGoal, daysLeft, dayName: DAY_NAMES[dayOfWeek], needsAdjustment };
@@ -314,9 +321,13 @@ const CreateChallenge = () => {
           <DialogHeader>
             <DialogTitle>Première semaine ajustée</DialogTitle>
             <DialogDescription>
-              Tu commences un <strong>{dayName}</strong>. Ton objectif pour cette première semaine sera de{" "}
-              <strong>{firstWeekGoal} séance{firstWeekGoal > 1 ? "s" : ""}</strong> (au lieu de {sessionsPerWeek}).
-              Les semaines suivantes : {sessionsPerWeek} séances.
+              {firstWeekGoal === 0 ? (
+                <>Tu commences un <strong>{dayName}</strong>. Ton objectif cette semaine sera de <strong>0 séance</strong> — ton défi démarre vraiment lundi prochain avec {sessionsPerWeek} séances/semaine.</>
+              ) : (
+                <>Tu commences un <strong>{dayName}</strong>. Ton objectif pour cette première semaine sera de{" "}
+                <strong>{firstWeekGoal} séance{firstWeekGoal > 1 ? "s" : ""}</strong> (au lieu de {sessionsPerWeek}).
+                Les semaines suivantes : {sessionsPerWeek} séances.</>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
