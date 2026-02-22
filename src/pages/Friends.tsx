@@ -46,9 +46,8 @@ const Friends = () => {
 
   const handleCopyInvite = () => {
     if (myProfile?.invite_code) {
-      const link = `${window.location.origin}/auth?invite=${(myProfile as any).invite_code}`;
-      navigator.clipboard.writeText(link);
-      toast.success("Lien d'invitation copié !");
+      navigator.clipboard.writeText((myProfile as any).invite_code);
+      toast.success("Code de parrainage copié !");
     }
   };
 
@@ -439,7 +438,7 @@ const Friends = () => {
 
             <Button variant="outline" className="w-full" onClick={handleCopyInvite}>
               <Copy className="w-4 h-4 mr-2" />
-              Partager mon lien d'invitation
+              Copier mon code de parrainage
             </Button>
           </div>
         </DrawerContent>

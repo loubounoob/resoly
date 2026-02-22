@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Flame, Mail, Lock, Loader2, User, Calendar } from "lucide-react";
+import { Flame, Mail, Lock, Loader2, User, Calendar, Tag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Auth = () => {
@@ -13,16 +13,17 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
-  // Capture invite code from URL
+  // Capture invite code from URL (backwards compat)
   useEffect(() => {
     const invite = searchParams.get("invite");
     if (invite) {
-      localStorage.setItem("resoly_invite_code", invite);
+      setReferralCode(invite);
     }
   }, [searchParams]);
 
@@ -36,7 +37,7 @@ const Auth = () => {
         if (error) throw error;
         navigate("/dashboard");
       } else {
-        const inviteCode = localStorage.getItem("resoly_invite_code") || undefined;
+        const inviteCode = referralCode.trim() || undefined;
         const metadata: Record<string, any> = {};
         if (inviteCode) metadata.invite_code_used = inviteCode;
         if (age) metadata.age = parseInt(age);
@@ -50,7 +51,7 @@ const Auth = () => {
             data: Object.keys(metadata).length > 0 ? metadata : undefined,
           },
         });
-        if (!error) localStorage.removeItem("resoly_invite_code");
+        // no longer using localStorage for invite codes
         if (error) throw error;
         navigate("/dashboard");
       }
@@ -133,6 +134,17 @@ const Auth = () => {
                   <SelectItem value="female">Femme</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="relative">
+              <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Code de parrainage (optionnel)"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value)}
+                className="h-12 pl-11 bg-secondary border-border rounded-xl"
+              />
             </div>
           </>
         )}
