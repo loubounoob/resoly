@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, UserPlus, UserCheck, Swords, Flame, Check, X, Gift, Loader2, Trophy, ThumbsDown } from "lucide-react";
+import { ArrowLeft, UserPlus, UserCheck, Swords, Flame, Check, X, Gift, Loader2, Trophy, ThumbsDown, ShieldOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useNotifications, useMarkNotificationsRead } from "@/hooks/useNotifications";
 import { useRespondFriendRequestByUserId } from "@/hooks/useFriends";
@@ -18,6 +18,7 @@ const typeConfig: Record<string, { icon: typeof UserPlus; color: string }> = {
   social_challenge: { icon: Gift, color: "text-accent" },
   challenge_accepted: { icon: Trophy, color: "text-primary" },
   challenge_declined: { icon: ThumbsDown, color: "text-destructive" },
+  challenge_failed: { icon: ShieldOff, color: "text-destructive" },
   cheer: { icon: Flame, color: "text-orange-400" },
 };
 

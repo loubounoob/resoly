@@ -204,6 +204,28 @@ export const usePurchaseProduct = () => {
   });
 };
 
+export const useRecentlyFailedChallenge = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["recently-failed-challenge", user?.id],
+    queryFn: async () => {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from("challenges")
+        .select("*")
+        .eq("user_id", user!.id)
+        .eq("status", "failed")
+        .gte("updated_at", twentyFourHoursAgo)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as Challenge | null;
+    },
+    enabled: !!user,
+  });
+};
+
 export const useCreateCheckIn = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
