@@ -1,103 +1,81 @@
 
-## Animation de victoire "Clash Royale" pour defi reussi
 
-### Vue d'ensemble
+## Plan de modifications
 
-Quand le defi est complete (`isChallengeComplete = true`), la carte "Mise en jeu" (encadree en rouge sur ta capture) se transforme en une carte doree scintillante style Clash Royale. Au clic, un overlay plein ecran de celebration se declenche avec confettis, compteur de pieces anime, et remboursement automatique.
+### 1. ChallengeAcceptedOverlay : supprimer l'auto-dismiss
 
----
+Supprimer le timer de 4 secondes et le `onClick` sur le fond pour que l'overlay reste jusqu'au clic sur le bouton "Go".
 
-### Ce qui va changer
-
-#### 1. Carte doree "Victoire" (remplace la carte mise en jeu)
-
-Quand `isChallengeComplete` est vrai, la carte actuelle "50 euros en jeu" sera remplacee par une version doree animee :
-
-- Bordure doree scintillante avec animation de shimmer qui parcourt la carte
-- Fond en degrade dore (from-amber-900/30 via-yellow-600/20 to-amber-900/30)
-- Icone trophee au lieu du sac d'argent
-- Texte "50 euros gagnes !" au lieu de "en jeu"
-- Texte "Pièces bonus : +205" avec l'icone coin
-- Indication "Appuie pour recuperer" qui pulse doucement
-- Animation d'entree en scale-in pour marquer le changement
-
-#### 2. Overlay plein ecran de celebration (nouveau composant `ChallengeVictoryOverlay`)
-
-Quand l'utilisateur clique sur la carte doree :
-
-- **Phase 1 (0-1s)** : Fond noir + confettis massifs dores/verts qui explosent des deux cotes
-- **Phase 2 (1-2.5s)** : 
-  - Icone trophee doree animee au centre (scale-in + pulse)
-  - Titre "DEFI REUSSI !" en lettres dorees
-  - Montant rembourse afiche : "50 euros rembourses"
-  - Si le remboursement est en cours, afficher "Remboursement en cours..." avec un spinner
-  - Si le remboursement prend plus de 3 secondes, afficher "Le remboursement peut prendre quelques instants"
-- **Phase 3 (2.5-5s)** :
-  - Compteur de pieces qui monte de 0 a X avec un effet de "slot machine" (chiffres qui defilent)
-  - L'icone coin a cote du compteur en header se met a jour en temps reel
-  - Son visuel (particules dorees qui montent vers le compteur)
-- **Phase 4 (5-7s)** :
-  - Message "Et maintenant ?"
-  - Deux boutons : "Creer un nouveau defi" et "Offrir un defi"
-  - Auto-dismiss pas necessaire ici, l'utilisateur doit choisir
-
-Le remboursement (`complete-challenge`) est appele DES que l'overlay s'ouvre, en parallele de l'animation.
-
-#### 3. Apres la celebration
-
-Une fois que l'utilisateur clique sur un bouton :
-- Le dashboard revient a l'etat "Aucun defi actif" (deja gere par `invalidateQueries`)
-- Le solde de pieces est mis a jour
-- Redirection vers `/onboarding-challenge` ou `/create-social-challenge`
+**Fichier : `src/components/ChallengeAcceptedOverlay.tsx`**
+- Supprimer le `setTimeout(() => handleGo(), 4000)` (ligne 44)
+- Supprimer le `onClick={handleGo}` sur le div englobant (ligne 61)
 
 ---
 
-### Changements techniques
+### 2. PaymentSuccess : ajouter confettis apres creation de defi personnel
 
-**Nouveau fichier : `src/components/ChallengeVictoryOverlay.tsx`**
-- Props : `betAmount`, `coinsEarned`, `challengeId`, `onClose`
-- Appelle `complete-challenge` au montage
-- Gere les 4 phases avec des `setTimeout` sequentiels
-- Compteur anime de pieces (de 0 au total) avec `requestAnimationFrame`
-- Confettis via `canvas-confetti` (deja installe) avec particules dorees
-- Gestion des erreurs : si le remboursement echoue, affiche un message d'erreur mais laisse l'utilisateur continuer
+Quand le paiement est verifie avec succes (defi personnel, pas coins, pas social), afficher des confettis et une animation de celebration similaire au ChallengeAcceptedOverlay.
 
-**Fichier modifie : `src/pages/Dashboard.tsx`**
-- Supprime le bloc `isChallengeComplete` actuel (lignes 345-361) et la fonction `handleCompleteChallenge`
-- Quand `isChallengeComplete`, la carte mise en jeu devient la carte doree cliquable
-- Au clic, ouvre `ChallengeVictoryOverlay` via un state `showVictoryOverlay`
-- Ajouter un state `showVictoryOverlay`
-
-**Fichier modifie : `src/index.css`**
-- Ajouter l'animation CSS `shimmer` pour l'effet de brillance sur la carte doree
-- Ajouter l'animation `coin-counter` pour le defilement des chiffres
+**Fichier : `src/pages/PaymentSuccess.tsx`**
+- Importer `confetti` de `canvas-confetti` et les icones necessaires
+- Quand `status === "success"` et que ce n'est ni coins ni social, lancer des confettis automatiquement via un `useEffect`
+- Remplacer le contenu succes pour un defi personnel par une presentation plus festive (icone Flame animee, texte "C'est parti !", confettis)
 
 ---
 
-### Detail du shimmer dore
+### 3. Supprimer le systeme IBAN pour les defis offerts (Boost)
+
+Le remboursement d'un defi offert gagne se fera sur la carte Stripe du createur (celui qui a paye). Le beneficiaire gagne les pieces mais pas d'argent via IBAN.
+
+#### 3a. Edge Function `complete-challenge`
+- Quand `social_challenge_id` existe (defi offert), au lieu de creer un `pending_payout` avec IBAN, retrouver le `stripe_payment_intent_id` du createur dans `social_challenge_members` et faire un remboursement Stripe vers lui
+- Le beneficiaire recoit toujours les pieces normalement
+
+#### 3b. Edge Function `accept-boost-challenge`
+- Supprimer la reception et l'utilisation du parametre `iban`
+- Supprimer la sauvegarde de l'IBAN dans le profil
+- Supprimer l'IBAN du `insertData` pour `social_challenge_members`
+
+#### 3c. Frontend `src/pages/Notifications.tsx`
+- Supprimer le champ de saisie IBAN (`ibanInputId`, `ibanValue`)
+- Appeler `accept-boost-challenge` sans IBAN
+- Le bouton "Accepter" fonctionne directement sans etape intermediaire
+
+#### 3d. Frontend `src/pages/Friends.tsx`
+- Supprimer le champ IBAN dans la section des defis offerts en attente
+- Supprimer la validation IBAN dans `handleAcceptChallenge`
+
+#### 3e. Frontend `src/pages/Settings.tsx`
+- Supprimer la section IBAN des parametres (elle n'est plus utile)
+
+---
+
+### Details techniques
+
+**`complete-challenge` -- nouveau flux pour defi offert :**
 
 ```text
-@keyframes shimmer:
-  0%   -> background-position: -200% 0
-  100% -> background-position: 200% 0
-
-Applique sur un pseudo-element ::before de la carte
-avec un gradient transparent-blanc-transparent
-```
-
-### Flux du remboursement
-
-```text
-[Clic carte doree]
+[Defi offert gagne]
       |
       v
-[Ouvre Overlay] -----> [Appelle complete-challenge en parallele]
-      |                         |
-      v                         v
-[Phase 1: confettis]    [Attente reponse...]
-[Phase 2: trophee]              |
-[Phase 3: compteur]     [Succes? -> met a jour coins]
-      |                 [Erreur? -> message d'erreur]
-      v                         |
-[Phase 4: boutons] <-----------/
+[Trouver le createur via social_challenges.created_by]
+      |
+      v
+[Trouver son stripe_payment_intent_id via social_challenge_members]
+      |
+      v
+[Stripe refund vers le createur] + [Pieces pour le beneficiaire]
 ```
+
+**`PaymentSuccess` -- confettis pour defi personnel :**
+
+```text
+[Paiement verifie]
+      |
+      v
+[status === "success" && !isCoins && !isSocial]
+      |
+      v
+[Lancer confettis] + [Afficher animation festive]
+```
+
