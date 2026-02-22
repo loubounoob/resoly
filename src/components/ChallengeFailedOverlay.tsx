@@ -60,10 +60,8 @@ const ChallengeFailedOverlay = ({ betLost, onClose }: ChallengeFailedOverlayProp
     };
     animate();
 
-    // Auto-dismiss after 6s
-    const timer = setTimeout(() => handleGo(), 6000);
+    // No auto-dismiss — let user click the button
     return () => {
-      clearTimeout(timer);
       cancelAnimationFrame(animId);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -81,7 +79,6 @@ const ChallengeFailedOverlay = ({ betLost, onClose }: ChallengeFailedOverlayProp
       className={`fixed inset-0 z-[100] flex items-center justify-center transition-all duration-400 ${
         visible ? "bg-black/90 backdrop-blur-md" : "bg-transparent"
       }`}
-      onClick={handleGo}
     >
       {/* Falling particles canvas */}
       <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
