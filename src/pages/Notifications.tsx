@@ -29,8 +29,6 @@ const Notifications = () => {
   const respondMutation = useRespondFriendRequestByUserId();
   const [respondedIds, setRespondedIds] = useState<Set<string>>(new Set());
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
-  const [ibanInputId, setIbanInputId] = useState<string | null>(null);
-  const [ibanValue, setIbanValue] = useState("");
   const [showAcceptOverlay, setShowAcceptOverlay] = useState(false);
   const [animatingOutId, setAnimatingOutId] = useState<string | null>(null);
   const [animatingOutType, setAnimatingOutType] = useState<"accept" | "decline" | null>(null);
@@ -75,19 +73,13 @@ const Notifications = () => {
   };
 
   const handleAcceptSocialChallenge = async (notifId: string, socialChallengeId: string) => {
-    if (!ibanValue.trim()) {
-      setIbanInputId(notifId);
-      return;
-    }
     setAcceptingId(notifId);
     try {
       const { data, error } = await supabase.functions.invoke("accept-boost-challenge", {
-        body: { socialChallengeId, iban: ibanValue.trim() },
+        body: { socialChallengeId },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Erreur");
-      setIbanValue("");
-      setIbanInputId(null);
       // Animate the card out, then show celebration overlay
       animateOut(notifId, "accept", () => {
         setShowAcceptOverlay(true);
@@ -212,50 +204,34 @@ const Notifications = () => {
 
                 {/* Social challenge actions */}
                 {isSocialChallenge && socialChallengeId && !alreadyResponded && (
-                  <div className="space-y-2">
-                    {ibanInputId === notif.id && (
-                      <div>
-                        <label className="text-xs text-muted-foreground mb-1.5 block">
-                          Ton IBAN (pour recevoir ta récompense)
-                        </label>
-                        <input
-                          type="text"
-                          value={ibanValue}
-                          onChange={(e) => setIbanValue(e.target.value.toUpperCase())}
-                          placeholder="FR76 1234 5678 9012 3456 7890 123"
-                          className="w-full h-10 rounded-xl border border-border bg-secondary px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono"
-                        />
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="h-9 text-xs font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow"
-                        onClick={() => handleAcceptSocialChallenge(notif.id, socialChallengeId)}
-                        disabled={acceptingId === notif.id}
-                      >
-                        {acceptingId === notif.id ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                        ) : (
-                          <Flame className="w-3.5 h-3.5 mr-1" />
-                        )}
-                        {ibanInputId === notif.id ? "Confirmer" : "Accepter le défi"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-9 text-xs"
-                        onClick={() => handleDeclineSocialChallenge(notif.id, socialChallengeId)}
-                        disabled={decliningId === notif.id}
-                      >
-                        {decliningId === notif.id ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                        ) : (
-                          <X className="w-3.5 h-3.5 mr-1" />
-                        )}
-                        Refuser
-                      </Button>
-                    </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="h-9 text-xs font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow"
+                      onClick={() => handleAcceptSocialChallenge(notif.id, socialChallengeId)}
+                      disabled={acceptingId === notif.id}
+                    >
+                      {acceptingId === notif.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                      ) : (
+                        <Flame className="w-3.5 h-3.5 mr-1" />
+                      )}
+                      Accepter le défi
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 text-xs"
+                      onClick={() => handleDeclineSocialChallenge(notif.id, socialChallengeId)}
+                      disabled={decliningId === notif.id}
+                    >
+                      {decliningId === notif.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                      ) : (
+                        <X className="w-3.5 h-3.5 mr-1" />
+                      )}
+                      Refuser
+                    </Button>
                   </div>
                 )}
               </div>

@@ -21,7 +21,6 @@ const Friends = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [selectedFriend, setSelectedFriend] = useState<any>(null);
-  const [ibanValue, setIbanValue] = useState("");
 
   useFriendshipsRealtime();
   const { data: activity, isLoading: loadingActivity } = useFriendsActivity();
@@ -64,25 +63,16 @@ const Friends = () => {
   };
 
   const handleAcceptChallenge = async (sc: any) => {
-    if (sc.type === "boost" && !ibanValue.trim()) {
-      toast.error("Entre ton IBAN pour recevoir ta récompense");
-      return;
-    }
     setAcceptingId(sc.id);
     try {
-      // For boost challenges, recipient doesn't pay — use dedicated function
       const { data, error } = await supabase.functions.invoke("accept-boost-challenge", {
-        body: {
-          socialChallengeId: sc.id,
-          iban: ibanValue.trim() || undefined,
-        },
+        body: { socialChallengeId: sc.id },
       });
 
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Erreur");
 
       toast.success("Défi accepté ! C'est parti 🔥");
-      setIbanValue("");
       navigate("/dashboard");
     } catch (err: any) {
       toast.error(err?.message || "Erreur lors de l'acceptation");
@@ -184,22 +174,6 @@ const Friends = () => {
                     </p>
                   </div>
                 </div>
-
-                {/* IBAN input for boost challenges */}
-                {sc.type === "boost" && (
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 block">
-                      Ton IBAN (pour recevoir ta récompense)
-                    </label>
-                    <input
-                      type="text"
-                      value={ibanValue}
-                      onChange={(e) => setIbanValue(e.target.value.toUpperCase())}
-                      placeholder="FR76 1234 5678 9012 3456 7890 123"
-                      className="w-full h-10 rounded-xl border border-border bg-secondary px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono"
-                    />
-                  </div>
-                )}
 
                 <Button
                   onClick={() => handleAcceptChallenge(sc)}
