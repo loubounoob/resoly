@@ -82,6 +82,13 @@ serve(async (req) => {
     const sessionFactor = Math.pow(S / 3, 1.1);
     const coinsToEarn = Math.round(I * CI * monthFactor * sessionFactor);
 
+    // Update profile coins (fetch first, needed for IBAN fallback too)
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("coins, iban")
+      .eq("user_id", userId)
+      .single();
+
     // Stripe refund (only for personal challenges, not boost)
     let refunded = false;
     let payoutCreated = false;
@@ -127,13 +134,6 @@ serve(async (req) => {
       });
       refunded = true;
     }
-
-    // Update profile coins
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("coins")
-      .eq("user_id", userId)
-      .single();
     await supabaseAdmin
       .from("profiles")
       .update({ coins: (profile?.coins ?? 0) + coinsToEarn })
