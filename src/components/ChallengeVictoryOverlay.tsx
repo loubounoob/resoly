@@ -162,13 +162,13 @@ const ChallengeVictoryOverlay = ({
             DÉFI RÉUSSI !
           </h1>
 
-          {/* Refund status */}
-          <div className="flex items-center gap-2 mt-2 mb-4">
-            <span className="text-2xl font-display font-bold text-gradient-gold mb-1">
+          {/* Refund amount */}
+          <div className="flex flex-col items-center mt-2 mb-4">
+            <span className="text-2xl font-display font-bold text-gradient-gold">
               {betAmount}€ remboursés
             </span>
-            {refundStatus === "loading" || refundStatus === "slow" ? (
-              <div className="flex items-center gap-2">
+            {(refundStatus === "loading" || refundStatus === "slow") && (
+              <div className="flex items-center gap-2 mt-1.5">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
                 <span className="text-xs text-amber-200/60">
                   {refundStatus === "slow"
@@ -176,10 +176,9 @@ const ChallengeVictoryOverlay = ({
                     : "Traitement en cours..."}
                 </span>
               </div>
-            ) : refundStatus === "success" ? (
-              <span className="text-xs text-emerald-400 font-medium">Remboursement confirmé ✓</span>
-            ) : (
-              <span className="text-xs text-destructive">
+            )}
+            {refundStatus === "error" && (
+              <span className="text-xs text-destructive mt-1.5">
                 Erreur. Contacte le support.
               </span>
             )}
