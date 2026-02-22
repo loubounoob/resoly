@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Flame, Camera, Plus, Loader2 } from "lucide-react";
 import BuyCoinsDrawer from "@/components/BuyCoinsDrawer";
@@ -11,7 +11,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import BottomNav from "@/components/BottomNav";
 import AvatarUpload from "@/components/AvatarUpload";
-import { useActiveChallenge, useCheckIns, useUserCoins } from "@/hooks/useChallenge";
+import { useActiveChallenge, useCheckIns, useUserCoins, useRecentlyFailedChallenge } from "@/hooks/useChallenge";
+import ChallengeFailedOverlay from "@/components/ChallengeFailedOverlay";
 import { useMyProfile } from "@/hooks/useFriends";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateCoins } from "@/lib/coins";
@@ -30,10 +31,19 @@ const Dashboard = () => {
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [buyCoinsOpen, setBuyCoinsOpen] = useState(false);
+  const [showFailedOverlay, setShowFailedOverlay] = useState(false);
   const { data: challenge, isLoading: loadingChallenge } = useActiveChallenge();
   const { data: checkIns, isLoading: loadingCheckIns } = useCheckIns(challenge?.id);
   const { data: coins } = useUserCoins();
   const { data: myProfile } = useMyProfile();
+  const { data: failedChallenge } = useRecentlyFailedChallenge();
+
+  // Show failed overlay if recently failed and no active challenge
+  useEffect(() => {
+    if (!loadingChallenge && !challenge && failedChallenge) {
+      setShowFailedOverlay(true);
+    }
+  }, [loadingChallenge, challenge, failedChallenge]);
 
   useGymProximity({
     gymLatitude: (myProfile as any)?.gym_latitude ?? null,
@@ -123,6 +133,12 @@ const Dashboard = () => {
             Créer un défi
           </Button>
         </div>
+        {showFailedOverlay && failedChallenge && (
+          <ChallengeFailedOverlay
+            betLost={failedChallenge.bet_per_month}
+            onClose={() => setShowFailedOverlay(false)}
+          />
+        )}
         <BottomNav />
       </div>
     );
