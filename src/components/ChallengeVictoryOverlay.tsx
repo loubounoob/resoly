@@ -83,8 +83,8 @@ const ChallengeVictoryOverlay = ({
         } else {
           setRefundStatus("success");
           setRefundData(data);
-          queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
-          queryClient.invalidateQueries({ queryKey: ["user-coins"] });
+          // Don't invalidate queries here — wait until user clicks a CTA
+          // so the overlay doesn't get unmounted prematurely
         }
       })
       .catch(() => {
@@ -117,11 +117,15 @@ const ChallengeVictoryOverlay = ({
   }, [fireConfetti, animateCoins]);
 
   const handleNewChallenge = () => {
+    queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
+    queryClient.invalidateQueries({ queryKey: ["user-coins"] });
     onClose();
     navigate("/onboarding-challenge");
   };
 
   const handleGiftChallenge = () => {
+    queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
+    queryClient.invalidateQueries({ queryKey: ["user-coins"] });
     onClose();
     navigate("/create-social-challenge");
   };
@@ -160,22 +164,23 @@ const ChallengeVictoryOverlay = ({
 
           {/* Refund status */}
           <div className="flex items-center gap-2 mt-2 mb-4">
+            <span className="text-2xl font-display font-bold text-gradient-gold mb-1">
+              {betAmount}€ remboursés
+            </span>
             {refundStatus === "loading" || refundStatus === "slow" ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                <span className="text-sm text-amber-200/80">
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                <span className="text-xs text-amber-200/60">
                   {refundStatus === "slow"
-                    ? "Le remboursement peut prendre quelques instants..."
-                    : "Remboursement en cours..."}
+                    ? "Le virement peut prendre quelques instants..."
+                    : "Traitement en cours..."}
                 </span>
-              </>
+              </div>
             ) : refundStatus === "success" ? (
-              <span className="text-lg font-display font-bold text-gradient-gold">
-                {refundData?.refunded ? `${betAmount}€ remboursés ✓` : "Pièces attribuées ✓"}
-              </span>
+              <span className="text-xs text-emerald-400 font-medium">Remboursement confirmé ✓</span>
             ) : (
-              <span className="text-sm text-destructive">
-                Erreur lors du remboursement. Contacte le support.
+              <span className="text-xs text-destructive">
+                Erreur. Contacte le support.
               </span>
             )}
           </div>
