@@ -40,9 +40,6 @@ const ChallengeAcceptedOverlay = ({ onClose }: ChallengeAcceptedOverlayProps) =>
     };
     frame();
 
-    // Auto-dismiss after 4s
-    const timer = setTimeout(() => handleGo(), 4000);
-    return () => clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGo = () => {
@@ -58,7 +55,7 @@ const ChallengeAcceptedOverlay = ({ onClose }: ChallengeAcceptedOverlayProps) =>
       className={`fixed inset-0 z-[100] flex items-center justify-center transition-all duration-300 ${
         visible ? "bg-black/80 backdrop-blur-sm" : "bg-transparent"
       }`}
-      onClick={handleGo}
+      
     >
       <div
         className={`flex flex-col items-center gap-6 px-8 text-center transition-all duration-500 ${

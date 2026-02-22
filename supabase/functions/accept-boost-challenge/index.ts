@@ -28,7 +28,7 @@ serve(async (req) => {
     const user = authData.user;
     if (!user) throw new Error("User not authenticated");
 
-    const { socialChallengeId, iban } = await req.json();
+    const { socialChallengeId } = await req.json();
     if (!socialChallengeId) throw new Error("Missing socialChallengeId");
 
     // 1. Fetch the social challenge
@@ -71,18 +71,15 @@ serve(async (req) => {
     }
 
     // 3. Insert recipient as a member (no payment needed for boost)
-    const insertData: any = {
-      social_challenge_id: socialChallengeId,
-      user_id: user.id,
-      bet_amount: sc.bet_amount,
-      status: "joined",
-      payment_status: "paid", // No payment needed for recipient of a boost
-    };
-    if (iban) insertData.iban = iban;
-
     const { data: member, error: memberErr } = await supabaseAdmin
       .from("social_challenge_members")
-      .insert(insertData)
+      .insert({
+        social_challenge_id: socialChallengeId,
+        user_id: user.id,
+        bet_amount: sc.bet_amount,
+        status: "joined",
+        payment_status: "paid",
+      })
       .select()
       .single();
     if (memberErr) throw memberErr;
@@ -141,14 +138,6 @@ serve(async (req) => {
           .update({ challenge_id: inserted.id })
           .eq("id", m.id);
       }
-    }
-
-    // Also save IBAN to user's profile
-    if (iban) {
-      await supabaseAdmin
-        .from("profiles")
-        .update({ iban })
-        .eq("user_id", user.id);
     }
 
     // Clean up the notification

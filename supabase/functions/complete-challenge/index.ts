@@ -82,47 +82,42 @@ serve(async (req) => {
     const sessionFactor = Math.pow(S / 3, 1.1);
     const coinsToEarn = Math.round(I * CI * monthFactor * sessionFactor);
 
-    // Update profile coins (fetch first, needed for IBAN fallback too)
+    // Update profile coins
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("coins, iban")
+      .select("coins")
       .eq("user_id", userId)
       .single();
 
-    // Stripe refund (only for personal challenges, not boost)
+    // Stripe refund
     let refunded = false;
-    let payoutCreated = false;
-    
+
     if (challenge.social_challenge_id) {
-      // Boost challenge: create a pending payout for the recipient via IBAN
-      const { data: memberRecord } = await supabaseAdmin
-        .from("social_challenge_members")
-        .select("iban")
-        .eq("social_challenge_id", challenge.social_challenge_id)
-        .eq("user_id", userId)
+      // Boost challenge: refund to the CREATOR's card (the one who paid)
+      const { data: sc } = await supabaseAdmin
+        .from("social_challenges")
+        .select("created_by")
+        .eq("id", challenge.social_challenge_id)
         .single();
 
-      // Also check profile IBAN as fallback
-      const ibanToUse = memberRecord?.iban || profile?.iban;
-
-      if (ibanToUse) {
-        const { data: sc } = await supabaseAdmin
-          .from("social_challenges")
-          .select("bet_amount")
-          .eq("id", challenge.social_challenge_id)
+      if (sc?.created_by) {
+        // Find the creator's stripe_payment_intent_id from social_challenge_members
+        const { data: creatorMember } = await supabaseAdmin
+          .from("social_challenge_members")
+          .select("stripe_payment_intent_id")
+          .eq("social_challenge_id", challenge.social_challenge_id)
+          .eq("user_id", sc.created_by)
           .single();
 
-        await supabaseAdmin
-          .from("pending_payouts")
-          .insert({
-            user_id: userId,
-            challenge_id: challengeId,
-            social_challenge_id: challenge.social_challenge_id,
-            amount: sc?.bet_amount ?? challenge.bet_per_month * challenge.duration_months,
-            iban: ibanToUse,
-            status: "pending",
+        if (creatorMember?.stripe_payment_intent_id) {
+          const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+            apiVersion: "2025-08-27.basil",
           });
-        payoutCreated = true;
+          await stripe.refunds.create({
+            payment_intent: creatorMember.stripe_payment_intent_id,
+          });
+          refunded = true;
+        }
       }
     } else if (challenge.stripe_payment_intent_id) {
       // Personal challenge: refund via Stripe
@@ -134,6 +129,7 @@ serve(async (req) => {
       });
       refunded = true;
     }
+
     await supabaseAdmin
       .from("profiles")
       .update({ coins: (profile?.coins ?? 0) + coinsToEarn })
@@ -164,7 +160,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, refunded, payoutCreated, coinsAwarded: coinsToEarn }),
+      JSON.stringify({ success: true, refunded, coinsAwarded: coinsToEarn }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
