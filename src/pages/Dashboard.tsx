@@ -4,7 +4,7 @@ import { Flame, Camera, Plus, Loader2, Trophy } from "lucide-react";
 import BuyCoinsDrawer from "@/components/BuyCoinsDrawer";
 import CoinIcon from "@/components/CoinIcon";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -14,6 +14,7 @@ import AvatarUpload from "@/components/AvatarUpload";
 import { useActiveChallenge, useCheckIns, useUserCoins, useRecentlyFailedChallenge } from "@/hooks/useChallenge";
 import ChallengeFailedOverlay from "@/components/ChallengeFailedOverlay";
 import ChallengeVictoryOverlay from "@/components/ChallengeVictoryOverlay";
+import ChallengeAcceptedOverlay from "@/components/ChallengeAcceptedOverlay";
 import { useMyProfile } from "@/hooks/useFriends";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateCoins } from "@/lib/coins";
@@ -27,12 +28,23 @@ const weekDayLabels = ["L", "M", "M", "J", "V", "S", "D"];
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [buyCoinsOpen, setBuyCoinsOpen] = useState(false);
   const [showFailedOverlay, setShowFailedOverlay] = useState(false);
   const [showVictoryOverlay, setShowVictoryOverlay] = useState(false);
+  const [showAcceptedOverlay, setShowAcceptedOverlay] = useState(false);
+
+  // Show celebration overlay when arriving from promo code challenge creation
+  useEffect(() => {
+    if ((location.state as any)?.challengeJustCreated) {
+      setShowAcceptedOverlay(true);
+      // Clear the state so it doesn't show again on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
   const { data: challenge, isLoading: loadingChallenge } = useActiveChallenge();
   const { data: checkIns, isLoading: loadingCheckIns } = useCheckIns(challenge?.id);
   const { data: coins } = useUserCoins();
@@ -359,6 +371,11 @@ const Dashboard = () => {
           challengeId={challenge.id}
           onClose={() => setShowVictoryOverlay(false)}
         />
+      )}
+
+      {/* Challenge just created overlay */}
+      {showAcceptedOverlay && (
+        <ChallengeAcceptedOverlay onClose={() => setShowAcceptedOverlay(false)} />
       )}
 
       <BottomNav />

@@ -98,14 +98,19 @@ serve(async (req) => {
 
     const totalSessions = sc.sessions_per_week * sc.duration_months * 4;
     
-    // First week adjustment
+    // First week adjustment — on weekends (Sat=6, Sun=0), set to 0 so challenge starts Monday
     const now = new Date();
-    const dayOfWeek = now.getDay(); // 0=Sun
-    const daysLeft = dayOfWeek === 0 ? 1 : 7 - dayOfWeek + 1;
-    const firstWeekSessions = Math.min(
-      Math.max(1, Math.floor((sc.sessions_per_week / 7) * daysLeft)),
-      sc.sessions_per_week
-    );
+    const dayOfWeek = now.getDay(); // 0=Sun, 6=Sat
+    let firstWeekSessions: number;
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      firstWeekSessions = 0;
+    } else {
+      const daysLeft = 8 - dayOfWeek; // days left including today until end of week
+      firstWeekSessions = Math.min(
+        Math.max(1, Math.floor((sc.sessions_per_week / 7) * daysLeft)),
+        sc.sessions_per_week
+      );
+    }
 
     for (const m of (allMembers ?? [])) {
       // Skip if member already has a linked challenge

@@ -208,11 +208,16 @@ async function checkAndActivateSocialChallenge(supabaseAdmin: any, socialChallen
       const totalSessions = sc.sessions_per_week * sc.duration_months * 4;
       const now = new Date();
       const dayOfWeek = now.getDay();
-      const daysLeft = dayOfWeek === 0 ? 1 : 7 - dayOfWeek + 1;
-      const firstWeekSessions = Math.min(
-        Math.max(1, Math.floor((sc.sessions_per_week / 7) * daysLeft)),
-        sc.sessions_per_week
-      );
+      let firstWeekSessions: number;
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        firstWeekSessions = 0;
+      } else {
+        const daysLeft = 8 - dayOfWeek;
+        firstWeekSessions = Math.min(
+          Math.max(1, Math.floor((sc.sessions_per_week / 7) * daysLeft)),
+          sc.sessions_per_week
+        );
+      }
 
       for (const member of members) {
         if (member.challenge_id) continue;

@@ -128,7 +128,7 @@ const CreateChallenge = () => {
       if (error) throw error;
       if (data?.success) {
         toast.success("Code promo appliqué ! Défi lancé 🎉");
-        navigate("/dashboard");
+        navigate("/dashboard", { state: { challengeJustCreated: true } });
       } else if (data?.url) {
         window.location.href = data.url;
       } else {
