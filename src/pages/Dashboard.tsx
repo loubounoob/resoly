@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Flame, Camera, Plus, Loader2 } from "lucide-react";
+import { Flame, Camera, Plus, Loader2, Trophy } from "lucide-react";
 import BuyCoinsDrawer from "@/components/BuyCoinsDrawer";
 import CoinIcon from "@/components/CoinIcon";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ import BottomNav from "@/components/BottomNav";
 import AvatarUpload from "@/components/AvatarUpload";
 import { useActiveChallenge, useCheckIns, useUserCoins, useRecentlyFailedChallenge } from "@/hooks/useChallenge";
 import ChallengeFailedOverlay from "@/components/ChallengeFailedOverlay";
+import ChallengeVictoryOverlay from "@/components/ChallengeVictoryOverlay";
 import { useMyProfile } from "@/hooks/useFriends";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateCoins } from "@/lib/coins";
@@ -29,9 +30,9 @@ const Dashboard = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
-  const [isCompleting, setIsCompleting] = useState(false);
   const [buyCoinsOpen, setBuyCoinsOpen] = useState(false);
   const [showFailedOverlay, setShowFailedOverlay] = useState(false);
+  const [showVictoryOverlay, setShowVictoryOverlay] = useState(false);
   const { data: challenge, isLoading: loadingChallenge } = useActiveChallenge();
   const { data: checkIns, isLoading: loadingCheckIns } = useCheckIns(challenge?.id);
   const { data: coins } = useUserCoins();
@@ -203,23 +204,7 @@ const Dashboard = () => {
   const totalBet = challenge.bet_per_month;
   const coinsToEarn = calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week);
 
-  const handleCompleteChallenge = async () => {
-    setIsCompleting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("complete-challenge", {
-        body: { challengeId: challenge.id },
-      });
-      if (error) throw error;
-      if (!data?.success) throw new Error("Completion failed");
-      toast.success(data.refunded ? "Mise remboursée et pièces gagnées ! 🎉" : "Pièces gagnées ! 🎉");
-      queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
-      queryClient.invalidateQueries({ queryKey: ["user-coins"] });
-    } catch {
-      toast.error("Erreur lors de la finalisation du défi");
-    } finally {
-      setIsCompleting(false);
-    }
-  };
+  // Victory overlay handles complete-challenge call now
 
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
@@ -318,47 +303,62 @@ const Dashboard = () => {
       {/* Stories bar */}
       <StoriesBar />
 
-      {/* Bet & Coins combined */}
-      <div className="relative overflow-hidden rounded-2xl border border-border p-5 shadow-card mb-4 bg-gradient-to-br from-secondary via-secondary/80 to-primary/10">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-20 h-20 bg-accent/5 rounded-full translate-y-1/2 -translate-x-1/2" />
-        <div className="relative flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/30 to-accent/20 flex items-center justify-center shadow-lg border border-primary/20">
-            <span className="text-2xl">💰</span>
-          </div>
-          <div className="flex-1 space-y-1.5">
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl font-display font-bold tracking-tight">{totalBet}€</span>
-              <span className="text-xs text-muted-foreground font-medium">en jeu</span>
+      {/* Bet & Coins — golden version when complete */}
+      {isChallengeComplete ? (
+        <button
+          onClick={() => setShowVictoryOverlay(true)}
+          className="relative overflow-hidden rounded-2xl border-2 border-amber-500/50 p-5 shadow-gold mb-4 bg-gradient-to-br from-amber-950/40 via-yellow-900/20 to-amber-950/40 animate-shimmer-gold transition-transform active:scale-95 text-left w-full"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-400/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="relative flex items-center gap-4 z-10">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400/40 to-yellow-500/30 flex items-center justify-center shadow-lg border border-amber-500/30">
+              <Trophy className="w-7 h-7 text-amber-400" />
             </div>
-            <p className="text-xs text-muted-foreground">Tiens bon pour tout récupérer !</p>
-            <div className="inline-flex items-center gap-1.5 bg-accent/10 border border-accent/20 rounded-full px-2.5 py-0.5">
-              <CoinIcon size={13} />
-              <span className="text-xs font-display font-bold text-accent">+{coinsToEarn}</span>
-              <span className="text-[10px] text-muted-foreground">bonus</span>
+            <div className="flex-1 space-y-1.5">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl font-display font-bold tracking-tight text-gradient-gold">{totalBet}€ gagnés !</span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-0.5">
+                <CoinIcon size={13} />
+                <span className="text-xs font-display font-bold text-amber-400">+{coinsToEarn}</span>
+                <span className="text-[10px] text-muted-foreground">bonus</span>
+              </div>
+              <p className="text-xs text-amber-300/60 animate-pulse">Appuie pour récupérer 🏆</p>
+            </div>
+          </div>
+        </button>
+      ) : (
+        <div className="relative overflow-hidden rounded-2xl border border-border p-5 shadow-card mb-4 bg-gradient-to-br from-secondary via-secondary/80 to-primary/10">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-20 h-20 bg-accent/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+          <div className="relative flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/30 to-accent/20 flex items-center justify-center shadow-lg border border-primary/20">
+              <span className="text-2xl">💰</span>
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl font-display font-bold tracking-tight">{totalBet}€</span>
+                <span className="text-xs text-muted-foreground font-medium">en jeu</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Tiens bon pour tout récupérer !</p>
+              <div className="inline-flex items-center gap-1.5 bg-accent/10 border border-accent/20 rounded-full px-2.5 py-0.5">
+                <CoinIcon size={13} />
+                <span className="text-xs font-display font-bold text-accent">+{coinsToEarn}</span>
+                <span className="text-[10px] text-muted-foreground">bonus</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-
-      {isChallengeComplete && (
-        <div className="space-y-3">
-          <div className="bg-gradient-card rounded-2xl border border-accent/30 p-5 text-center shadow-card">
-            <span className="text-4xl mb-2 block">🎉</span>
-            <h3 className="text-xl font-display font-bold mb-1">Défi terminé !</h3>
-            <p className="text-sm text-muted-foreground mb-2">Bravo ! Tu as réussi ton défi !</p>
-            <p className="text-lg font-display font-bold text-gradient-gold flex items-center justify-center gap-1">+ <CoinIcon size={16} /> {coinsToEarn} pièces</p>
-          </div>
-          <Button
-            onClick={handleCompleteChallenge}
-            disabled={isCompleting}
-            className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
-          >
-            {isCompleting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Plus className="w-5 h-5 mr-2" />}
-            Récupérer et lancer un nouveau défi
-          </Button>
-        </div>
+      {/* Victory Overlay */}
+      {showVictoryOverlay && (
+        <ChallengeVictoryOverlay
+          betAmount={totalBet}
+          coinsEarned={coinsToEarn}
+          challengeId={challenge.id}
+          onClose={() => setShowVictoryOverlay(false)}
+        />
       )}
 
       <BottomNav />
