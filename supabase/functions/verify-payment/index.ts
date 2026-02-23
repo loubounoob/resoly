@@ -64,7 +64,8 @@ serve(async (req) => {
             .eq("user_id", user.id)
             .single();
           if (challenge && profile) {
-            const I = challenge.bet_per_month;
+            const I = challenge.bet_per_month * challenge.duration_months;
+            const M = challenge.duration_months;
             const S = challenge.sessions_per_week;
             const getCoefficientDeMise = (i: number): number => {
               if (i <= 50) return 1 + 0.004 * i;
@@ -75,8 +76,9 @@ serve(async (req) => {
               return Math.max(0, 0.55 - 0.00055 * (i - 1000));
             };
             const CI = getCoefficientDeMise(I);
+            const monthFactor = 0.3 + 0.6 * Math.pow(M, 1.5);
             const sessionFactor = Math.pow(S / 3, 1.1);
-            const estimatedCoins = Math.round(I * CI * sessionFactor);
+            const estimatedCoins = Math.round(I * CI * monthFactor * sessionFactor);
             const endDate = new Date(challenge.created_at);
             endDate.setMonth(endDate.getMonth() + challenge.duration_months);
 

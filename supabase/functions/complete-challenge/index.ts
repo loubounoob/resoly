@@ -75,10 +75,12 @@ serve(async (req) => {
       return Math.max(0, 0.55 - 0.00055 * (I - 1000));
     };
     const I = challenge.bet_per_month;
+    const M = challenge.duration_months;
     const S = challenge.sessions_per_week;
     const CI = getCoefficientDeMise(I);
+    const monthFactor = 0.3 + 0.6 * Math.pow(M, 1.5);
     const sessionFactor = Math.pow(S / 3, 1.1);
-    const coinsToEarn = Math.round(I * CI * sessionFactor);
+    const coinsToEarn = Math.round(I * CI * monthFactor * sessionFactor);
 
     // Update profile coins
     const { data: profile } = await supabaseAdmin
