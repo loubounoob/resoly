@@ -47,10 +47,9 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
 
   const handleCopy = () => {
     if (!inviteCode) return;
-    const link = `${window.location.origin}/auth?invite=${inviteCode}`;
-    navigator.clipboard.writeText(link);
+    navigator.clipboard.writeText(inviteCode);
     setCopied(true);
-    toast({ title: "Lien copié !" });
+    toast({ title: "Code copié !" });
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -101,7 +100,7 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
                 <p className="font-display font-bold text-sm">Parrainage</p>
               </div>
               <p className="text-xs text-muted-foreground mb-3">
-                Partage ton lien et gagne <strong>50 pièces</strong> par filleul + <strong>250 pièces</strong> s'il crée un défi de +50€ !
+                Partage ton code et gagne <strong>50 pièces</strong> par filleul + <strong>250 pièces</strong> s'il crée un défi de +50€ !
               </p>
               <Button
                 variant="outline"
