@@ -92,7 +92,7 @@ const CreateSocialChallenge = () => {
     }
   };
 
-  const getInitials = (p: any) => (p?.display_name || p?.first_name || "?").charAt(0).toUpperCase();
+  const getInitials = (p: any) => (p?.username || p?.display_name || "?").charAt(0).toUpperCase();
 
   const goBack = () => {
     if (step === "motivation1") navigate(-1);
@@ -259,7 +259,7 @@ const CreateSocialChallenge = () => {
                       <AvatarFallback className="bg-secondary text-xs">{getInitials(f)}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1 text-left">
-                      <span className="font-medium">{f.display_name || f.first_name || "Ami"}</span>
+                      <span className="font-medium">{f.username || "Ami"}</span>
                       {isBusy && (
                         <p className="text-[11px] text-destructive">⛔ A déjà un défi actif</p>
                       )}
