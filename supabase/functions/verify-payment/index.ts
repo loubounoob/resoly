@@ -72,8 +72,9 @@ serve(async (req) => {
               if (i <= 75) return 1.2 + 0.012 * (i - 50);
               if (i <= 100) return 1.5 + 0.02 * (i - 75);
               if (i <= 300) return 2 - 0.0045 * (i - 100);
-              if (i <= 1000) return 1.1 - 0.000785 * (i - 300);
-              return Math.max(0, 0.55 - 0.00055 * (i - 1000));
+              if (i <= 860) return 1.1 - 0.000785 * (i - 300);
+              if (i <= 1000) return 0.6604 - 0.0005 * (i - 860);
+              return Math.max(0.15, 0.59 - 0.00009 * (i - 1000));
             };
             const CI = getCoefficientDeMise(I);
             const monthFactor = 0.3 + 0.6 * Math.pow(M, 1.5);
