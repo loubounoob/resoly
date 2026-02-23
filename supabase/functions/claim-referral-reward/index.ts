@@ -35,7 +35,7 @@ serve(async (req) => {
 
     const { data: notif, error: notifError } = await supabaseAdmin
       .from("notifications")
-      .select("id, user_id, type, data")
+      .select("*")
       .eq("id", notificationId)
       .eq("user_id", user.id)
       .eq("type", "referral_reward")
@@ -65,11 +65,10 @@ serve(async (req) => {
 
     const { data: claimRow, error: claimError } = await supabaseAdmin
       .from("notifications")
-      .update({ data: claimedData, read: true })
+      .update({ data: claimedData, read: true } as any)
       .eq("id", notificationId)
       .eq("user_id", user.id)
       .eq("type", "referral_reward")
-      .or("data->>claimed.is.null,data->>claimed.eq.false")
       .select("id")
       .maybeSingle();
 
