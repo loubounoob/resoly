@@ -71,8 +71,9 @@ serve(async (req) => {
       if (I <= 75) return 1.2 + 0.012 * (I - 50);
       if (I <= 100) return 1.5 + 0.02 * (I - 75);
       if (I <= 300) return 2 - 0.0045 * (I - 100);
-      if (I <= 1000) return 1.1 - 0.000785 * (I - 300);
-      return Math.max(0, 0.55 - 0.00055 * (I - 1000));
+      if (I <= 860) return 1.1 - 0.000785 * (I - 300);
+      if (I <= 1000) return 0.6604 - 0.0005 * (I - 860);
+      return Math.max(0.15, 0.59 - 0.00009 * (I - 1000));
     };
     const I = challenge.bet_per_month;
     const M = challenge.duration_months;
