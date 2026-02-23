@@ -113,7 +113,7 @@ serve(async (req) => {
           console.error("Sheet sync error:", syncErr);
         }
 
-        // Referral bonus: if bet >= 50€ and user was referred, give 250 coins to referrer (once)
+        // Referral bonus: if bet >= 50€ and user was referred, queue a claimable reward notification
         const { data: challengeForReferral } = await supabaseAdmin
           .from("challenges")
           .select("bet_per_month")
@@ -128,23 +128,36 @@ serve(async (req) => {
             .single();
 
           if (profileRef?.referred_by && !profileRef.referral_bonus_paid) {
-            const { data: referrer } = await supabaseAdmin
+            const { data: currentUserProfile } = await supabaseAdmin
               .from("profiles")
-              .select("coins")
-              .eq("user_id", profileRef.referred_by)
+              .select("username")
+              .eq("user_id", user.id)
               .single();
 
-            if (referrer) {
+            const referredName = currentUserProfile?.username ? `@${currentUserProfile.username}` : "ton filleul";
+            const rewardCoins = 250;
+
+            const { error: notifError } = await supabaseAdmin.functions.invoke("send-notification", {
+              body: {
+                user_id: profileRef.referred_by,
+                type: "referral_reward",
+                title: "Bonus parrainage disponible 🪙",
+                body: `${referredName} a validé son défi. Clique pour récupérer ${rewardCoins} pièces.`,
+                data: {
+                  coins: rewardCoins,
+                  referred_user_id: user.id,
+                  reward_type: "referral_challenge_success",
+                  claimed: false,
+                },
+              },
+            });
+
+            if (!notifError) {
               await supabaseAdmin
                 .from("profiles")
-                .update({ coins: referrer.coins + 250 })
-                .eq("user_id", profileRef.referred_by);
+                .update({ referral_bonus_paid: true })
+                .eq("user_id", user.id);
             }
-
-            await supabaseAdmin
-              .from("profiles")
-              .update({ referral_bonus_paid: true })
-              .eq("user_id", user.id);
           }
         }
       }
