@@ -114,6 +114,34 @@ serve(async (req) => {
           .eq("user_id", user.id);
         if (updateError) throw new Error("Failed to apply promo code for social challenge");
 
+        // Now that promo payment is confirmed, send notification to target user for boost challenges
+        try {
+          const { data: sc } = await supabaseAdmin
+            .from("social_challenges")
+            .select("target_user_id, created_by, bet_amount, sessions_per_week, duration_months, type")
+            .eq("id", socialChallengeId)
+            .single();
+          if (sc && sc.type === "boost" && sc.target_user_id) {
+            const { data: creatorProfile } = await supabaseAdmin
+              .from("profiles")
+              .select("username")
+              .eq("user_id", user.id)
+              .single();
+            const username = creatorProfile?.username || "Quelqu'un";
+            await supabaseAdmin.functions.invoke("send-notification", {
+              body: {
+                user_id: sc.target_user_id,
+                type: "social_challenge",
+                title: "On t'offre un défi ! 🎁",
+                body: `@${username} t'offre un défi de ${sc.bet_amount}€ — ${sc.sessions_per_week}x/sem pendant ${sc.duration_months} mois`,
+                data: { socialChallengeId },
+              },
+            });
+          }
+        } catch (notifErr) {
+          console.error("Failed to notify target:", notifErr);
+        }
+
         // Check if all members have paid -> activate challenge
         await checkAndActivateSocialChallenge(supabaseAdmin, socialChallengeId);
       }

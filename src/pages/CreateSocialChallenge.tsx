@@ -55,17 +55,8 @@ const CreateSocialChallenge = () => {
         bet_amount: betAmount,
       });
 
-      if (selectedFriend) {
-        await supabase.functions.invoke("send-notification", {
-          body: {
-            user_id: selectedFriend,
-            type: "social_challenge",
-            title: "On t'offre un défi ! 🎁",
-            body: `Tu as reçu un défi de ${betAmount}€ — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
-            data: { socialChallengeId: result.challenge.id },
-          },
-        });
-      }
+      // Notification is NOT sent here — it will be sent after payment succeeds
+      // (either via verify-payment for Stripe, or create-challenge-payment for promo code)
 
       const { data, error } = await supabase.functions.invoke("create-challenge-payment", {
         body: {
