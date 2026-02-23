@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Flame, Camera, Plus, Loader2, Trophy } from "lucide-react";
 import BuyCoinsDrawer from "@/components/BuyCoinsDrawer";
 import CoinIcon from "@/components/CoinIcon";
+import AnimatedCoinCounter from "@/components/AnimatedCoinCounter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -99,10 +100,9 @@ const Dashboard = () => {
           <NotificationBell />
           <button
             onClick={() => setBuyCoinsOpen(true)}
-            className="flex items-center gap-1.5 bg-secondary rounded-full px-3 py-1.5 hover:bg-secondary/80 transition-colors"
+            className="relative flex items-center bg-secondary rounded-full px-3 py-1.5 hover:bg-secondary/80 transition-colors"
           >
-            <CoinIcon size={14} />
-            <span className="text-sm font-bold">{coins ?? 0}</span>
+            <AnimatedCoinCounter value={coins ?? 0} />
           </button>
         </div>
       </div>
