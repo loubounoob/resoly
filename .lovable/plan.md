@@ -1,81 +1,37 @@
 
 
-## Plan de modifications
+## Modifications a effectuer
 
-### 1. ChallengeAcceptedOverlay : supprimer l'auto-dismiss
+### 1. BuyCoinsDrawer : copier uniquement le code, pas un lien
 
-Supprimer le timer de 4 secondes et le `onClick` sur le fond pour que l'overlay reste jusqu'au clic sur le bouton "Go".
+Le bouton de parrainage copie actuellement un lien complet (`https://...//auth?invite=CODE`). Il faut copier uniquement le code.
 
-**Fichier : `src/components/ChallengeAcceptedOverlay.tsx`**
-- Supprimer le `setTimeout(() => handleGo(), 4000)` (ligne 44)
-- Supprimer le `onClick={handleGo}` sur le div englobant (ligne 61)
+**Fichier : `src/components/BuyCoinsDrawer.tsx`**
+- Ligne 50 : remplacer `const link = ...` par simplement `inviteCode`
+- Ligne 51 : copier `inviteCode` au lieu de `link`
+- Ligne 53 : changer le toast en "Code copie !"
+- Ligne 104 : changer "Partage ton lien" en "Partage ton code"
 
----
+### 2. CreateSocialChallenge : afficher le username au lieu du display_name
 
-### 2. PaymentSuccess : ajouter confettis apres creation de defi personnel
+Dans la liste des amis (etape "target"), le composant affiche `f.display_name || f.first_name || "Ami"` (ligne 262). Il faut afficher `f.username` a la place.
 
-Quand le paiement est verifie avec succes (defi personnel, pas coins, pas social), afficher des confettis et une animation de celebration similaire au ChallengeAcceptedOverlay.
+**Fichier : `src/pages/CreateSocialChallenge.tsx`**
+- Ligne 95 : modifier `getInitials` pour utiliser `p?.username` en priorite
+- Ligne 262 : remplacer `{f.display_name || f.first_name || "Ami"}` par `{f.username || "Ami"}`
 
-**Fichier : `src/pages/PaymentSuccess.tsx`**
-- Importer `confetti` de `canvas-confetti` et les icones necessaires
-- Quand `status === "success"` et que ce n'est ni coins ni social, lancer des confettis automatiquement via un `useEffect`
-- Remplacer le contenu succes pour un defi personnel par une presentation plus festive (icone Flame animee, texte "C'est parti !", confettis)
+### 3. Verification du systeme de parrainage
 
----
+Le systeme de parrainage est deja fonctionnel :
+- **50 pieces au parrain** : gere par le trigger `handle_new_user` dans la base de donnees quand un filleul s'inscrit avec un code
+- **250 pieces bonus** : gere par l'edge function `verify-payment` quand le filleul cree un defi de 50EUR ou plus
 
-### 3. Supprimer le systeme IBAN pour les defis offerts (Boost)
+Aucune modification necessaire cote parrainage, le code est correct.
 
-Le remboursement d'un defi offert gagne se fera sur la carte Stripe du createur (celui qui a paye). Le beneficiaire gagne les pieces mais pas d'argent via IBAN.
+### Resume des changements
 
-#### 3a. Edge Function `complete-challenge`
-- Quand `social_challenge_id` existe (defi offert), au lieu de creer un `pending_payout` avec IBAN, retrouver le `stripe_payment_intent_id` du createur dans `social_challenge_members` et faire un remboursement Stripe vers lui
-- Le beneficiaire recoit toujours les pieces normalement
-
-#### 3b. Edge Function `accept-boost-challenge`
-- Supprimer la reception et l'utilisation du parametre `iban`
-- Supprimer la sauvegarde de l'IBAN dans le profil
-- Supprimer l'IBAN du `insertData` pour `social_challenge_members`
-
-#### 3c. Frontend `src/pages/Notifications.tsx`
-- Supprimer le champ de saisie IBAN (`ibanInputId`, `ibanValue`)
-- Appeler `accept-boost-challenge` sans IBAN
-- Le bouton "Accepter" fonctionne directement sans etape intermediaire
-
-#### 3d. Frontend `src/pages/Friends.tsx`
-- Supprimer le champ IBAN dans la section des defis offerts en attente
-- Supprimer la validation IBAN dans `handleAcceptChallenge`
-
-#### 3e. Frontend `src/pages/Settings.tsx`
-- Supprimer la section IBAN des parametres (elle n'est plus utile)
-
----
-
-### Details techniques
-
-**`complete-challenge` -- nouveau flux pour defi offert :**
-
-```text
-[Defi offert gagne]
-      |
-      v
-[Trouver le createur via social_challenges.created_by]
-      |
-      v
-[Trouver son stripe_payment_intent_id via social_challenge_members]
-      |
-      v
-[Stripe refund vers le createur] + [Pieces pour le beneficiaire]
-```
-
-**`PaymentSuccess` -- confettis pour defi personnel :**
-
-```text
-[Paiement verifie]
-      |
-      v
-[status === "success" && !isCoins && !isSocial]
-      |
-      v
-[Lancer confettis] + [Afficher animation festive]
-```
+| Fichier | Modification |
+|---------|-------------|
+| `src/components/BuyCoinsDrawer.tsx` | Copier le code seul, pas un lien. Texte "Partage ton code" |
+| `src/pages/CreateSocialChallenge.tsx` | Afficher `username` au lieu de `display_name` dans la liste d'amis |
 
