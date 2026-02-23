@@ -18,9 +18,8 @@ export const getCoefficientDeMise = (I: number): number => {
  * @param M - nombre de mois (1 à 3)
  * @param S - séances par semaine
  */
-export const calculateCoins = (I: number, M: number, S: number): number => {
+export const calculateCoins = (I: number, _M: number, S: number): number => {
   const CI = getCoefficientDeMise(I);
-  const monthFactor = 0.3 + 0.6 * Math.pow(M, 1.5);
   const sessionFactor = Math.pow(S / 3, 1.1);
-  return Math.round(I * CI * monthFactor * sessionFactor);
+  return Math.round(I * CI * sessionFactor);
 };
