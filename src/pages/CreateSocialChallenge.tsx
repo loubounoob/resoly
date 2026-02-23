@@ -95,7 +95,7 @@ const CreateSocialChallenge = () => {
   const getInitials = (p: any) => (p?.username || p?.display_name || "?").charAt(0).toUpperCase();
 
   const goBack = () => {
-    if (step === "motivation1") navigate(-1);
+    if (step === "motivation1") navigate("/friends");
     else if (step === "motivation2") setStep("motivation1");
     else if (step === "motivation3") setStep("motivation2");
     else if (step === "motivation4") setStep("motivation3");

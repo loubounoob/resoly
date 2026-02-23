@@ -215,6 +215,7 @@ export const useRecentlyFailedChallenge = () => {
         .select("*")
         .eq("user_id", user!.id)
         .eq("status", "failed")
+        .eq("payment_status", "paid")
         .gte("updated_at", twentyFourHoursAgo)
         .order("updated_at", { ascending: false })
         .limit(1)
