@@ -70,6 +70,18 @@ serve(async (req) => {
       throw new Error("Tu as déjà un défi actif");
     }
 
+    // 2b. Ensure the offer payment is fully confirmed before target can accept
+    const { data: creatorMember } = await supabaseAdmin
+      .from("social_challenge_members")
+      .select("payment_status")
+      .eq("social_challenge_id", socialChallengeId)
+      .eq("user_id", sc.created_by)
+      .single();
+
+    if (!creatorMember || creatorMember.payment_status !== "paid") {
+      throw new Error("Le défi n'est pas encore offert (paiement en attente)");
+    }
+
     // 3. Insert recipient as a member (no payment needed for boost)
     const { data: member, error: memberErr } = await supabaseAdmin
       .from("social_challenge_members")

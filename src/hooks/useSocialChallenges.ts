@@ -116,13 +116,18 @@ export const useReceivedSocialChallenges = () => {
       return (data as any[]).map((sc: any) => {
         const scMembers = (members as any[] ?? []).filter((m: any) => m.social_challenge_id === sc.id);
         const userAlreadyJoined = scMembers.some((m: any) => m.user_id === user!.id);
+        const creatorPaymentConfirmed = scMembers.some(
+          (m: any) => m.user_id === sc.created_by && m.payment_status === "paid"
+        );
+
         return {
           ...sc,
           members: scMembers,
           creatorProfile: profiles.find((p: any) => p.user_id === sc.created_by),
           userAlreadyJoined,
+          creatorPaymentConfirmed,
         };
-      }).filter((sc: any) => !sc.userAlreadyJoined);
+      }).filter((sc: any) => !sc.userAlreadyJoined && sc.creatorPaymentConfirmed);
     },
   });
 };
