@@ -97,7 +97,19 @@ const slides: Slide[] = [
 
 const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: string }) => {
   const [activeIdx, setActiveIdx] = useState(0);
+  const touchStart = useRef<number | null>(null);
   const t = TESTIMONIALS[activeIdx];
+
+  const goNext = () => setActiveIdx((i) => (i + 1) % TESTIMONIALS.length);
+  const goPrev = () => setActiveIdx((i) => (i - 1 + TESTIMONIALS.length) % TESTIMONIALS.length);
+
+  const onTouchStart = (e: React.TouchEvent) => { touchStart.current = e.touches[0].clientX; };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStart.current === null) return;
+    const diff = e.changedTouches[0].clientX - touchStart.current;
+    if (Math.abs(diff) > 40) { diff < 0 ? goNext() : goPrev(); }
+    touchStart.current = null;
+  };
 
   return (
     <div className="w-full flex flex-col items-center gap-4">
@@ -118,8 +130,8 @@ const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: stri
           <p className="text-[10px] text-muted-foreground">de réussite</p>
         </div>
         <div className="bg-secondary/60 rounded-xl px-4 py-2">
-          <p className="text-lg font-bold text-primary">-8 kg</p>
-          <p className="text-[10px] text-muted-foreground">en moyenne</p>
+          <p className="text-lg font-bold text-primary">7x</p>
+          <p className="text-[10px] text-muted-foreground">plus réguliers</p>
         </div>
         <div className="bg-secondary/60 rounded-xl px-4 py-2">
           <p className="text-lg font-bold text-primary">2 400+</p>
@@ -127,13 +139,17 @@ const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: stri
         </div>
       </div>
 
-      {/* Card carousel */}
-      <div className="w-full relative">
+      {/* Card carousel with swipe */}
+      <div
+        className="w-full relative"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         <div className="rounded-2xl border border-border bg-secondary/30 overflow-hidden">
           <img
             src={t.image}
             alt={t.name}
-            className="w-full h-48 object-cover object-top"
+            className="w-full aspect-[4/3] object-contain bg-black/20"
           />
           <div className="p-4 text-left space-y-1">
             <div className="flex items-center justify-between">
