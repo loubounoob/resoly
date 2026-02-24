@@ -95,6 +95,69 @@ const slides: Slide[] = [
   },
 ];
 
+const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: string }) => {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const t = TESTIMONIALS[activeIdx];
+
+  return (
+    <div className="w-full flex flex-col items-center gap-4">
+      <div className="flex items-center gap-2 mb-1">
+        <Star className="w-5 h-5 text-accent fill-accent" />
+        <Star className="w-5 h-5 text-accent fill-accent" />
+        <Star className="w-5 h-5 text-accent fill-accent" />
+        <Star className="w-5 h-5 text-accent fill-accent" />
+        <Star className="w-5 h-5 text-accent fill-accent" />
+      </div>
+      <h1 className="text-2xl font-display font-bold leading-tight">{title}</h1>
+      {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+
+      {/* Stats row */}
+      <div className="flex gap-4 text-center">
+        <div className="bg-secondary/60 rounded-xl px-4 py-2">
+          <p className="text-lg font-bold text-primary">94%</p>
+          <p className="text-[10px] text-muted-foreground">de réussite</p>
+        </div>
+        <div className="bg-secondary/60 rounded-xl px-4 py-2">
+          <p className="text-lg font-bold text-primary">-8 kg</p>
+          <p className="text-[10px] text-muted-foreground">en moyenne</p>
+        </div>
+        <div className="bg-secondary/60 rounded-xl px-4 py-2">
+          <p className="text-lg font-bold text-primary">2 400+</p>
+          <p className="text-[10px] text-muted-foreground">transformés</p>
+        </div>
+      </div>
+
+      {/* Card carousel */}
+      <div className="w-full relative">
+        <div className="rounded-2xl border border-border bg-secondary/30 overflow-hidden">
+          <img
+            src={t.image}
+            alt={t.name}
+            className="w-full h-48 object-cover object-top"
+          />
+          <div className="p-4 text-left space-y-1">
+            <div className="flex items-center justify-between">
+              <p className="font-bold text-sm">{t.name}</p>
+              <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{t.result}</span>
+            </div>
+            <p className="text-xs text-muted-foreground italic">"{t.quote}"</p>
+          </div>
+        </div>
+        {/* Nav dots */}
+        <div className="flex justify-center gap-1.5 mt-3">
+          {TESTIMONIALS.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setActiveIdx(i)}
+              className={`w-2 h-2 rounded-full transition-all ${i === activeIdx ? "bg-primary w-4" : "bg-muted-foreground/30"}`}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const OnboardingChallenge = () => {
   const navigate = useNavigate();
   const [current, setCurrent] = useState(0);
