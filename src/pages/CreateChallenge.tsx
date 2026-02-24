@@ -53,7 +53,7 @@ const CreateChallenge = () => {
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
   const [duration, setDuration] = useState(3);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [promoCode, setPromoCode] = useState("");
+  
   const [showFirstWeekDialog, setShowFirstWeekDialog] = useState(false);
   const [shopProducts, setShopProducts] = useState<ShopifyProduct[]>([]);
 
@@ -121,14 +121,11 @@ const CreateChallenge = () => {
           challengeId: challenge.id,
           amount: betAmount,
           description: `Mise Resoly — ${betAmount}€ — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
-          promoCode: promoCode.trim() || undefined,
         },
       });
 
       if (error) throw error;
-      if (data?.success) {
-        toast.success("Code promo appliqué ! Défi lancé 🎉");
-        navigate("/dashboard", { state: { challengeJustCreated: true } });
+      if (data?.url) {
       } else if (data?.url) {
         window.location.href = data.url;
       } else {
@@ -288,18 +285,6 @@ const CreateChallenge = () => {
         </section>
       )}
 
-
-      {/* Promo Code */}
-      <div className="mt-4">
-        <label className="text-sm text-muted-foreground mb-2 block">Code promo (optionnel)</label>
-        <input
-          type="text"
-          value={promoCode}
-          onChange={(e) => setPromoCode(e.target.value)}
-          placeholder="Entrer un code promo"
-          className="w-full h-12 rounded-xl border border-border bg-secondary px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-        />
-      </div>
 
       {/* CTA */}
       <Button

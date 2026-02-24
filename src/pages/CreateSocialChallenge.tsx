@@ -25,7 +25,7 @@ const CreateSocialChallenge = () => {
   const [duration, setDuration] = useState(3);
   const [selectedFriend, setSelectedFriend] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [promoCode, setPromoCode] = useState("");
+  
   const [shopProducts, setShopProducts] = useState<ShopifyProduct[]>([]);
 
   const createSocial = useCreateSocialChallenge();
@@ -55,8 +55,7 @@ const CreateSocialChallenge = () => {
         bet_amount: betAmount,
       });
 
-      // Notification is NOT sent here — it will be sent after payment succeeds
-      // (either via verify-payment for Stripe, or create-challenge-payment for promo code)
+      // Notification is sent after payment succeeds via verify-payment
 
       const { data, error } = await supabase.functions.invoke("create-challenge-payment", {
         body: {
@@ -64,14 +63,11 @@ const CreateSocialChallenge = () => {
           memberId: result.member.id,
           amount: betAmount,
           description: `Mise Resoly — Offrir un défi ${betAmount}€ — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
-          promoCode: promoCode.trim() || undefined,
         },
       });
 
       if (error) throw error;
-      if (data?.success) {
-        toast.success("Code promo appliqué ! Défi offert 🎉");
-        navigate("/friends");
+      if (data?.url) {
       } else if (data?.url) {
         window.location.href = data.url;
       } else {
@@ -194,11 +190,6 @@ const CreateSocialChallenge = () => {
             </section>
           )}
 
-          {/* Promo Code */}
-          <div>
-            <label className="text-sm text-muted-foreground mb-2 block">Code promo (optionnel)</label>
-            <input type="text" value={promoCode} onChange={(e) => setPromoCode(e.target.value)} placeholder="Entrer un code promo" className="w-full h-12 rounded-xl border border-border bg-secondary px-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
-          </div>
 
           <Button onClick={handleParamsNext} className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl">
             Suivant
