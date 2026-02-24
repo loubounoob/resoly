@@ -1,9 +1,31 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Flame, Target, TrendingUp, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, Flame, Target, TrendingUp, Zap, Star, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import testimonial1 from "@/assets/testimonial-1.png";
+import testimonial2 from "@/assets/testimonial-2.png";
+import testimonial3 from "@/assets/testimonial-3.png";
+import testimonial4 from "@/assets/testimonial-4.png";
+import testimonial5 from "@/assets/testimonial-5.png";
+import testimonial6 from "@/assets/testimonial-6.png";
 
-type SlideType = "single" | "multi" | "info" | "final";
+type SlideType = "single" | "multi" | "info" | "testimonials" | "final";
+
+interface Testimonial {
+  image: string;
+  name: string;
+  result: string;
+  quote: string;
+}
+
+const TESTIMONIALS: Testimonial[] = [
+  { image: testimonial1, name: "Clara, 26 ans", result: "-8 kg en 2 mois", quote: "J'ai jamais tenu aussi longtemps. Le fait de miser m'a tout changé." },
+  { image: testimonial2, name: "Thomas, 31 ans", result: "-14 kg en 3 mois", quote: "Je pensais que c'était impossible. Resoly m'a prouvé le contraire." },
+  { image: testimonial3, name: "Karim, 24 ans", result: "+6 kg de muscle", quote: "Le challenge avec un pote m'a donné une discipline de fou." },
+  { image: testimonial4, name: "Philippe, 52 ans", result: "-11 kg en 3 mois", quote: "À mon âge, j'aurais jamais cru reprendre le sport. Merci Resoly." },
+  { image: testimonial5, name: "Marc, 41 ans", result: "-9 kg en 2 mois", quote: "Simple, efficace. J'ai retrouvé la forme et la confiance." },
+  { image: testimonial6, name: "Sophie, 35 ans", result: "-7 kg en 2 mois", quote: "Les résultats parlent d'eux-mêmes. Je recommande à 100%." },
+];
 
 interface Slide {
   type: SlideType;
@@ -51,6 +73,11 @@ const slides: Slide[] = [
     body: "Tu mets de l'argent en jeu.\nSi tu tiens, tu récupères tout\n+ des récompenses.\n\nCe système provoque 7x plus de régularité.",
   },
   {
+    type: "testimonials",
+    title: "Ils ont relevé le défi.",
+    subtitle: "+2 400 utilisateurs transformés",
+  },
+  {
     type: "single",
     emoji: "⚡",
     title: "À quel point\nes-tu déterminé ?",
@@ -67,6 +94,69 @@ const slides: Slide[] = [
     body: "",
   },
 ];
+
+const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: string }) => {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const t = TESTIMONIALS[activeIdx];
+
+  return (
+    <div className="w-full flex flex-col items-center gap-4">
+      <div className="flex items-center gap-2 mb-1">
+        <Star className="w-5 h-5 text-accent fill-accent" />
+        <Star className="w-5 h-5 text-accent fill-accent" />
+        <Star className="w-5 h-5 text-accent fill-accent" />
+        <Star className="w-5 h-5 text-accent fill-accent" />
+        <Star className="w-5 h-5 text-accent fill-accent" />
+      </div>
+      <h1 className="text-2xl font-display font-bold leading-tight">{title}</h1>
+      {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+
+      {/* Stats row */}
+      <div className="flex gap-4 text-center">
+        <div className="bg-secondary/60 rounded-xl px-4 py-2">
+          <p className="text-lg font-bold text-primary">94%</p>
+          <p className="text-[10px] text-muted-foreground">de réussite</p>
+        </div>
+        <div className="bg-secondary/60 rounded-xl px-4 py-2">
+          <p className="text-lg font-bold text-primary">-8 kg</p>
+          <p className="text-[10px] text-muted-foreground">en moyenne</p>
+        </div>
+        <div className="bg-secondary/60 rounded-xl px-4 py-2">
+          <p className="text-lg font-bold text-primary">2 400+</p>
+          <p className="text-[10px] text-muted-foreground">transformés</p>
+        </div>
+      </div>
+
+      {/* Card carousel */}
+      <div className="w-full relative">
+        <div className="rounded-2xl border border-border bg-secondary/30 overflow-hidden">
+          <img
+            src={t.image}
+            alt={t.name}
+            className="w-full h-48 object-cover object-top"
+          />
+          <div className="p-4 text-left space-y-1">
+            <div className="flex items-center justify-between">
+              <p className="font-bold text-sm">{t.name}</p>
+              <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{t.result}</span>
+            </div>
+            <p className="text-xs text-muted-foreground italic">"{t.quote}"</p>
+          </div>
+        </div>
+        {/* Nav dots */}
+        <div className="flex justify-center gap-1.5 mt-3">
+          {TESTIMONIALS.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setActiveIdx(i)}
+              className={`w-2 h-2 rounded-full transition-all ${i === activeIdx ? "bg-primary w-4" : "bg-muted-foreground/30"}`}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const OnboardingChallenge = () => {
   const navigate = useNavigate();
@@ -112,7 +202,7 @@ const OnboardingChallenge = () => {
   };
 
   // Final slide personalised message
-  const determinationLevel = answers[4]?.[0];
+  const determinationLevel = answers[5]?.[0];
   const finalMessage =
     determinationLevel === "Rien ne m'arrêtera"
       ? "On aime cette énergie.\nCrée ton défi et prouve-le."
@@ -162,7 +252,7 @@ const OnboardingChallenge = () => {
               : "translateX(0)",
           }}
         >
-          {slide.type !== "final" && (
+          {slide.type !== "final" && slide.type !== "testimonials" && (
             <>
               <span className="text-5xl mb-5">{slide.emoji}</span>
               <h1 className="text-2xl font-display font-bold leading-tight whitespace-pre-line mb-2">
@@ -172,6 +262,11 @@ const OnboardingChallenge = () => {
                 <p className="text-sm text-muted-foreground mb-5">{slide.subtitle}</p>
               )}
             </>
+          )}
+
+          {/* Testimonials slide */}
+          {slide.type === "testimonials" && (
+            <TestimonialsSlide title={slide.title} subtitle={slide.subtitle} />
           )}
 
           {/* Choice slides */}
