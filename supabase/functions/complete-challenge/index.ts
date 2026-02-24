@@ -163,6 +163,71 @@ serve(async (req) => {
     // Determine if this is a boost challenge (gifted to the user)
     const isBoosted = !!challenge.social_challenge_id;
 
+    // Send victory notification to the player
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+      if (isBoosted) {
+        // Notify the player that they completed the gifted challenge
+        await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+          body: JSON.stringify({
+            user_id: userId,
+            type: "challenge_completed",
+            title: "Défi réussi ! 🏆",
+            body: `Tu as complété ton défi offert et gagné ${coinsToEarn} pièces. Bravo !`,
+            data: { challenge_id: challengeId, coins: coinsToEarn, route: "/dashboard" },
+          }),
+        });
+
+        // Notify the boost creator that their friend succeeded
+        const { data: sc } = await supabaseAdmin
+          .from("social_challenges")
+          .select("created_by")
+          .eq("id", challenge.social_challenge_id)
+          .single();
+
+        if (sc?.created_by) {
+          const { data: playerProfile } = await supabaseAdmin
+            .from("profiles")
+            .select("username")
+            .eq("user_id", userId)
+            .single();
+          const playerName = playerProfile?.username ? `@${playerProfile.username}` : "Ton ami";
+
+          await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+            body: JSON.stringify({
+              user_id: sc.created_by,
+              type: "boost_completed",
+              title: "Défi offert réussi ! 🎉",
+              body: `${playerName} a réussi le défi que tu lui as offert ! ${refunded ? "Tu as été remboursé." : ""}`,
+              data: { challenge_id: challengeId, route: "/friends" },
+            }),
+          });
+        }
+      } else {
+        // Notify the player about their personal challenge victory
+        const betTotal = challenge.bet_per_month * challenge.duration_months;
+        await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+          body: JSON.stringify({
+            user_id: userId,
+            type: "challenge_completed",
+            title: "Défi réussi ! 🏆🎉",
+            body: `Tu as complété ton défi ! ${refunded ? `${betTotal}€ remboursés` : ""} + ${coinsToEarn} pièces gagnées. Champion !`,
+            data: { challenge_id: challengeId, coins: coinsToEarn, refunded, route: "/dashboard" },
+          }),
+        });
+      }
+    } catch (notifErr) {
+      console.error("Victory notification error (non-blocking):", notifErr);
+    }
+
     return new Response(
       JSON.stringify({ success: true, refunded, coinsAwarded: coinsToEarn, isBoosted }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
