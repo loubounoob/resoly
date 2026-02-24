@@ -73,6 +73,11 @@ const slides: Slide[] = [
     body: "Tu mets de l'argent en jeu.\nSi tu tiens, tu récupères tout\n+ des récompenses.\n\nCe système provoque 7x plus de régularité.",
   },
   {
+    type: "testimonials",
+    title: "Ils ont relevé le défi.",
+    subtitle: "+2 400 utilisateurs transformés",
+  },
+  {
     type: "single",
     emoji: "⚡",
     title: "À quel point\nes-tu déterminé ?",
