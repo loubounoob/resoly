@@ -97,28 +97,39 @@ const slides: Slide[] = [
 
 const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: string }) => {
   const [activeIdx, setActiveIdx] = useState(0);
-  const touchStart = useRef<number | null>(null);
+  const pointerStart = useRef<{ x: number; id: number } | null>(null);
   const t = TESTIMONIALS[activeIdx];
 
   const goNext = () => setActiveIdx((i) => (i + 1) % TESTIMONIALS.length);
   const goPrev = () => setActiveIdx((i) => (i - 1 + TESTIMONIALS.length) % TESTIMONIALS.length);
 
-  const onTouchStart = (e: React.TouchEvent) => { touchStart.current = e.touches[0].clientX; };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchStart.current === null) return;
-    const diff = e.changedTouches[0].clientX - touchStart.current;
-    if (Math.abs(diff) > 40) { diff < 0 ? goNext() : goPrev(); }
-    touchStart.current = null;
+  const onPointerDown = (e: React.PointerEvent) => {
+    pointerStart.current = { x: e.clientX, id: e.pointerId };
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (!pointerStart.current) return;
+    const diff = e.clientX - pointerStart.current.x;
+    if (Math.abs(diff) > 30) {
+      diff < 0 ? goNext() : goPrev();
+    }
+    pointerStart.current = null;
   };
 
   return (
     <div className="w-full flex flex-col items-center gap-4">
-      <div className="flex items-center gap-2 mb-1">
+      <div className="flex items-center gap-1 mb-1">
         <Star className="w-5 h-5 text-accent fill-accent" />
         <Star className="w-5 h-5 text-accent fill-accent" />
         <Star className="w-5 h-5 text-accent fill-accent" />
         <Star className="w-5 h-5 text-accent fill-accent" />
-        <Star className="w-5 h-5 text-accent fill-accent" />
+        <div className="relative w-5 h-5">
+          <Star className="w-5 h-5 text-muted-foreground/30" />
+          <div className="absolute inset-0 overflow-hidden" style={{ width: "70%" }}>
+            <Star className="w-5 h-5 text-accent fill-accent" />
+          </div>
+        </div>
+        <span className="text-sm font-bold text-accent ml-1">4.7</span>
       </div>
       <h1 className="text-2xl font-display font-bold leading-tight">{title}</h1>
       {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
@@ -141,11 +152,12 @@ const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: stri
 
       {/* Card carousel with swipe */}
       <div
-        className="w-full relative"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
+        className="w-full relative touch-pan-y select-none cursor-grab active:cursor-grabbing"
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => { pointerStart.current = null; }}
       >
-        <div className="rounded-2xl border border-border bg-secondary/30 overflow-hidden">
+        <div className="rounded-2xl border border-border bg-secondary/30 overflow-hidden pointer-events-none">
           <img
             src={t.image}
             alt={t.name}
@@ -160,7 +172,7 @@ const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: stri
           </div>
         </div>
         {/* Nav dots */}
-        <div className="flex justify-center gap-1.5 mt-3">
+        <div className="flex justify-center gap-1.5 mt-3 pointer-events-auto">
           {TESTIMONIALS.map((_, i) => (
             <button
               key={i}
