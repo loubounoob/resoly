@@ -1,7 +1,8 @@
+import { forwardRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Home, Camera, Users, ShoppingBag, ClipboardList } from "lucide-react";
 
-const BottomNav = () => {
+const BottomNav = forwardRef<HTMLElement>(function BottomNav(_, ref) {
   const location = useLocation();
   if (location.pathname === "/") return null;
 
@@ -14,7 +15,7 @@ const BottomNav = () => {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-card/95 backdrop-blur-xl border-t border-border safe-bottom z-50">
+    <nav ref={ref} className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-card/95 backdrop-blur-xl border-t border-border safe-bottom z-50">
       <div className="flex justify-around items-center py-2 px-4">
         {links.map(({ to, icon: Icon, label }) => (
           <NavLink
@@ -35,6 +36,8 @@ const BottomNav = () => {
       </div>
     </nav>
   );
-};
+});
+
+BottomNav.displayName = "BottomNav";
 
 export default BottomNav;
