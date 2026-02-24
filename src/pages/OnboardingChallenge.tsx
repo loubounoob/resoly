@@ -152,24 +152,31 @@ const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: stri
 
       {/* Card carousel with swipe */}
       <div
-        className="w-full relative touch-pan-y select-none cursor-grab active:cursor-grabbing"
+        className="w-full relative touch-pan-y select-none cursor-grab active:cursor-grabbing overflow-hidden"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onPointerCancel={() => { pointerStart.current = null; }}
       >
-        <div className="rounded-2xl border border-border bg-secondary/30 overflow-hidden pointer-events-none">
-          <img
-            src={t.image}
-            alt={t.name}
-            className="w-full aspect-[4/3] object-contain bg-black/20"
-          />
-          <div className="p-4 text-left space-y-1">
-            <div className="flex items-center justify-between">
-              <p className="font-bold text-sm">{t.name}</p>
-              <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{t.result}</span>
+        <div className="flex" style={{ transform: `translateX(-${activeIdx * 100}%)`, transition: "transform 0.25s ease-out" }}>
+          {TESTIMONIALS.map((item, i) => (
+            <div key={i} className="w-full flex-shrink-0">
+              <div className="rounded-2xl border border-border bg-secondary/30 overflow-hidden pointer-events-none">
+                <img
+                  src={item.image}
+                  alt={item.name}
+                  className="w-full aspect-[4/3] object-contain bg-black/20"
+                  draggable={false}
+                />
+                <div className="p-4 text-left space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-sm">{item.name}</p>
+                    <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{item.result}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground italic">"{item.quote}"</p>
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground italic">"{t.quote}"</p>
-          </div>
+          ))}
         </div>
         {/* Nav dots */}
         <div className="flex justify-center gap-1.5 mt-3 pointer-events-auto">
