@@ -139,7 +139,7 @@ const OnboardingChallenge = () => {
   };
 
   // Final slide personalised message
-  const determinationLevel = answers[4]?.[0];
+  const determinationLevel = answers[5]?.[0];
   const finalMessage =
     determinationLevel === "Rien ne m'arrêtera"
       ? "On aime cette énergie.\nCrée ton défi et prouve-le."
@@ -189,7 +189,7 @@ const OnboardingChallenge = () => {
               : "translateX(0)",
           }}
         >
-          {slide.type !== "final" && (
+          {slide.type !== "final" && slide.type !== "testimonials" && (
             <>
               <span className="text-5xl mb-5">{slide.emoji}</span>
               <h1 className="text-2xl font-display font-bold leading-tight whitespace-pre-line mb-2">
@@ -199,6 +199,11 @@ const OnboardingChallenge = () => {
                 <p className="text-sm text-muted-foreground mb-5">{slide.subtitle}</p>
               )}
             </>
+          )}
+
+          {/* Testimonials slide */}
+          {slide.type === "testimonials" && (
+            <TestimonialsSlide title={slide.title} subtitle={slide.subtitle} />
           )}
 
           {/* Choice slides */}
