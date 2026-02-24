@@ -21,6 +21,9 @@ const typeConfig: Record<string, { icon: typeof UserPlus; color: string }> = {
   challenge_accepted: { icon: Trophy, color: "text-primary" },
   challenge_declined: { icon: ThumbsDown, color: "text-destructive" },
   challenge_failed: { icon: ShieldOff, color: "text-destructive" },
+  challenge_peril: { icon: Flame, color: "text-orange-400" },
+  challenge_completed: { icon: Trophy, color: "text-primary" },
+  boost_completed: { icon: Gift, color: "text-green-400" },
   referral_reward: { icon: Coins, color: "text-accent" },
   cheer: { icon: Flame, color: "text-orange-400" },
 };
