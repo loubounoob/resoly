@@ -369,6 +369,7 @@ const Dashboard = () => {
           betAmount={totalBet}
           coinsEarned={coinsToEarn}
           challengeId={challenge.id}
+          isBoosted={!!challenge.social_challenge_id}
           onClose={() => setShowVictoryOverlay(false)}
         />
       )}

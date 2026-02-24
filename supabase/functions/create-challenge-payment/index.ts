@@ -214,6 +214,14 @@ serve(async (req) => {
 });
 
 async function checkAndActivateSocialChallenge(supabaseAdmin: any, socialChallengeId: string) {
+  // For boost challenges, don't activate here — accept-boost-challenge handles it
+  const { data: scCheck } = await supabaseAdmin
+    .from("social_challenges")
+    .select("type")
+    .eq("id", socialChallengeId)
+    .single();
+  if (scCheck?.type === "boost") return;
+
   const { data: members } = await supabaseAdmin
     .from("social_challenge_members")
     .select("id, user_id, bet_amount, payment_status, challenge_id")
@@ -225,7 +233,6 @@ async function checkAndActivateSocialChallenge(supabaseAdmin: any, socialChallen
       .update({ status: "active" })
       .eq("id", socialChallengeId);
 
-    // Create individual challenge entries for members who don't have one yet
     const { data: sc } = await supabaseAdmin
       .from("social_challenges")
       .select("*")
