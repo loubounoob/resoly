@@ -160,8 +160,11 @@ serve(async (req) => {
       console.error("Sheet sync error:", syncErr);
     }
 
+    // Determine if this is a boost challenge (gifted to the user)
+    const isBoosted = !!challenge.social_challenge_id;
+
     return new Response(
-      JSON.stringify({ success: true, refunded, coinsAwarded: coinsToEarn }),
+      JSON.stringify({ success: true, refunded, coinsAwarded: coinsToEarn, isBoosted }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {

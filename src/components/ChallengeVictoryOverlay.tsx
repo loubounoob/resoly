@@ -11,6 +11,7 @@ interface ChallengeVictoryOverlayProps {
   betAmount: number;
   coinsEarned: number;
   challengeId: string;
+  isBoosted?: boolean;
   onClose: () => void;
 }
 
@@ -18,6 +19,7 @@ const ChallengeVictoryOverlay = ({
   betAmount,
   coinsEarned,
   challengeId,
+  isBoosted = false,
   onClose,
 }: ChallengeVictoryOverlayProps) => {
   const navigate = useNavigate();
@@ -162,12 +164,12 @@ const ChallengeVictoryOverlay = ({
             DÉFI RÉUSSI !
           </h1>
 
-          {/* Refund amount */}
+          {/* Refund / Boost message */}
           <div className="flex flex-col items-center mt-2 mb-4">
             <span className="text-2xl font-display font-bold text-gradient-gold">
-              {betAmount}€ remboursés
+              {isBoosted ? "Défi offert réussi !" : `${betAmount}€ remboursés`}
             </span>
-            {(refundStatus === "loading" || refundStatus === "slow") && (
+            {!isBoosted && (refundStatus === "loading" || refundStatus === "slow") && (
               <div className="flex items-center gap-2 mt-1.5">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
                 <span className="text-xs text-amber-200/60">
@@ -175,6 +177,12 @@ const ChallengeVictoryOverlay = ({
                     ? "Le virement peut prendre quelques instants..."
                     : "Traitement en cours..."}
                 </span>
+              </div>
+            )}
+            {isBoosted && (refundStatus === "loading" || refundStatus === "slow") && (
+              <div className="flex items-center gap-2 mt-1.5">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                <span className="text-xs text-amber-200/60">Finalisation...</span>
               </div>
             )}
             {refundStatus === "error" && (

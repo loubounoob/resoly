@@ -125,6 +125,9 @@ serve(async (req) => {
     }
 
     for (const m of (allMembers ?? [])) {
+      // Skip the creator — in a Boost, only the target does the challenge
+      if (m.user_id === sc.created_by) continue;
+
       // Skip if member already has a linked challenge
       const { data: existingLink } = await supabaseAdmin
         .from("social_challenge_members")
