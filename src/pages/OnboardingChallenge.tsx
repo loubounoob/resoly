@@ -9,7 +9,23 @@ import testimonial4 from "@/assets/testimonial-4.png";
 import testimonial5 from "@/assets/testimonial-5.png";
 import testimonial6 from "@/assets/testimonial-6.png";
 
-type SlideType = "single" | "multi" | "info" | "final";
+type SlideType = "single" | "multi" | "info" | "testimonials" | "final";
+
+interface Testimonial {
+  image: string;
+  name: string;
+  result: string;
+  quote: string;
+}
+
+const TESTIMONIALS: Testimonial[] = [
+  { image: testimonial1, name: "Clara, 26 ans", result: "-8 kg en 2 mois", quote: "J'ai jamais tenu aussi longtemps. Le fait de miser m'a tout changé." },
+  { image: testimonial2, name: "Thomas, 31 ans", result: "-14 kg en 3 mois", quote: "Je pensais que c'était impossible. Resoly m'a prouvé le contraire." },
+  { image: testimonial3, name: "Karim, 24 ans", result: "+6 kg de muscle", quote: "Le challenge avec un pote m'a donné une discipline de fou." },
+  { image: testimonial4, name: "Philippe, 52 ans", result: "-11 kg en 3 mois", quote: "À mon âge, j'aurais jamais cru reprendre le sport. Merci Resoly." },
+  { image: testimonial5, name: "Marc, 41 ans", result: "-9 kg en 2 mois", quote: "Simple, efficace. J'ai retrouvé la forme et la confiance." },
+  { image: testimonial6, name: "Sophie, 35 ans", result: "-7 kg en 2 mois", quote: "Les résultats parlent d'eux-mêmes. Je recommande à 100%." },
+];
 
 interface Slide {
   type: SlideType;
