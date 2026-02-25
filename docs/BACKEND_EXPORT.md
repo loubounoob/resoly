@@ -745,10 +745,10 @@ SELECT cron.schedule(
   $$
 );
 
--- 3. Échec automatique des défis le dimanche à 23h UTC
+-- 3. Échec automatique des défis tous les jours à 23h UTC
 SELECT cron.schedule(
-  'fail-challenge-sunday',
-  '0 23 * * 0',
+  'fail-challenge-daily',
+  '0 23 * * *',
   $$
   SELECT net.http_post(
     url := '<SUPABASE_URL>/functions/v1/fail-challenge',
