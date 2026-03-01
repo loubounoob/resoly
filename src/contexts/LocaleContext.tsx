@@ -56,12 +56,13 @@ export const LocaleProvider = ({ children }: { children: ReactNode }) => {
     maximumFractionDigits: 0,
   }).format(0).replace(/[\d\s.,]/g, '').trim();
 
-  const t = useCallback((key: string, params?: Record<string, string | number>): string => {
+  const t = useCallback((key: string, params?: Record<string, string | number>): any => {
     let value = getNestedValue(translations[locale], key);
     if (value === undefined || value === null) {
       // Fallback to French
       value = getNestedValue(translations['fr'], key);
     }
+    if (Array.isArray(value)) return value;
     if (typeof value !== 'string') return key;
     if (params) {
       Object.entries(params).forEach(([k, v]) => {
