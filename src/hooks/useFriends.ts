@@ -4,6 +4,34 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { startOfWeek } from "date-fns";
 
+// i18n helpers for friend notifications (mirrors edge function logic)
+function countryToLocale(country: string | null | undefined): 'fr' | 'en' | 'de' {
+  if (!country) return 'fr';
+  const c = country.toUpperCase();
+  if (c === 'FR') return 'fr';
+  if (c === 'DE' || c === 'CH') return 'de';
+  return 'en';
+}
+
+const notifTexts: Record<string, Record<string, { title: string; body: (name: string) => string }>> = {
+  friend_request: {
+    fr: { title: "Nouvelle demande d'ami", body: (n) => `${n} veut devenir ton ami ! 🤝` },
+    en: { title: "New friend request", body: (n) => `${n} wants to be your friend! 🤝` },
+    de: { title: "Neue Freundschaftsanfrage", body: (n) => `${n} möchte dein Freund werden! 🤝` },
+  },
+  friend_accepted: {
+    fr: { title: "Demande acceptée !", body: (n) => `${n} a accepté ta demande d'ami ! 🎉` },
+    en: { title: "Request accepted!", body: (n) => `${n} accepted your friend request! 🎉` },
+    de: { title: "Anfrage akzeptiert!", body: (n) => `${n} hat deine Freundschaftsanfrage akzeptiert! 🎉` },
+  },
+};
+
+function getNotifTexts(locale: 'fr' | 'en' | 'de', type: string, name: string) {
+  const entry = notifTexts[type]?.[locale] || notifTexts[type]?.['fr'];
+  if (!entry) return { title: type, body: '' };
+  return { title: entry.title, body: entry.body(name) };
+}
+
 // Realtime hook for friendships changes
 export const useFriendshipsRealtime = () => {
   const { user } = useAuth();
@@ -90,21 +118,27 @@ export const useSendFriendRequest = () => {
         .insert({ user_id: user!.id, friend_id: friendUserId } as any);
       if (error) throw error;
 
-      // Get sender profile for notification
+      // Get sender profile and recipient profile for i18n
       const { data: myProfile } = await supabase
         .from("profiles")
         .select("username, display_name")
         .eq("user_id", user!.id)
         .single();
+      const { data: recipientProfile } = await supabase
+        .from("profiles")
+        .select("country")
+        .eq("user_id", friendUserId)
+        .single();
 
-      // Send notification to friend
-      const senderName = myProfile?.username ? `@${myProfile.username}` : (myProfile?.display_name ?? "Quelqu'un");
+      const senderName = myProfile?.username ? `@${myProfile.username}` : (myProfile?.display_name ?? "Someone");
+      const locale = countryToLocale(recipientProfile?.country);
+      const notif = getNotifTexts(locale, 'friend_request', senderName);
       await supabase.functions.invoke("send-notification", {
         body: {
           user_id: friendUserId,
           type: "friend_request",
-          title: "Nouvelle demande d'ami",
-          body: `${senderName} veut devenir ton ami ! 🤝`,
+          title: notif.title,
+          body: notif.body,
           data: { from_user_id: user!.id },
         },
       });
@@ -136,14 +170,21 @@ export const useRespondFriendRequest = () => {
           .select("username, display_name")
           .eq("user_id", user!.id)
           .single();
+        const { data: senderProfile } = await supabase
+          .from("profiles")
+          .select("country")
+          .eq("user_id", senderUserId)
+          .single();
 
-        const name = myProfile?.username ? `@${myProfile.username}` : (myProfile?.display_name ?? "Quelqu'un");
+        const name = myProfile?.username ? `@${myProfile.username}` : (myProfile?.display_name ?? "Someone");
+        const locale = countryToLocale(senderProfile?.country);
+        const notif = getNotifTexts(locale, 'friend_accepted', name);
         await supabase.functions.invoke("send-notification", {
           body: {
             user_id: senderUserId,
             type: "friend_accepted",
-            title: "Demande acceptée !",
-            body: `${name} a accepté ta demande d'ami ! 🎉`,
+            title: notif.title,
+            body: notif.body,
             data: { from_user_id: user!.id },
           },
         });
@@ -375,13 +416,20 @@ export const useRespondFriendRequestByUserId = () => {
           .select("username, display_name")
           .eq("user_id", user!.id)
           .single();
-        const name = myProfile?.username ? `@${myProfile.username}` : (myProfile?.display_name ?? "Quelqu'un");
+        const { data: senderProfile } = await supabase
+          .from("profiles")
+          .select("country")
+          .eq("user_id", senderUserId)
+          .single();
+        const name = myProfile?.username ? `@${myProfile.username}` : (myProfile?.display_name ?? "Someone");
+        const locale = countryToLocale(senderProfile?.country);
+        const notif = getNotifTexts(locale, 'friend_accepted', name);
         await supabase.functions.invoke("send-notification", {
           body: {
             user_id: senderUserId,
             type: "friend_accepted",
-            title: "Demande acceptée !",
-            body: `${name} a accepté ta demande d'ami ! 🎉`,
+            title: notif.title,
+            body: notif.body,
             data: { from_user_id: user!.id },
           },
         });

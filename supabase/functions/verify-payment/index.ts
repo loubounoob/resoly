@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { countryToLocale, getNotifText } from "../_shared/notif-i18n.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -114,7 +115,7 @@ serve(async (req) => {
           console.error("Sheet sync error:", syncErr);
         }
 
-        // Referral bonus: if bet >= 50€ and user was referred, queue a claimable reward notification
+        // Referral bonus
         const { data: challengeForReferral } = await supabaseAdmin
           .from("challenges")
           .select("bet_per_month")
@@ -135,15 +136,24 @@ serve(async (req) => {
               .eq("user_id", user.id)
               .single();
 
-            const referredName = currentUserProfile?.username ? `@${currentUserProfile.username}` : "ton filleul";
+            // Get referrer's locale
+            const { data: referrerProfile } = await supabaseAdmin
+              .from("profiles")
+              .select("country")
+              .eq("user_id", profileRef.referred_by)
+              .single();
+            const referrerLocale = countryToLocale(referrerProfile?.country);
+
+            const referredName = currentUserProfile?.username ? `@${currentUserProfile.username}` : (referrerLocale === 'fr' ? "ton filleul" : referrerLocale === 'de' ? "dein Empfohlener" : "your referral");
             const rewardCoins = 250;
+            const notif = getNotifText(referrerLocale, 'referral_reward', referredName, rewardCoins);
 
             const { error: notifError } = await supabaseAdmin.functions.invoke("send-notification", {
               body: {
                 user_id: profileRef.referred_by,
                 type: "referral_reward",
-                title: "Bonus parrainage disponible 🪙",
-                body: `${referredName} a validé son défi. Clique pour récupérer ${rewardCoins} pièces.`,
+                title: notif.title,
+                body: notif.body,
                 data: {
                   coins: rewardCoins,
                   referred_user_id: user.id,
@@ -175,7 +185,7 @@ serve(async (req) => {
           .eq("user_id", user.id);
         if (error) throw error;
 
-        // Now that payment is confirmed, send notification to target user for boost challenges
+        // Notify target user for boost challenges
         try {
           const { data: sc } = await supabaseAdmin
             .from("social_challenges")
@@ -188,13 +198,22 @@ serve(async (req) => {
               .select("username")
               .eq("user_id", sc.created_by)
               .single();
-            const username = creatorProfile?.username || "Quelqu'un";
+            // Get target's locale
+            const { data: targetProfile } = await supabaseAdmin
+              .from("profiles")
+              .select("country")
+              .eq("user_id", sc.target_user_id)
+              .single();
+            const targetLocale = countryToLocale(targetProfile?.country);
+            const username = creatorProfile?.username || "Someone";
+            const notif = getNotifText(targetLocale, 'social_challenge', username, sc.bet_amount, sc.sessions_per_week, sc.duration_months);
+
             await supabaseAdmin.functions.invoke("send-notification", {
               body: {
                 user_id: sc.target_user_id,
                 type: "social_challenge",
-                title: "On t'offre un défi ! 🎁",
-                body: `@${username} t'offre un défi de ${sc.bet_amount}€ — ${sc.sessions_per_week}x/sem pendant ${sc.duration_months} mois`,
+                title: notif.title,
+                body: notif.body,
                 data: { socialChallengeId },
               },
             });
@@ -203,8 +222,7 @@ serve(async (req) => {
           console.error("Failed to notify target:", notifErr);
         }
 
-        // For boost challenges, DON'T activate or create challenges here.
-        // The accept-boost-challenge function handles activation when the target accepts.
+        // For boost challenges, DON'T activate here
         const { data: scType } = await supabaseAdmin
           .from("social_challenges")
           .select("type")
@@ -212,7 +230,6 @@ serve(async (req) => {
           .single();
 
         if (scType?.type !== "boost") {
-          // Non-boost social challenges: check if all members paid -> activate
           const { data: members } = await supabaseAdmin
             .from("social_challenge_members")
             .select("payment_status")

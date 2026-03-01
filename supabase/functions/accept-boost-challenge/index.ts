@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { countryToLocale, getNotifText } from "../_shared/notif-i18n.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,7 +40,6 @@ serve(async (req) => {
       .single();
     if (scErr || !sc) throw new Error("Social challenge not found");
 
-    // Verify user is the target
     if (sc.target_user_id !== user.id) {
       throw new Error("You are not the target of this challenge");
     }
@@ -47,7 +47,7 @@ serve(async (req) => {
       throw new Error("This challenge is no longer available");
     }
 
-    // 1b. Check if user already joined THIS specific challenge
+    // 1b. Check if user already joined
     const { data: alreadyJoined } = await supabaseAdmin
       .from("social_challenge_members")
       .select("id")
@@ -70,19 +70,18 @@ serve(async (req) => {
       throw new Error("Tu as déjà un défi actif");
     }
 
-    // 2b. Ensure the offer payment is fully confirmed before target can accept
+    // 2b. Ensure payment confirmed
     const { data: creatorMember } = await supabaseAdmin
       .from("social_challenge_members")
       .select("payment_status")
       .eq("social_challenge_id", socialChallengeId)
       .eq("user_id", sc.created_by)
       .single();
-
     if (!creatorMember || creatorMember.payment_status !== "paid") {
       throw new Error("Le défi n'est pas encore offert (paiement en attente)");
     }
 
-    // 3. Insert recipient as a member (no payment needed for boost)
+    // 3. Insert recipient as a member
     const { data: member, error: memberErr } = await supabaseAdmin
       .from("social_challenge_members")
       .insert({
@@ -102,22 +101,20 @@ serve(async (req) => {
       .update({ status: "active" })
       .eq("id", socialChallengeId);
 
-    // 5. Create individual challenge entries for all members
+    // 5. Create individual challenge entries
     const { data: allMembers } = await supabaseAdmin
       .from("social_challenge_members")
       .select("id, user_id, bet_amount")
       .eq("social_challenge_id", socialChallengeId);
 
     const totalSessions = sc.sessions_per_week * sc.duration_months * 4;
-    
-    // First week adjustment — on weekends (Sat=6, Sun=0), set to 0 so challenge starts Monday
     const now = new Date();
-    const dayOfWeek = now.getDay(); // 0=Sun, 6=Sat
+    const dayOfWeek = now.getDay();
     let firstWeekSessions: number;
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       firstWeekSessions = 0;
     } else {
-      const daysLeft = 8 - dayOfWeek; // days left including today until end of week
+      const daysLeft = 8 - dayOfWeek;
       firstWeekSessions = Math.min(
         Math.max(1, Math.floor((sc.sessions_per_week / 7) * daysLeft)),
         sc.sessions_per_week
@@ -125,10 +122,8 @@ serve(async (req) => {
     }
 
     for (const m of (allMembers ?? [])) {
-      // Skip the creator — in a Boost, only the target does the challenge
       if (m.user_id === sc.created_by) continue;
 
-      // Skip if member already has a linked challenge
       const { data: existingLink } = await supabaseAdmin
         .from("social_challenge_members")
         .select("challenge_id")
@@ -175,14 +170,23 @@ serve(async (req) => {
         .select("username")
         .eq("user_id", user.id)
         .single();
-      const username = receiverProfile?.username || "Quelqu'un";
+      const username = receiverProfile?.username || "Someone";
+
+      // Get creator's locale
+      const { data: creatorProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("country")
+        .eq("user_id", sc.created_by)
+        .single();
+      const creatorLocale = countryToLocale(creatorProfile?.country);
+      const notif = getNotifText(creatorLocale, 'challenge_accepted', username);
 
       await supabaseAdmin.functions.invoke("send-notification", {
         body: {
           user_id: sc.created_by,
           type: "challenge_accepted",
-          title: "Défi accepté ! 🔥",
-          body: `@${username} a accepté ton défi ! C'est parti`,
+          title: notif.title,
+          body: notif.body,
           data: { socialChallengeId },
         },
       });

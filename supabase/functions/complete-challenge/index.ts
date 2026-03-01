@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { countryToLocale, getNotifText } from "../_shared/notif-i18n.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,7 +25,6 @@ serve(async (req) => {
   );
 
   try {
-    // Authenticate user
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -86,15 +86,16 @@ serve(async (req) => {
     // Update profile coins
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("coins")
+      .select("coins, country")
       .eq("user_id", userId)
       .single();
+
+    const userLocale = countryToLocale(profile?.country);
 
     // Stripe refund
     let refunded = false;
 
     if (challenge.social_challenge_id) {
-      // Boost challenge: refund to the CREATOR's card (the one who paid)
       const { data: sc } = await supabaseAdmin
         .from("social_challenges")
         .select("created_by")
@@ -102,7 +103,6 @@ serve(async (req) => {
         .single();
 
       if (sc?.created_by) {
-        // Find the creator's stripe_payment_intent_id from social_challenge_members
         const { data: creatorMember } = await supabaseAdmin
           .from("social_challenge_members")
           .select("stripe_payment_intent_id")
@@ -121,7 +121,6 @@ serve(async (req) => {
         }
       }
     } else if (challenge.stripe_payment_intent_id) {
-      // Personal challenge: refund via Stripe
       const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
         apiVersion: "2025-08-27.basil",
       });
@@ -160,29 +159,27 @@ serve(async (req) => {
       console.error("Sheet sync error:", syncErr);
     }
 
-    // Determine if this is a boost challenge (gifted to the user)
     const isBoosted = !!challenge.social_challenge_id;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Send victory notification to the player
+    // Send victory notification
     try {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
       if (isBoosted) {
-        // Notify the player that they completed the gifted challenge
+        const notifPlayer = getNotifText(userLocale, 'challenge_completed_boost', coinsToEarn);
         await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
           body: JSON.stringify({
             user_id: userId,
             type: "challenge_completed",
-            title: "Défi réussi ! 🏆",
-            body: `Tu as complété ton défi offert et gagné ${coinsToEarn} pièces. Bravo !`,
+            title: notifPlayer.title,
+            body: notifPlayer.body,
             data: { challenge_id: challengeId, coins: coinsToEarn, route: "/dashboard" },
           }),
         });
 
-        // Notify the boost creator that their friend succeeded
+        // Notify the boost creator
         const { data: sc } = await supabaseAdmin
           .from("social_challenges")
           .select("created_by")
@@ -195,31 +192,38 @@ serve(async (req) => {
             .select("username")
             .eq("user_id", userId)
             .single();
-          const playerName = playerProfile?.username ? `@${playerProfile.username}` : "Ton ami";
+          const { data: creatorProfile } = await supabaseAdmin
+            .from("profiles")
+            .select("country")
+            .eq("user_id", sc.created_by)
+            .single();
+          const creatorLocale = countryToLocale(creatorProfile?.country);
+          const playerName = playerProfile?.username ? `@${playerProfile.username}` : (creatorLocale === 'fr' ? "Ton ami" : creatorLocale === 'de' ? "Dein Freund" : "Your friend");
 
+          const notifCreator = getNotifText(creatorLocale, 'boost_completed', playerName, refunded);
           await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
             body: JSON.stringify({
               user_id: sc.created_by,
               type: "boost_completed",
-              title: "Défi offert réussi ! 🎉",
-              body: `${playerName} a réussi le défi que tu lui as offert ! ${refunded ? "Tu as été remboursé." : ""}`,
+              title: notifCreator.title,
+              body: notifCreator.body,
               data: { challenge_id: challengeId, route: "/friends" },
             }),
           });
         }
       } else {
-        // Notify the player about their personal challenge victory
         const betTotal = challenge.bet_per_month * challenge.duration_months;
+        const notif = getNotifText(userLocale, 'challenge_completed', coinsToEarn, refunded, betTotal);
         await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
           body: JSON.stringify({
             user_id: userId,
             type: "challenge_completed",
-            title: "Défi réussi ! 🏆🎉",
-            body: `Tu as complété ton défi ! ${refunded ? `${betTotal}€ remboursés` : ""} + ${coinsToEarn} pièces gagnées. Champion !`,
+            title: notif.title,
+            body: notif.body,
             data: { challenge_id: challengeId, coins: coinsToEarn, refunded, route: "/dashboard" },
           }),
         });
