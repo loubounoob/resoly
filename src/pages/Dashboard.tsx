@@ -12,7 +12,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import BottomNav from "@/components/BottomNav";
 import AvatarUpload from "@/components/AvatarUpload";
-import { useActiveChallenge, useCheckIns, useUserCoins, useRecentlyFailedChallenge } from "@/hooks/useChallenge";
+import { useActiveChallenge, useCheckIns, useUserCoins, useRecentlyFailedChallenge, useAutoFailCheck } from "@/hooks/useChallenge";
 import ChallengeFailedOverlay from "@/components/ChallengeFailedOverlay";
 import ChallengeVictoryOverlay from "@/components/ChallengeVictoryOverlay";
 import ChallengeAcceptedOverlay from "@/components/ChallengeAcceptedOverlay";
@@ -51,6 +51,9 @@ const Dashboard = () => {
   const { data: coins } = useUserCoins();
   const { data: myProfile } = useMyProfile();
   const { data: failedChallenge } = useRecentlyFailedChallenge();
+
+  // Auto-detect impossible challenges and trigger server-side failure
+  useAutoFailCheck(challenge, checkIns);
 
   // Show failed overlay if recently failed and no active challenge
   useEffect(() => {

@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
@@ -15,12 +15,27 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Get all active paid challenges
-    const { data: challenges, error: chErr } = await supabase
+    // Parse optional challenge_id for targeted mode
+    let targetChallengeId: string | null = null;
+    try {
+      const body = await req.json();
+      targetChallengeId = body?.challenge_id ?? null;
+    } catch {
+      // No body = batch mode (cron)
+    }
+
+    // Build query
+    let query = supabase
       .from("challenges")
       .select("id, user_id, sessions_per_week, started_at, first_week_sessions, duration_months, bet_per_month")
       .eq("status", "active")
       .eq("payment_status", "paid");
+
+    if (targetChallengeId) {
+      query = query.eq("id", targetChallengeId);
+    }
+
+    const { data: challenges, error: chErr } = await query;
 
     if (chErr) throw chErr;
     if (!challenges || challenges.length === 0) {
@@ -61,17 +76,20 @@ Deno.serve(async (req) => {
         ? challenge.first_week_sessions
         : challenge.sessions_per_week;
 
-      // Count verified check-ins this week
-      const { count } = await supabase
+      // Count verified check-ins this week (unique days)
+      const { data: checkInData } = await supabase
         .from("check_ins")
-        .select("*", { count: "exact", head: true })
+        .select("checked_in_at")
         .eq("challenge_id", challenge.id)
         .eq("user_id", challenge.user_id)
         .eq("verified", true)
         .gte("checked_in_at", weekStart.toISOString())
         .lte("checked_in_at", sundayEnd.toISOString());
 
-      const weeklyDone = count ?? 0;
+      const uniqueDays = new Set(
+        (checkInData ?? []).map((ci: any) => new Date(ci.checked_in_at).getDay())
+      );
+      const weeklyDone = uniqueDays.size;
       const sessionsRemaining = weeklyGoal - weeklyDone;
 
       // Challenge fails if more sessions remaining than days left
