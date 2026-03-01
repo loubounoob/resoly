@@ -1,21 +1,31 @@
 
 
-## Plan: Fix cart drawer top clipping + green progress ring at 0/0
+## Plan: Fix scrollbar on all pages + verify translations
 
-### Issue 1: Cart drawer (Sheet) content clipped at top
-The Sheet component uses `fixed inset-y-0` (line 41) which starts at the very top of the viewport, behind the notch/safe-area. The `p-6` padding isn't enough to clear it.
+### Root cause of scrollbar
+App.tsx uses `paddingTop` on a `min-h-screen` container. Inner pages also use `min-h-screen` (= 100vh). So total height = 100vh + safe-area padding → always overflows by ~24px → scrollbar appears everywhere.
 
-**Fix**: Add `paddingTop: 'max(env(safe-area-inset-top, 0px), 1.5rem)'` to the Sheet content for `right` and `left` sides, matching the global app safe-area offset. This is best done in `src/components/ui/sheet.tsx` line 58, by adding a style prop with the safe-area padding.
-
-### Issue 2: Progress ring shows no color at 0/0
-On Dashboard line 232-248, when `weeklyProgress` is 0, the `strokeDashoffset` equals the full circumference, so the gradient stroke is invisible — the ring appears grey/colorless.
-
-**Fix**: In Dashboard.tsx, when progress is 0, still render a minimal visible arc (e.g., force a minimum `strokeDashoffset` so ~2% of the ring is visible), OR always show the gradient ring with at least a tiny visible stroke. The simplest approach: set a minimum progress of ~2 when `weeklyGoal > 0` so the green arc is always slightly visible, showing the user there's a ring to fill.
+### Fix approach
+Change App.tsx wrapper to `h-screen flex flex-col overflow-hidden` with the paddingTop. Wrap `<AppRoutes />` in a `flex-1 overflow-y-auto` div. Then replace `min-h-screen` with `min-h-full` on all pages so they fill the remaining space exactly.
 
 ### Files to modify
 
-| File | Change |
-|------|--------|
-| `src/components/ui/sheet.tsx` | Line 58: add safe-area paddingTop style to SheetContent |
-| `src/pages/Dashboard.tsx` | Line 240: use `Math.max(2, weeklyProgress)` for strokeDashoffset so the ring always shows some color |
+**`src/App.tsx`** (line 91):
+- Change wrapper to `h-screen flex flex-col overflow-hidden bg-background max-w-md mx-auto relative`
+- Wrap `<AppRoutes />` in `<div className="flex-1 overflow-y-auto">`
+
+**All pages — replace `min-h-screen` with `min-h-full`** (8 files):
+| File | Lines |
+|------|-------|
+| `src/pages/Dashboard.tsx` | 133, 221 |
+| `src/pages/Shop.tsx` | 109, 117, 128 |
+| `src/pages/PhotoVerify.tsx` | 166, 190, 213, 237 |
+| `src/pages/Friends.tsx` | 87 |
+| `src/pages/Orders.tsx` | 86 |
+| `src/pages/Notifications.tsx` | 161 |
+| `src/pages/Settings.tsx` | 39 |
+| `src/pages/Rewards.tsx` | 49 |
+
+### Translations verification
+All notification types (11 types) are already translated in `notif-i18n.ts`. Edge functions and `useFriends.ts` already use locale-aware notifications. The DB trigger for referral_signup is also translated. The UI strings use `t()` throughout. No remaining hardcoded French strings found in notification logic.
 

@@ -237,7 +237,7 @@ const Dashboard = () => {
               strokeWidth="8"
               strokeLinecap="round"
               strokeDasharray={`${2 * Math.PI * 52}`}
-              strokeDashoffset={`${2 * Math.PI * 52 * (1 - Math.max(2, weeklyProgress) / 100)}`}
+              strokeDashoffset={`${2 * Math.PI * 52 * (1 - weeklyProgress / 100)}`}
               className="transition-all duration-1000"
             />
             <defs>
