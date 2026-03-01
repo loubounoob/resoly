@@ -1,57 +1,48 @@
 
 
-## Plan : 4 corrections i18n + layout
+## Plan : Traduction des notifications + Fix affichage ami 0/0
 
-### 1. Espace en haut de l'écran OnboardingChallenge (image 1)
+### 1. Traduction des notifications (titre + body)
 
-Le composant `OnboardingChallenge.tsx` utilise `fixed inset-0` et commence le contenu avec `pt-5`. Il manque le même safe-area padding que le reste de l'app.
+Toutes les notifications sont créées côté serveur avec du texte français en dur. Il faut récupérer le `country` du destinataire depuis son profil, mapper vers la locale, puis utiliser des textes traduits.
 
-**Fichier** : `src/pages/OnboardingChallenge.tsx` (ligne 247)
-- Ajouter un `div` safe-area identique à celui de `App.tsx` en tout premier enfant du conteneur, ou ajouter `style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 1.5rem)' }}` au conteneur `px-6 pt-5`.
+**Approche** : Ajouter une fonction utilitaire `getNotifTexts(locale, type, params)` dans chaque edge function qui génère le titre et le body dans la bonne langue.
 
-### 2. Stripe : langue et devise (image 2)
+**Fichiers à modifier** (6 edge functions + 1 hook frontend) :
 
-La page Stripe Checkout affiche "Payer Resoly" et la description en français malgré un utilisateur anglophone. Deux problèmes :
-- **Pas de `locale` passé** à `stripe.checkout.sessions.create()` dans les edge functions
-- **La description** est générée côté frontend via `t()` mais ça passe bien la langue. Le problème principal est le `locale` Stripe manquant.
+| Fichier | Notifications concernées |
+|---------|------------------------|
+| `src/hooks/useFriends.ts` | `friend_request`, `friend_accepted` (×3 occurrences) |
+| `supabase/functions/verify-payment/index.ts` | `referral_reward`, `social_challenge` |
+| `supabase/functions/complete-challenge/index.ts` | `challenge_completed`, `boost_completed` |
+| `supabase/functions/fail-challenge/index.ts` | `challenge_failed` |
+| `supabase/functions/check-challenge-peril/index.ts` | `challenge_peril` |
+| `supabase/functions/accept-boost-challenge/index.ts` | `challenge_accepted` |
+| `supabase/functions/decline-boost-challenge/index.ts` | `challenge_declined` |
 
-**Fichiers** :
-- `supabase/functions/create-challenge-payment/index.ts` : ajouter `locale` dans le body reçu et le passer à `stripe.checkout.sessions.create({ locale: ... })`
-- `supabase/functions/buy-coins/index.ts` : idem
-- `src/pages/CreateChallenge.tsx` : passer `locale` dans le body de l'invoke
-- `src/pages/CreateSocialChallenge.tsx` : idem
-- `src/components/BuyCoinsDrawer.tsx` : passer `locale` dans le body
+**Logique pour les edge functions** : Avant d'envoyer la notif, récupérer le `country` du profil destinataire → mapper vers locale (`FR`→`fr`, `DE/CH`→`de`, reste→`en`) → choisir le bon texte.
 
-Mapping locale : `fr` → `'fr'`, `en` → `'en'`, `de` → `'de'` (Stripe supporte ces valeurs directement)
+**Logique pour le hook frontend** (`useFriends.ts`) : Récupérer le `country` du profil du destinataire et mapper vers la locale.
 
-### 3. Shopify : descriptions non traduites (image 3)
+**Textes à traduire** (exemples) :
+- `friend_request` : "New friend request" / "Neue Freundschaftsanfrage"
+- `friend_accepted` : "Request accepted!" / "Anfrage akzeptiert!"
+- `challenge_completed` : "Challenge won! 🏆" / "Challenge geschafft! 🏆"
+- `challenge_failed` : "Challenge over... 😔" / "Challenge beendet... 😔"
+- `challenge_peril` : "⚠️ Your challenge is in danger!" / "⚠️ Deine Challenge ist in Gefahr!"
+- `social_challenge` : "You've been gifted a challenge! 🎁" / "Du hast eine Challenge geschenkt bekommen! 🎁"
+- `challenge_accepted` : "Challenge accepted! 🔥" / "Challenge angenommen! 🔥"
+- `challenge_declined` : "Challenge declined" / "Challenge abgelehnt"
+- `referral_reward` : "Referral bonus available 🪙" / "Empfehlungsbonus verfügbar 🪙"
+- `boost_completed` : "Gifted challenge completed! 🎉" / "Geschenkte Challenge geschafft! 🎉"
 
-Les options ("Taille") et descriptions produits viennent de Shopify en français. Deux approches :
-- Les noms d'options comme "Taille" restent dans Shopify (pas de traduction côté app pour les noms dynamiques)
-- Pour les descriptions HTML : créer une edge function de traduction via Lovable AI, ou traduire côté client
+### 2. Fix affichage 0/0 pour ami sans objectif cette semaine
 
-**Approche retenue** : Créer une edge function `translate-text` qui traduit un texte via Lovable AI. L'appeler depuis `ShopifyProductDetail.tsx` pour la description et les noms d'options quand la locale n'est pas `fr`.
+**Problème** : Quand un ami a un défi actif mais `first_week_sessions = 0` (défi démarré le week-end), `weeklyGoal = 0` → le ring affiche `0/0`.
 
-**Fichiers** :
-- Créer `supabase/functions/translate-text/index.ts`
-- Modifier `src/pages/ShopifyProductDetail.tsx` : appeler la traduction pour `descriptionHtml` et les noms d'options si `locale !== 'fr'`
+**Solution** : Dans `src/pages/Friends.tsx`, ne pas afficher le `MiniProgressRing` quand `weeklyGoal === 0`. Afficher le statut comme "No active challenge" dans ce cas.
 
-### 4. Gemini : réponse en français au lieu de la langue utilisateur (image 4)
-
-Le prompt dans `verify-photo` utilise déjà `${locale || 'en'}` et le frontend passe `locale`. Cependant, le fallback `reason` par défaut (ligne 87) est en français : `"Impossible d'analyser la photo"`.
-
-De plus, le prompt dit "language requested" mais le modèle peut l'ignorer. Il faut renforcer la directive.
-
-**Fichier** : `supabase/functions/verify-photo/index.ts`
-- Changer le fallback reason (ligne 87) pour être dynamique selon la locale
-- Renforcer le prompt : `"You MUST respond in ${localeName}. The reason field MUST be written in ${localeName}."`
-- Ajouter un mapping locale → nom de langue complet (`fr` → `French`, `en` → `English`, `de` → `German`)
-
----
-
-### Section technique
-
-- Stripe Checkout accepte un paramètre `locale` qui traduit toute l'interface de paiement (boutons, labels, etc.)
-- Pour la traduction Shopify, on utilisera Lovable AI avec un cache mémoire côté client pour éviter les appels répétés
-- Le prompt Gemini sera renforcé avec le nom complet de la langue plutôt que le code ISO
+**Fichier** : `src/pages/Friends.tsx`
+- Ligne 216 : conditionner `MiniProgressRing` sur `friend.weeklyGoal > 0`
+- Dans `getStatusInfo` : quand `friend.hasChallenge && friend.weeklyGoal === 0`, afficher un texte adapté (ex: "First week — starts Monday")
 
