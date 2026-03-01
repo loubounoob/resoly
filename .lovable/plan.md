@@ -1,67 +1,52 @@
 
 
-## Parrainage : notifications claimables pour toutes les recompenses
+## Plan: Système intelligent d'échec automatique de défi
 
-### Probleme actuel
+### Problème identifié
+Le job cron `fail-challenge-daily` n'a jamais été créé dans la base de données (aucun log d'exécution). Les défis impossibles à réussir restent affichés comme "actifs" partout dans l'app.
 
-Quand un filleul s'inscrit, le trigger `handle_new_user` credite directement 50 pieces au parrain sans aucune notification ni animation. Le parrain ne sait meme pas qu'il a ete parraine.
+### Solution en 3 couches
 
-La recompense de 250 pieces (premier defi du filleul) passe deja par une notification claimable -- cette partie fonctionne.
+**Couche 1 — Vérification temps réel côté client (Dashboard + Friends)**
+Ajouter une détection côté frontend : quand un utilisateur ouvre le Dashboard ou la page Amis, vérifier immédiatement si son défi est encore faisable. Si `sessionsRestantes > joursRestants`, appeler l'edge function `fail-challenge` pour ce défi spécifique, puis rafraîchir les données.
 
-### Solution
+- Modifier `useActiveChallenge` dans `useChallenge.ts` pour inclure une vérification automatique à chaque fetch : si le défi retourné est mathématiquement impossible, déclencher le marquage en échec côté serveur
+- Modifier `useFriendsActivity` dans `useFriends.ts` pour filtrer les défis impossibles et ne pas les afficher comme actifs
 
-Transformer le credit direct de 50 pieces en notification claimable, identique au systeme deja en place pour les 250 pieces.
+**Couche 2 — Edge Function améliorée**
+Modifier `fail-challenge/index.ts` pour accepter un paramètre optionnel `challenge_id` permettant de cibler un seul défi (appel temps réel depuis le client), en plus du mode batch existant (cron).
 
-### Modifications
+**Couche 3 — Création du cron job dans la base**
+Exécuter le SQL pour créer le job `pg_cron` quotidien à 23h UTC qui appelle `fail-challenge` en batch. Cela garantit que même les utilisateurs qui n'ouvrent pas l'app voient leur défi échouer.
 
-**1. Trigger `handle_new_user` (migration SQL)**
-
-Supprimer la ligne `UPDATE profiles SET coins = coins + 50` et la remplacer par un INSERT direct dans la table `notifications` avec le type `referral_reward` :
+### Détails techniques
 
 ```text
-INSERT INTO notifications (user_id, type, title, body, data)
-VALUES (
-  _referrer_id,
-  'referral_reward',
-  'Nouveau filleul ! 🎉',
-  '@username s inscrit grace a toi. Recupere tes 50 pieces.',
-  '{"coins": 50, "referred_user_id": "...", "reward_type": "referral_signup", "claimed": false}'
-);
+┌──────────────────────────────────────────────────┐
+│  Utilisateur ouvre Dashboard/Friends             │
+│  → useActiveChallenge() fetch le défi            │
+│  → Calcul client: sessionsRestantes > joursLeft? │
+│  → OUI → invoke("fail-challenge", {challenge_id})│
+│  → Invalide le cache → overlay ChallengeFailedOverlay│
+└──────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────┐
+│  Cron 23h UTC tous les jours                     │
+│  → fail-challenge (mode batch, tous les défis)   │
+│  → Marque en "failed" + notification + sheets    │
+└──────────────────────────────────────────────────┘
 ```
 
-Le parrain ne recoit plus les pieces automatiquement -- il devra cliquer "Recuperer" dans ses notifications.
+### Fichiers modifiés
+1. `supabase/functions/fail-challenge/index.ts` — Accepter `challenge_id` optionnel pour mode ciblé
+2. `src/hooks/useChallenge.ts` — Ajouter un hook `useAutoFailCheck` qui vérifie et déclenche l'échec automatiquement
+3. `src/pages/Dashboard.tsx` — Intégrer `useAutoFailCheck` pour détecter l'échec dès l'ouverture
+4. `src/hooks/useFriends.ts` — Filtrer les défis impossibles côté client dans `useFriendsActivity`
+5. Migration SQL — Créer le cron job `fail-challenge-daily` via `pg_cron`
 
-**2. Notification push (trigger SQL)**
-
-Comme `handle_new_user` s'execute dans un trigger (pas dans une edge function), on ne peut pas facilement appeler `send-notification` pour le push. On inserera directement dans la table `notifications` (notification in-app). Le push sera un bonus futur si necessaire.
-
-Alternativement, on peut utiliser `pg_net` pour appeler l'edge function `send-notification` depuis le trigger, ce qui enverra aussi le push natif.
-
-**3. Edge function `claim-referral-reward` -- deja fonctionnelle**
-
-Aucune modification necessaire. Elle gere deja :
-- Validation de la notification
-- Prevention du double-claim
-- Credit des pieces
-- Marquage `claimed: true`
-
-**4. Page Notifications -- deja fonctionnelle**
-
-Le bouton "Recuperer X pieces" et l'animation `coinBurst` sont deja implementes pour le type `referral_reward`. Les 50 pieces de parrainage utiliseront exactement le meme rendu.
-
-### Resume
-
-| Element | Avant | Apres |
-|---------|-------|-------|
-| 50 pieces (inscription filleul) | Credit direct, invisible | Notification claimable avec animation |
-| 250 pieces (defi filleul) | Notification claimable | Inchange |
-| Animation de gain | Existante pour 250 | Identique pour les deux |
-
-### Fichiers modifies
-
-| Fichier | Modification |
-|---------|-------------|
-| Migration SQL | Modifier `handle_new_user` : remplacer credit direct par INSERT notification + appel push via `pg_net` |
-
-Un seul fichier a modifier (migration SQL pour le trigger). Le reste du systeme (claim, UI, animations) est deja en place.
+### Résultat attendu
+- Un défi est marqué "failed" en temps réel dès que l'utilisateur (ou un ami) ouvre l'app
+- Le cron nocturne couvre les utilisateurs inactifs
+- L'overlay d'échec s'affiche immédiatement sans délai
+- La page Amis n'affiche plus "Dernière chance" pour des défis déjà impossibles
 
