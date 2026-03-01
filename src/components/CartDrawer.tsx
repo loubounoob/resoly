@@ -9,6 +9,7 @@ import { useUserCoins } from "@/hooks/useChallenge";
 import { ShippingFormDrawer, ShippingInfo } from "@/components/ShippingFormDrawer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const COINS_PER_EURO = 50;
 
@@ -16,6 +17,7 @@ export const CartDrawer = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [shippingOpen, setShippingOpen] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const { t } = useLocale();
   const { items, updateQuantity, removeItem, clearCart } = useCartStore();
   const { data: coins, refetch: refetchCoins } = useUserCoins();
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -25,7 +27,7 @@ export const CartDrawer = () => {
     setPurchasing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Non connecté");
+      if (!session) throw new Error(t('shop.notConnected'));
 
       for (const item of items) {
         const res = await supabase.functions.invoke("purchase-with-coins", {
@@ -48,10 +50,10 @@ export const CartDrawer = () => {
       clearCart();
       setShippingOpen(false);
       setIsOpen(false);
-      toast.success("Commande passée avec succès !");
+      toast.success(t('cart.orderSuccess'));
       refetchCoins();
     } catch (err: any) {
-      toast.error(err.message === "Not enough coins" ? "Pas assez de pièces" : err.message || "Erreur lors de l'achat");
+      toast.error(err.message === "Not enough coins" ? t('shop.notEnoughCoins') : err.message || t('cart.orderError'));
     } finally {
       setPurchasing(false);
     }
@@ -72,9 +74,9 @@ export const CartDrawer = () => {
         </SheetTrigger>
         <SheetContent className="w-full sm:max-w-lg flex flex-col h-full">
           <SheetHeader className="flex-shrink-0">
-            <SheetTitle>Panier</SheetTitle>
+            <SheetTitle>{t('cart.title')}</SheetTitle>
             <SheetDescription>
-              {totalItems === 0 ? "Ton panier est vide" : `${totalItems} article${totalItems !== 1 ? 's' : ''}`}
+              {totalItems === 0 ? t('cart.empty') : t('cart.articles', { count: totalItems })}
             </SheetDescription>
           </SheetHeader>
           <div className="flex flex-col flex-1 pt-6 min-h-0">
@@ -82,7 +84,7 @@ export const CartDrawer = () => {
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
                   <ShoppingCart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">Ton panier est vide</p>
+                  <p className="text-muted-foreground">{t('cart.empty')}</p>
                 </div>
               </div>
             ) : (
@@ -101,7 +103,7 @@ export const CartDrawer = () => {
                           <div className="flex-1 min-w-0">
                             <h4 className="font-medium truncate">{item.product.node.title}</h4>
                             <p className="text-sm text-muted-foreground">{item.selectedOptions.map(o => o.value).join(' • ')}</p>
-                            <p className="font-semibold flex items-center gap-1"><CoinIcon size={14} /> {itemCoins * item.quantity} pièces</p>
+                            <p className="font-semibold flex items-center gap-1"><CoinIcon size={14} /> {itemCoins * item.quantity} {t('common.coins')}</p>
                           </div>
                           <div className="flex flex-col items-end gap-2 flex-shrink-0">
                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(item.variantId)}>
@@ -124,14 +126,14 @@ export const CartDrawer = () => {
                 </div>
                 <div className="flex-shrink-0 space-y-4 pt-4 border-t">
                   <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold">Total</span>
-                    <span className="text-xl font-bold flex items-center gap-1"><CoinIcon size={16} /> {totalCoins} pièces</span>
+                    <span className="text-lg font-semibold">{t('cart.total')}</span>
+                    <span className="text-xl font-bold flex items-center gap-1"><CoinIcon size={16} /> {totalCoins} {t('common.coins')}</span>
                   </div>
                   {(coins ?? 0) < totalCoins && (
-                    <p className="text-xs text-destructive text-center">Solde insuffisant ({coins ?? 0}/{totalCoins} pièces)</p>
+                    <p className="text-xs text-destructive text-center">{t('cart.insufficientBalance', { current: coins ?? 0, needed: totalCoins })}</p>
                   )}
                   <Button onClick={() => setShippingOpen(true)} className="w-full" size="lg" disabled={items.length === 0 || (coins ?? 0) < totalCoins}>
-                    <CoinIcon size={16} /> Commander — {totalCoins} pièces
+                    <CoinIcon size={16} /> {t('cart.order', { coins: totalCoins })}
                   </Button>
                 </div>
               </>

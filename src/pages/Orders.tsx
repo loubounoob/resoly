@@ -6,25 +6,25 @@ import { useAuth } from "@/contexts/AuthContext";
 import CoinIcon from "@/components/CoinIcon";
 import BottomNav from "@/components/BottomNav";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
-import { fetchShopifyProducts, type ShopifyProduct } from "@/lib/shopify";
-import { useEffect, useState, useMemo } from "react";
+import { fetchShopifyProducts } from "@/lib/shopify";
+import { useEffect, useState } from "react";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const statusSteps = [
-  { key: "pending", label: "Attente" },
-  { key: "preparing", label: "Prép." },
-  { key: "shipping", label: "Livraison" },
-  { key: "arriving", label: "Bientôt" },
-  { key: "delivered", label: "Arrivé" },
+  { key: "pending", labelKey: "orders.stepPending" },
+  { key: "preparing", labelKey: "orders.stepPrep" },
+  { key: "shipping", labelKey: "orders.stepShipping" },
+  { key: "arriving", labelKey: "orders.stepArriving" },
+  { key: "delivered", labelKey: "orders.stepDelivered" },
 ] as const;
 
-const statusColors: Record<string, { label: string; color: string }> = {
-  pending: { label: "En attente", color: "bg-yellow-500/20 text-yellow-400" },
-  preparing: { label: "Préparation", color: "bg-orange-500/20 text-orange-400" },
-  shipping: { label: "Livraison", color: "bg-blue-500/20 text-blue-400" },
-  arriving: { label: "Arrive bientôt", color: "bg-primary/20 text-primary" },
-  delivered: { label: "Arrivé", color: "bg-green-500/20 text-green-400" },
-  cancelled: { label: "Annulée", color: "bg-destructive/20 text-destructive" },
+const statusColors: Record<string, { labelKey: string; color: string }> = {
+  pending: { labelKey: "orders.statusPending", color: "bg-yellow-500/20 text-yellow-400" },
+  preparing: { labelKey: "orders.statusPreparing", color: "bg-orange-500/20 text-orange-400" },
+  shipping: { labelKey: "orders.statusShipping", color: "bg-blue-500/20 text-blue-400" },
+  arriving: { labelKey: "orders.statusArriving", color: "bg-primary/20 text-primary" },
+  delivered: { labelKey: "orders.statusDelivered", color: "bg-green-500/20 text-green-400" },
+  cancelled: { labelKey: "orders.statusCancelled", color: "bg-destructive/20 text-destructive" },
 };
 
 const getComputedStatus = (createdAt: string, dbStatus: string): string => {
@@ -48,6 +48,7 @@ const getStatusIndex = (status: string): number => {
 const Orders = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, dateLocale } = useLocale();
 
   const [shopifyMap, setShopifyMap] = useState<
     Record<string, { imageUrl: string; handle: string }>
@@ -87,7 +88,7 @@ const Orders = () => {
         <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-lg hover:bg-secondary transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-xl font-display font-bold">Mes commandes</h1>
+        <h1 className="text-xl font-display font-bold">{t('orders.title')}</h1>
       </div>
 
       {isLoading ? (
@@ -97,7 +98,7 @@ const Orders = () => {
       ) : !orders?.length ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
           <Package className="w-12 h-12 text-muted-foreground" />
-          <p className="text-muted-foreground text-sm">Aucune commande pour le moment</p>
+          <p className="text-muted-foreground text-sm">{t('orders.noOrders')}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -132,7 +133,7 @@ const Orders = () => {
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-semibold text-sm truncate flex-1">{order.product_title}</h3>
                       <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${status.color}`}>
-                        {status.label}
+                        {t(status.labelKey)}
                       </span>
                     </div>
                     {order.variant_title && (
@@ -144,7 +145,7 @@ const Orders = () => {
                         <span className="text-sm font-bold">{order.coins_spent}</span>
                       </div>
                       <span className="text-[11px] text-muted-foreground">
-                        {format(new Date(order.created_at), "d MMM yyyy", { locale: fr })}
+                        {format(new Date(order.created_at), "d MMM yyyy", { locale: dateLocale })}
                       </span>
                     </div>
                   </div>
@@ -167,7 +168,7 @@ const Orders = () => {
                             i <= stepIdx ? "text-primary font-semibold" : "text-muted-foreground"
                           }`}
                         >
-                          {s.label}
+                          {t(s.labelKey)}
                         </span>
                       ))}
                     </div>

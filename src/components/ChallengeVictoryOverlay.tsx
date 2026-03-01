@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import CoinIcon from "@/components/CoinIcon";
 import { supabase } from "@/integrations/supabase/client";
 import confetti from "canvas-confetti";
+import { useLocale } from "@/contexts/LocaleContext";
 
 interface ChallengeVictoryOverlayProps {
   betAmount: number;
@@ -24,19 +25,17 @@ const ChallengeVictoryOverlay = ({
 }: ChallengeVictoryOverlayProps) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t, formatCurrency } = useLocale();
   const [phase, setPhase] = useState(0);
   const [coinCount, setCoinCount] = useState(0);
   const [refundStatus, setRefundStatus] = useState<"loading" | "success" | "slow" | "error">("loading");
-  const [refundData, setRefundData] = useState<{ refunded: boolean } | null>(null);
   const animFrameRef = useRef<number>();
 
-  // Launch confetti bursts
   const fireConfetti = useCallback(() => {
     const gold = ["#FFD700", "#FFA500", "#FFEC8B", "#DAA520"];
     const green = ["#7CFC00", "#ADFF2F", "#9ACD32"];
     const colors = [...gold, ...green];
 
-    // Big side bursts
     confetti({ particleCount: 80, spread: 70, origin: { x: 0.1, y: 0.6 }, colors, gravity: 0.8 });
     confetti({ particleCount: 80, spread: 70, origin: { x: 0.9, y: 0.6 }, colors, gravity: 0.8 });
 
@@ -50,7 +49,6 @@ const ChallengeVictoryOverlay = ({
     }, 700);
   }, []);
 
-  // Animate coin counter
   const animateCoins = useCallback(() => {
     const duration = 2000;
     const start = performance.now();
@@ -58,7 +56,6 @@ const ChallengeVictoryOverlay = ({
     const tick = (now: number) => {
       const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
-      // Ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
       setCoinCount(Math.round(eased * coinsEarned));
 
@@ -70,7 +67,6 @@ const ChallengeVictoryOverlay = ({
     animFrameRef.current = requestAnimationFrame(tick);
   }, [coinsEarned]);
 
-  // Call complete-challenge on mount
   useEffect(() => {
     const slowTimer = setTimeout(() => {
       setRefundStatus((s) => (s === "loading" ? "slow" : s));
@@ -84,9 +80,6 @@ const ChallengeVictoryOverlay = ({
           setRefundStatus("error");
         } else {
           setRefundStatus("success");
-          setRefundData(data);
-          // Don't invalidate queries here — wait until user clicks a CTA
-          // so the overlay doesn't get unmounted prematurely
         }
       })
       .catch(() => {
@@ -97,9 +90,7 @@ const ChallengeVictoryOverlay = ({
     return () => clearTimeout(slowTimer);
   }, [challengeId, queryClient]);
 
-  // Phase progression
   useEffect(() => {
-    // Phase 0 → 1 immediately (confetti)
     fireConfetti();
     setPhase(1);
 
@@ -129,12 +120,11 @@ const ChallengeVictoryOverlay = ({
     queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
     queryClient.invalidateQueries({ queryKey: ["user-coins"] });
     onClose();
-    navigate("/create-social-challenge");
+    navigate("/friends/create-social");
   };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm">
-      {/* Golden particles background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {Array.from({ length: 20 }).map((_, i) => (
           <div
@@ -150,7 +140,6 @@ const ChallengeVictoryOverlay = ({
         ))}
       </div>
 
-      {/* Phase 2: Trophy + Title */}
       {phase >= 2 && (
         <div className="flex flex-col items-center animate-scale-in">
           <div className="relative mb-4">
@@ -161,40 +150,38 @@ const ChallengeVictoryOverlay = ({
           </div>
 
           <h1 className="text-3xl font-display font-bold text-gradient-gold mb-2 tracking-tight">
-            DÉFI RÉUSSI !
+            {t('victory.challengeSuccess')}
           </h1>
 
-          {/* Refund / Boost message */}
           <div className="flex flex-col items-center mt-2 mb-4">
             <span className="text-2xl font-display font-bold text-gradient-gold">
-              {isBoosted ? "Défi offert réussi !" : `${betAmount}€ remboursés`}
+              {isBoosted ? t('victory.boostedSuccess') : t('victory.refunded', { amount: formatCurrency(betAmount) })}
             </span>
             {!isBoosted && (refundStatus === "loading" || refundStatus === "slow") && (
               <div className="flex items-center gap-2 mt-1.5">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
                 <span className="text-xs text-amber-200/60">
                   {refundStatus === "slow"
-                    ? "Le virement peut prendre quelques instants..."
-                    : "Traitement en cours..."}
+                    ? t('victory.slow')
+                    : t('victory.processing')}
                 </span>
               </div>
             )}
             {isBoosted && (refundStatus === "loading" || refundStatus === "slow") && (
               <div className="flex items-center gap-2 mt-1.5">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                <span className="text-xs text-amber-200/60">Finalisation...</span>
+                <span className="text-xs text-amber-200/60">{t('victory.finalization')}</span>
               </div>
             )}
             {refundStatus === "error" && (
               <span className="text-xs text-destructive mt-1.5">
-                Erreur. Contacte le support.
+                {t('victory.errorContact')}
               </span>
             )}
           </div>
         </div>
       )}
 
-      {/* Phase 3: Coin counter */}
       {phase >= 3 && (
         <div className="flex flex-col items-center animate-fade-in mt-2">
           <div className="flex items-center gap-3 bg-secondary/50 border border-amber-500/30 rounded-2xl px-6 py-4">
@@ -203,20 +190,19 @@ const ChallengeVictoryOverlay = ({
               +{coinCount}
             </span>
           </div>
-          <span className="text-xs text-muted-foreground mt-2">pièces gagnées</span>
+          <span className="text-xs text-muted-foreground mt-2">{t('victory.coinsEarned')}</span>
         </div>
       )}
 
-      {/* Phase 4: CTAs */}
       {phase >= 4 && (
         <div className="flex flex-col items-center gap-3 mt-8 animate-fade-in w-full max-w-xs px-6">
-          <p className="text-sm text-muted-foreground mb-2 font-medium">Et maintenant ?</p>
+          <p className="text-sm text-muted-foreground mb-2 font-medium">{t('victory.whatsNext')}</p>
           <Button
             onClick={handleNewChallenge}
             className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
             <Plus className="w-5 h-5 mr-2" />
-            Nouveau défi
+            {t('victory.newChallenge')}
           </Button>
           <Button
             onClick={handleGiftChallenge}
@@ -224,7 +210,7 @@ const ChallengeVictoryOverlay = ({
             className="w-full h-12 font-display font-semibold border-amber-500/30 text-amber-300 hover:bg-amber-500/10 rounded-xl"
           >
             <Gift className="w-4 h-4 mr-2" />
-            Offrir un défi
+            {t('victory.giftChallenge')}
           </Button>
         </div>
       )}

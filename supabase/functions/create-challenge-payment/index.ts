@@ -24,29 +24,20 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated");
 
-    const { challengeId, socialChallengeId, memberId, amount, description, promoCode } = await req.json();
+    const { challengeId, socialChallengeId, memberId, amount, description, currency } = await req.json();
     if (!amount) throw new Error("Missing amount");
     if (!challengeId && !socialChallengeId) throw new Error("Missing challengeId or socialChallengeId");
-
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
-
-    // Promo code support removed
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2025-08-27.basil",
     });
 
-    // Find or create Stripe customer
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     let customerId;
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
     }
 
-    // Build success URL with appropriate params
     const origin = req.headers.get("origin");
     let successUrl: string;
     if (socialChallengeId) {
@@ -55,16 +46,18 @@ serve(async (req) => {
       successUrl = `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&challenge_id=${challengeId}`;
     }
 
+    const currencyCode = (currency || 'EUR').toLowerCase();
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
       line_items: [
         {
           price_data: {
-            currency: "eur",
+            currency: currencyCode,
             product_data: {
-              name: "Mise Resoly",
-              description: description || "Mise pour défi fitness",
+              name: "Resoly",
+              description: description || "Fitness Challenge",
             },
             unit_amount: Math.round(amount * 100),
           },
@@ -95,72 +88,3 @@ serve(async (req) => {
     });
   }
 });
-
-async function checkAndActivateSocialChallenge(supabaseAdmin: any, socialChallengeId: string) {
-  // For boost challenges, don't activate here — accept-boost-challenge handles it
-  const { data: scCheck } = await supabaseAdmin
-    .from("social_challenges")
-    .select("type")
-    .eq("id", socialChallengeId)
-    .single();
-  if (scCheck?.type === "boost") return;
-
-  const { data: members } = await supabaseAdmin
-    .from("social_challenge_members")
-    .select("id, user_id, bet_amount, payment_status, challenge_id")
-    .eq("social_challenge_id", socialChallengeId);
-
-  if (members && members.length > 0 && members.every((m: any) => m.payment_status === "paid")) {
-    await supabaseAdmin
-      .from("social_challenges")
-      .update({ status: "active" })
-      .eq("id", socialChallengeId);
-
-    const { data: sc } = await supabaseAdmin
-      .from("social_challenges")
-      .select("*")
-      .eq("id", socialChallengeId)
-      .single();
-
-    if (sc) {
-      const totalSessions = sc.sessions_per_week * sc.duration_months * 4;
-      const now = new Date();
-      const dayOfWeek = now.getDay();
-      let firstWeekSessions: number;
-      if (dayOfWeek === 0 || dayOfWeek === 6) {
-        firstWeekSessions = 0;
-      } else {
-        const daysLeft = 8 - dayOfWeek;
-        firstWeekSessions = Math.min(
-          Math.max(1, Math.floor((sc.sessions_per_week / 7) * daysLeft)),
-          sc.sessions_per_week
-        );
-      }
-
-      for (const member of members) {
-        if (member.challenge_id) continue;
-        const { data: inserted } = await supabaseAdmin
-          .from("challenges")
-          .insert({
-            user_id: member.user_id,
-            sessions_per_week: sc.sessions_per_week,
-            duration_months: sc.duration_months,
-            bet_per_month: member.bet_amount,
-            total_sessions: totalSessions,
-            status: "active",
-            payment_status: "paid",
-            social_challenge_id: socialChallengeId,
-            first_week_sessions: firstWeekSessions,
-          })
-          .select("id")
-          .single();
-        if (inserted) {
-          await supabaseAdmin
-            .from("social_challenge_members")
-            .update({ challenge_id: inserted.id })
-            .eq("id", member.id);
-        }
-      }
-    }
-  }
-}

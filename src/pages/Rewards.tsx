@@ -4,8 +4,8 @@ import BottomNav from "@/components/BottomNav";
 import { useUserCoins, useShopProducts, type ShopProduct } from "@/hooks/useChallenge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const categories = [
   { value: "all", label: "Tout" },
@@ -35,6 +35,7 @@ const ProductCard = ({ product }: { product: ShopProduct }) => {
 const Rewards = () => {
   const { data: coins, isLoading: coinsLoading } = useUserCoins();
   const { data: products, isLoading: productsLoading } = useShopProducts();
+  const { t } = useLocale();
 
   if (coinsLoading || productsLoading) {
     return (
@@ -46,11 +47,10 @@ const Rewards = () => {
 
   return (
     <div className="min-h-screen flex flex-col px-4 pt-6 pb-24">
-      {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <ShoppingBag className="w-6 h-6 text-primary" />
-          <h1 className="text-xl font-bold">Boutique</h1>
+          <h1 className="text-xl font-bold">{t('shop.rewards')}</h1>
         </div>
         <div className="flex items-center gap-1.5 bg-gradient-card border border-border rounded-full px-3 py-1.5 shadow-card">
           <span className="text-base">🪙</span>
@@ -58,7 +58,6 @@ const Rewards = () => {
         </div>
       </div>
 
-      {/* Categories + Products */}
       <Tabs defaultValue="all" className="flex-1">
         <TabsList className="w-full">
           {categories.map((c) => (

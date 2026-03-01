@@ -4,12 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Loader2, XCircle, Flame, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import confetti from "canvas-confetti";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const PaymentSuccess = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [visible, setVisible] = useState(false);
+  const { t } = useLocale();
 
   const isSocial = !!searchParams.get("social_challenge_id");
   const isCoins = searchParams.get("type") === "coins";
@@ -60,7 +62,6 @@ const PaymentSuccess = () => {
     verify();
   }, [searchParams]);
 
-  // Fire confetti for personal challenge success
   useEffect(() => {
     if (status !== "success" || !isPersonalChallenge) return;
 
@@ -90,7 +91,6 @@ const PaymentSuccess = () => {
     frame();
   }, [status, isPersonalChallenge]);
 
-  // For non-personal success, also trigger visible
   useEffect(() => {
     if (status === "success" && !isPersonalChallenge) {
       setVisible(true);
@@ -106,7 +106,7 @@ const PaymentSuccess = () => {
       {status === "loading" && (
         <>
           <Loader2 className="w-12 h-12 text-primary animate-spin" />
-          <p className="text-muted-foreground">Vérification du paiement...</p>
+          <p className="text-muted-foreground">{t('paymentSuccess.verifying')}</p>
         </>
       )}
 
@@ -125,22 +125,22 @@ const PaymentSuccess = () => {
 
           <div>
             <h1 className="text-3xl font-display font-bold text-gradient-primary mb-2">
-              C'est parti !
+              {t('paymentSuccess.letsGo')}
             </h1>
             <p className="text-lg text-foreground/90 font-medium">
-              Ton défi est maintenant actif 🔥
+              {t('paymentSuccess.challengeActive')}
             </p>
           </div>
 
           <p className="text-muted-foreground text-sm max-w-[250px]">
-            Montre ce que tu vaux. Chaque séance compte.
+            {t('paymentSuccess.showWhatYouGot')}
           </p>
 
           <Button
             onClick={handleGo}
             className="h-12 px-8 text-base font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
-            Go
+            {t('common.go')}
             <ArrowRight className="w-5 h-5 ml-2" />
           </Button>
         </div>
@@ -152,18 +152,18 @@ const PaymentSuccess = () => {
             <CheckCircle2 className="w-10 h-10 text-primary" />
           </div>
           <h1 className="text-2xl font-display font-bold text-center">
-            {isCoins ? "Pièces ajoutées !" : "Paiement confirmé !"}
+            {isCoins ? t('paymentSuccess.coinsAddedTitle') : t('paymentSuccess.paymentConfirmed')}
           </h1>
           <p className="text-muted-foreground text-center text-sm">
             {isCoins
-              ? "Tes pièces ont été créditées sur ton compte ! 🪙"
-              : "Ta mise est enregistrée ! Le défi sera activé quand tous les participants auront payé. 🤝"}
+              ? t('paymentSuccess.coinsCredit')
+              : t('paymentSuccess.socialConfirmed')}
           </p>
           <Button
             onClick={handleGo}
             className="h-14 px-8 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
-            {isCoins ? "Retour" : "Voir mes défis"}
+            {isCoins ? t('paymentSuccess.returnBtn') : t('paymentSuccess.viewChallenges')}
           </Button>
         </>
       )}
@@ -173,16 +173,16 @@ const PaymentSuccess = () => {
           <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center">
             <XCircle className="w-10 h-10 text-destructive" />
           </div>
-          <h1 className="text-2xl font-display font-bold text-center">Erreur de paiement</h1>
+          <h1 className="text-2xl font-display font-bold text-center">{t('paymentSuccess.errorTitle')}</h1>
           <p className="text-muted-foreground text-center text-sm">
-            Le paiement n'a pas pu être vérifié. Réessaie ou contacte le support.
+            {t('paymentSuccess.errorDesc')}
           </p>
           <Button
             onClick={() => navigate(isSocial ? "/friends" : "/create")}
             variant="outline"
             className="rounded-xl"
           >
-            Retour
+            {t('paymentSuccess.returnBtn')}
           </Button>
         </>
       )}

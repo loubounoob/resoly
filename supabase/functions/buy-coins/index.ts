@@ -8,10 +8,10 @@ const corsHeaders = {
 };
 
 const PACKS: Record<string, { amount: number; coins: number; label: string }> = {
-  "10": { amount: 1000, coins: 500, label: "500 pièces" },
-  "20": { amount: 2000, coins: 1000, label: "1 000 pièces" },
-  "50": { amount: 5000, coins: 2500, label: "2 500 pièces" },
-  "100": { amount: 10000, coins: 5000, label: "5 000 pièces" },
+  "10": { amount: 1000, coins: 500, label: "500" },
+  "20": { amount: 2000, coins: 1000, label: "1000" },
+  "50": { amount: 5000, coins: 2500, label: "2500" },
+  "100": { amount: 10000, coins: 5000, label: "5000" },
 };
 
 serve(async (req) => {
@@ -31,9 +31,11 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated");
 
-    const { pack } = await req.json();
+    const { pack, currency } = await req.json();
     const packInfo = PACKS[String(pack)];
     if (!packInfo) throw new Error("Invalid pack");
+
+    const currencyCode = (currency || 'EUR').toLowerCase();
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2025-08-27.basil",
@@ -51,8 +53,8 @@ serve(async (req) => {
       line_items: [
         {
           price_data: {
-            currency: "eur",
-            product_data: { name: packInfo.label },
+            currency: currencyCode,
+            product_data: { name: `${packInfo.label} coins` },
             unit_amount: packInfo.amount,
           },
           quantity: 1,

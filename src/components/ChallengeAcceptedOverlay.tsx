@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Flame, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import confetti from "canvas-confetti";
+import { useLocale } from "@/contexts/LocaleContext";
 
 interface ChallengeAcceptedOverlayProps {
   onClose?: () => void;
@@ -11,12 +12,11 @@ interface ChallengeAcceptedOverlayProps {
 const ChallengeAcceptedOverlay = ({ onClose }: ChallengeAcceptedOverlayProps) => {
   const navigate = useNavigate();
   const [visible, setVisible] = useState(false);
+  const { t } = useLocale();
 
   useEffect(() => {
-    // Trigger entrance animation
     requestAnimationFrame(() => setVisible(true));
 
-    // Fire confetti
     const duration = 2500;
     const end = Date.now() + duration;
     const colors = ["#a3e635", "#facc15", "#f97316", "#22d3ee"];
@@ -40,7 +40,7 @@ const ChallengeAcceptedOverlay = ({ onClose }: ChallengeAcceptedOverlayProps) =>
     };
     frame();
 
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleGo = () => {
     setVisible(false);
@@ -62,7 +62,6 @@ const ChallengeAcceptedOverlay = ({ onClose }: ChallengeAcceptedOverlayProps) =>
           visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-75 translate-y-8"
         }`}
       >
-        {/* Animated flame icon */}
         <div className="relative">
           <div className="w-24 h-24 rounded-full bg-gradient-primary flex items-center justify-center shadow-glow animate-pulse">
             <Flame className="w-12 h-12 text-primary-foreground" />
@@ -70,22 +69,19 @@ const ChallengeAcceptedOverlay = ({ onClose }: ChallengeAcceptedOverlayProps) =>
           <div className="absolute inset-0 w-24 h-24 rounded-full bg-primary/20 animate-ping" />
         </div>
 
-        {/* Title */}
         <div>
           <h1 className="text-3xl font-display font-bold text-gradient-primary mb-2">
-            C'est parti !
+            {t('accepted.letsGo')}
           </h1>
           <p className="text-lg text-foreground/90 font-medium">
-            Le défi est lancé 🔥
+            {t('accepted.challengeLaunched')}
           </p>
         </div>
 
-        {/* Subtitle */}
         <p className="text-muted-foreground text-sm max-w-[250px]">
-          Montre ce que tu vaux. Chaque séance compte.
+          {t('accepted.showWhatYouGot')}
         </p>
 
-        {/* Go button */}
         <Button
           onClick={(e) => {
             e.stopPropagation();
@@ -93,7 +89,7 @@ const ChallengeAcceptedOverlay = ({ onClose }: ChallengeAcceptedOverlayProps) =>
           }}
           className="h-12 px-8 text-base font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
         >
-          Go
+          {t('common.go')}
           <ArrowRight className="w-5 h-5 ml-2" />
         </Button>
       </div>

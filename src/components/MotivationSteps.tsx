@@ -1,4 +1,5 @@
 import { Target, Activity, Zap, Trophy, Rocket } from "lucide-react";
+import { useLocale } from "@/contexts/LocaleContext";
 
 type Step = "motivation1" | "motivation2" | "motivation3" | "motivation4" | "motivation5";
 
@@ -8,66 +9,48 @@ interface MotivationStepsProps {
   onFinish: () => void;
 }
 
-const STEP1_OPTIONS = ["Mon père", "Ma mère", "Un(e) pote", "Mon frère / ma sœur", "Autre"];
-const STEP2_OPTIONS = [
-  "Pas du tout",
-  "De temps en temps",
-  "Régulièrement mais peut mieux faire",
-  "Il/elle a lâché depuis un moment",
-];
-const STEP3_OPTIONS = [
-  "Je veux qu'on s'y mette ensemble",
-  "Il/elle a besoin d'un coup de boost",
-  "Je veux lui prouver que j'y crois",
-  "C'est un cadeau qui change vraiment quelque chose",
-];
-const STEP4_OPTIONS = [
-  "Qu'il/elle reprenne une routine",
-  "Qu'il/elle se sente mieux",
-  "Qu'on se challenge à deux",
-  "Qu'il/elle se dépasse",
-];
-
 type StepConfig = {
   icon: React.ReactNode;
   iconBg: string;
-  title: string;
-  subtitle: string;
-  options: string[];
+  titleKey: string;
+  subtitleKey: string;
+  optionsKey: string;
 };
 
 const STEPS: Record<Exclude<Step, "motivation5">, StepConfig> = {
   motivation1: {
     icon: <Target className="w-8 h-8 text-primary" />,
     iconBg: "bg-primary/10",
-    title: "Tu veux remettre qui sur les rails ?",
-    subtitle: "Choisis ta cible.",
-    options: STEP1_OPTIONS,
+    titleKey: "motivation.step1Title",
+    subtitleKey: "motivation.step1Sub",
+    optionsKey: "motivation.step1Opts",
   },
   motivation2: {
     icon: <Activity className="w-8 h-8 text-accent" />,
     iconBg: "bg-accent/10",
-    title: "Niveau sport, il/elle en est où ?",
-    subtitle: "Ça nous aide à calibrer le défi.",
-    options: STEP2_OPTIONS,
+    titleKey: "motivation.step2Title",
+    subtitleKey: "motivation.step2Sub",
+    optionsKey: "motivation.step2Opts",
   },
   motivation3: {
     icon: <Zap className="w-8 h-8 text-primary" />,
     iconBg: "bg-primary/10",
-    title: "Qu'est-ce qui t'a décidé ?",
-    subtitle: "Pourquoi maintenant ?",
-    options: STEP3_OPTIONS,
+    titleKey: "motivation.step3Title",
+    subtitleKey: "motivation.step3Sub",
+    optionsKey: "motivation.step3Opts",
   },
   motivation4: {
     icon: <Trophy className="w-8 h-8 text-accent" />,
     iconBg: "bg-accent/10",
-    title: "L'objectif, c'est quoi ?",
-    subtitle: "Tu vises quoi pour lui/elle ?",
-    options: STEP4_OPTIONS,
+    titleKey: "motivation.step4Title",
+    subtitleKey: "motivation.step4Sub",
+    optionsKey: "motivation.step4Opts",
   },
 };
 
 const MotivationSteps = ({ step, onSelect, onFinish }: MotivationStepsProps) => {
+  const { t } = useLocale();
+
   if (step === "motivation5") {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center px-2 gap-8">
@@ -75,23 +58,25 @@ const MotivationSteps = ({ step, onSelect, onFinish }: MotivationStepsProps) => 
           <Rocket className="w-8 h-8 text-primary" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-xl font-bold">Les vrais passent à l'action.</h2>
-          <p className="text-sm text-muted-foreground">Offrir un défi, c'est parier sur quelqu'un. Et ça, c'est fort.</p>
+          <h2 className="text-xl font-bold">{t('motivation.step5Title')}</h2>
+          <p className="text-sm text-muted-foreground">{t('motivation.step5Sub')}</p>
         </div>
         <button
           onClick={onFinish}
           className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl transition-all active:scale-[0.98] inline-flex items-center justify-center gap-2"
         >
-          <Rocket className="w-5 h-5" /> C'est parti
+          <Rocket className="w-5 h-5" /> {t('motivation.step5Cta')}
         </button>
         <p className="text-xs text-muted-foreground italic">
-          Un défi offert, c'est un game changer.
+          {t('motivation.step5Note')}
         </p>
       </div>
     );
   }
 
   const config = STEPS[step];
+  // @ts-ignore - optionsKey returns array from i18n
+  const options = t(config.optionsKey) as unknown as string[];
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center px-2 gap-6">
@@ -99,11 +84,11 @@ const MotivationSteps = ({ step, onSelect, onFinish }: MotivationStepsProps) => 
         {config.icon}
       </div>
       <div>
-        <h2 className="text-xl font-bold">{config.title}</h2>
-        <p className="text-sm text-muted-foreground mt-1">{config.subtitle}</p>
+        <h2 className="text-xl font-bold">{t(config.titleKey)}</h2>
+        <p className="text-sm text-muted-foreground mt-1">{t(config.subtitleKey)}</p>
       </div>
       <div className="w-full space-y-2">
-        {config.options.map((opt) => (
+        {options.map((opt) => (
           <button
             key={opt}
             onClick={() => onSelect(step, opt)}

@@ -5,13 +5,13 @@ import { useNotifications, useMarkNotificationsRead } from "@/hooks/useNotificat
 import { useRespondFriendRequestByUserId } from "@/hooks/useFriends";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
 import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import ChallengeAcceptedOverlay from "@/components/ChallengeAcceptedOverlay";
 import CoinIcon from "@/components/CoinIcon";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const typeConfig: Record<string, { icon: typeof UserPlus; color: string }> = {
   friend_request: { icon: UserPlus, color: "text-blue-400" },
@@ -31,6 +31,7 @@ const typeConfig: Record<string, { icon: typeof UserPlus; color: string }> = {
 const Notifications = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t, dateLocale } = useLocale();
   const { data: notifications, isLoading, refetch } = useNotifications();
   const markRead = useMarkNotificationsRead();
   const respondMutation = useRespondFriendRequestByUserId();
@@ -42,9 +43,10 @@ const Notifications = () => {
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [coinBurst, setCoinBurst] = useState<number | null>(null);
+  
   useEffect(() => {
     markRead.mutate();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRespond = (notifId: string, fromUserId: string, accept: boolean) => {
     setRespondedIds(prev => new Set(prev).add(notifId));
@@ -53,9 +55,9 @@ const Notifications = () => {
       {
         onSuccess: (result: any) => {
           if (result?.alreadyHandled) {
-            toast.info("Cette demande a déjà été traitée");
+            toast.info(t('notifications.alreadyHandled'));
           } else {
-            toast.success(accept ? "Demande acceptée ! 🎉" : "Demande refusée");
+            toast.success(accept ? t('notifications.acceptedChallenge') : t('notifications.declined'));
           }
         },
         onError: () => {
@@ -64,7 +66,7 @@ const Notifications = () => {
             next.delete(notifId);
             return next;
           });
-          toast.error("Erreur, réessaie");
+          toast.error(t('notifications.errorRetry'));
         },
       }
     );
@@ -89,12 +91,11 @@ const Notifications = () => {
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Erreur");
-      // Animate the card out, then show celebration overlay
       animateOut(notifId, "accept", () => {
         setShowAcceptOverlay(true);
       });
     } catch (err: any) {
-      toast.error(err?.message || "Erreur lors de l'acceptation");
+      toast.error(err?.message || t('friends.acceptError'));
       setAcceptingId(null);
     }
   };
@@ -107,13 +108,12 @@ const Notifications = () => {
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Erreur");
-      // Animate slide-out then remove
       animateOut(notifId, "decline", () => {
-        toast.info(data.refunded ? "Défi refusé, remboursement effectué" : "Défi refusé");
+        toast.info(data.refunded ? t('notifications.declinedRefund') : t('notifications.declinedChallenge'));
         refetch();
       });
     } catch (err: any) {
-      toast.error(err?.message || "Erreur lors du refus");
+      toast.error(err?.message || t('common.error'));
     } finally {
       setDecliningId(null);
     }
@@ -130,20 +130,20 @@ const Notifications = () => {
       if (!data?.success) throw new Error(data?.error || "Erreur lors de la récupération");
 
       if (data.alreadyClaimed) {
-        toast.info("Récompense déjà récupérée");
+        toast.info(t('notifications.alreadyClaimed'));
         setRespondedIds((prev) => new Set(prev).add(notifId));
       } else {
         animateOut(notifId, "accept", () => {
           const coinsAwarded = Number(data.coinsAwarded ?? 0);
           setCoinBurst(coinsAwarded);
           setTimeout(() => setCoinBurst(null), 1300);
-          toast.success(`+${coinsAwarded} pièces ajoutées 🪙`);
+          toast.success(t('notifications.coinsAdded', { coins: coinsAwarded }));
           queryClient.invalidateQueries({ queryKey: ["user-coins"] });
           queryClient.invalidateQueries({ queryKey: ["my-profile"] });
         });
       }
     } catch (err: any) {
-      toast.error(err?.message || "Erreur lors de la récupération");
+      toast.error(err?.message || t('common.error'));
     } finally {
       setClaimingId(null);
       refetch();
@@ -163,7 +163,7 @@ const Notifications = () => {
         <button onClick={() => navigate(-1)} className="p-1">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-xl font-display font-bold">Notifications</h1>
+        <h1 className="text-xl font-display font-bold">{t('notifications.title')}</h1>
       </div>
 
       {isLoading ? (
@@ -173,7 +173,7 @@ const Notifications = () => {
       ) : !notifications?.length ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center">
           <span className="text-4xl mb-3">🔔</span>
-          <p className="text-muted-foreground text-sm">Aucune notification pour l'instant</p>
+          <p className="text-muted-foreground text-sm">{t('notifications.none')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -206,7 +206,7 @@ const Notifications = () => {
                     <p className="text-sm font-medium">{notif.title}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{notif.body}</p>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: fr })}
+                      {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: dateLocale })}
                     </p>
                   </div>
                   {!notif.read && (
@@ -224,7 +224,7 @@ const Notifications = () => {
                       disabled={respondMutation.isPending}
                     >
                       <Check className="w-3.5 h-3.5 mr-1" />
-                      Accepter
+                      {t('notifications.accept')}
                     </Button>
                     <Button
                       size="sm"
@@ -234,12 +234,12 @@ const Notifications = () => {
                       disabled={respondMutation.isPending}
                     >
                       <X className="w-3.5 h-3.5 mr-1" />
-                      Refuser
+                      {t('notifications.decline')}
                     </Button>
                   </div>
                 )}
                 {isFriendRequest && alreadyResponded && (
-                  <p className="text-xs text-muted-foreground italic">Répondu ✓</p>
+                  <p className="text-xs text-muted-foreground italic">{t('notifications.responded')}</p>
                 )}
 
                 {/* Social challenge actions */}
@@ -256,7 +256,7 @@ const Notifications = () => {
                       ) : (
                         <Flame className="w-3.5 h-3.5 mr-1" />
                       )}
-                      Accepter le défi
+                      {t('friends.acceptChallenge')}
                     </Button>
                     <Button
                       size="sm"
@@ -270,7 +270,7 @@ const Notifications = () => {
                       ) : (
                         <X className="w-3.5 h-3.5 mr-1" />
                       )}
-                      Refuser
+                      {t('notifications.decline')}
                     </Button>
                   </div>
                 )}
@@ -286,7 +286,7 @@ const Notifications = () => {
                     ) : (
                       <CoinIcon size={14} className="mr-1" />
                     )}
-                    Récupérer {referralCoins} pièces
+                    {t('notifications.claimCoins', { coins: referralCoins })}
                   </Button>
                 )}
               </div>
@@ -298,7 +298,7 @@ const Notifications = () => {
       {coinBurst !== null && (
         <div className="fixed left-1/2 top-20 -translate-x-1/2 z-50 pointer-events-none">
           <div className="animate-coin-float px-4 py-2 rounded-full bg-gradient-gold text-accent-foreground shadow-gold font-display font-bold text-sm inline-flex items-center gap-2">
-            <CoinIcon size={16} /> +{coinBurst} pièces
+            <CoinIcon size={16} /> +{coinBurst} {t('common.coins')}
           </div>
         </div>
       )}
