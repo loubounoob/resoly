@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffect, useRef } from "react";
+import { startOfWeek, getDay } from "date-fns";
 
 export interface Challenge {
   id: string;
@@ -226,6 +228,50 @@ export const useRecentlyFailedChallenge = () => {
     },
     enabled: !!user,
   });
+};
+
+export const useAutoFailCheck = (challenge: Challenge | null | undefined, checkIns: CheckIn[] | undefined) => {
+  const queryClient = useQueryClient();
+  const failTriggered = useRef(false);
+
+  useEffect(() => {
+    if (!challenge || failTriggered.current) return;
+
+    const now = new Date();
+    const dayOfWeek = getDay(now); // 0=Sun
+    const daysLeftInWeek = dayOfWeek === 0 ? 1 : 7 - dayOfWeek + 1;
+
+    // Calculate weekly goal (first week adjustment)
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const challengeWeekStart = startOfWeek(new Date(challenge.started_at), { weekStartsOn: 1 });
+    const isFirstWeek = weekStart.getTime() === challengeWeekStart.getTime();
+    const firstWeekSessions = (challenge as any).first_week_sessions as number | null;
+    const weeklyGoal = isFirstWeek && firstWeekSessions != null
+      ? firstWeekSessions
+      : challenge.sessions_per_week;
+
+    // Count verified check-ins this week (unique days)
+    const verifiedThisWeek = (checkIns ?? []).filter(ci => {
+      if (!ci.verified) return false;
+      const ciDate = new Date(ci.checked_in_at);
+      return ciDate >= weekStart;
+    });
+    const uniqueDays = new Set(verifiedThisWeek.map(ci => new Date(ci.checked_in_at).getDay()));
+    const weeklyDone = uniqueDays.size;
+    const sessionsRemaining = weeklyGoal - weeklyDone;
+
+    // If mathematically impossible → trigger server-side failure
+    if (sessionsRemaining > 0 && sessionsRemaining > daysLeftInWeek) {
+      failTriggered.current = true;
+      supabase.functions.invoke("fail-challenge", {
+        body: { challenge_id: challenge.id },
+      }).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["active-challenge"] });
+        queryClient.invalidateQueries({ queryKey: ["recently-failed-challenge"] });
+        queryClient.invalidateQueries({ queryKey: ["friends-activity"] });
+      });
+    }
+  }, [challenge, checkIns, queryClient]);
 };
 
 export const useCreateCheckIn = () => {

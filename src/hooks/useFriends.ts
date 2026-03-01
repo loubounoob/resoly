@@ -248,7 +248,9 @@ export const useFriendsActivity = () => {
         const currentDay = now.getDay();
         const daysLeft = currentDay === 0 ? 1 : 7 - currentDay + 1;
         const isGoalMet = weeklyDone >= weeklyGoal;
-        const isUrgent = !isGoalMet && sessionsRemaining >= daysLeft;
+        // If mathematically impossible, mark as no challenge (don't show as active)
+        const isMathematicallyImpossible = !isGoalMet && sessionsRemaining > daysLeft;
+        const isUrgent = !isGoalMet && sessionsRemaining >= daysLeft && !isMathematicallyImpossible;
 
         // Build week status array (Mon-Sun) for the week tracker
         const checkedDaySet = new Set(weeklyCheckIns.map((ci: any) => new Date(ci.checked_in_at).getDay()));
@@ -283,7 +285,7 @@ export const useFriendsActivity = () => {
           isGoalMet,
           isUrgent,
           isFirstWeek,
-          hasChallenge: !!challenge,
+          hasChallenge: !!challenge && !isMathematicallyImpossible,
           weekStatus,
           weeksRemaining,
           totalVerified,
