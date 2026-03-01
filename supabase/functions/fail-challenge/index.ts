@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { countryToLocale, getNotifText } from "../_shared/notif-i18n.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,7 +16,6 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Parse optional challenge_id for targeted mode
     let targetChallengeId: string | null = null;
     try {
       const body = await req.json();
@@ -24,7 +24,6 @@ Deno.serve(async (req) => {
       // No body = batch mode (cron)
     }
 
-    // Build query
     let query = supabase
       .from("challenges")
       .select("id, user_id, sessions_per_week, started_at, first_week_sessions, duration_months, bet_per_month")
@@ -45,9 +44,8 @@ Deno.serve(async (req) => {
     }
 
     const now = new Date();
-    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
+    const dayOfWeek = now.getDay();
 
-    // Monday of current week
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const weekStart = new Date(now);
     weekStart.setHours(0, 0, 0, 0);
@@ -57,13 +55,11 @@ Deno.serve(async (req) => {
     sundayEnd.setDate(sundayEnd.getDate() + 6);
     sundayEnd.setHours(23, 59, 59, 999);
 
-    // Days left in week including today. On Sunday = 1 day left (today only)
     const daysLeftInWeek = dayOfWeek === 0 ? 1 : 7 - dayOfWeek + 1;
 
     let failed = 0;
 
     for (const challenge of challenges) {
-      // Determine weekly goal (first week adjustment)
       const challengeStartDate = new Date(challenge.started_at);
       const csDay = challengeStartDate.getDay();
       const csMondayOffset = csDay === 0 ? -6 : 1 - csDay;
@@ -76,7 +72,6 @@ Deno.serve(async (req) => {
         ? challenge.first_week_sessions
         : challenge.sessions_per_week;
 
-      // Count verified check-ins this week (unique days)
       const { data: checkInData } = await supabase
         .from("check_ins")
         .select("checked_in_at")
@@ -92,9 +87,7 @@ Deno.serve(async (req) => {
       const weeklyDone = uniqueDays.size;
       const sessionsRemaining = weeklyGoal - weeklyDone;
 
-      // Challenge fails if more sessions remaining than days left
       if (sessionsRemaining > 0 && sessionsRemaining > daysLeftInWeek) {
-        // Mark challenge as failed
         const { error: updateErr } = await supabase
           .from("challenges")
           .update({ status: "failed" })
@@ -105,8 +98,17 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Send notification via send-notification function
+        // Get user locale
+        const { data: userProfile } = await supabase
+          .from("profiles")
+          .select("country")
+          .eq("user_id", challenge.user_id)
+          .single();
+        const locale = countryToLocale(userProfile?.country);
+
         const betAmount = challenge.bet_per_month;
+        const notif = getNotifText(locale, 'challenge_failed', betAmount);
+
         await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
           method: "POST",
           headers: {
@@ -116,8 +118,8 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             user_id: challenge.user_id,
             type: "challenge_failed",
-            title: "Défi terminé... 😔",
-            body: `Tu n'as pas atteint ton objectif cette semaine. Ta mise de ${betAmount}€ est perdue. Mais chaque échec est une leçon — reviens plus fort !`,
+            title: notif.title,
+            body: notif.body,
             data: {
               challenge_id: challenge.id,
               bet_lost: betAmount,

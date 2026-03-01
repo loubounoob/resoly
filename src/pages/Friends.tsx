@@ -39,7 +39,7 @@ const Friends = () => {
   };
 
   const getStatusInfo = (friend: any) => {
-    if (!friend.hasChallenge) return { text: t('friends.noActiveChallenge'), color: "text-muted-foreground" };
+    if (!friend.hasChallenge || friend.weeklyGoal === 0) return { text: t('friends.noActiveChallenge'), color: "text-muted-foreground" };
     if (friend.isGoalMet) return { text: t('friends.challengeSuccess'), color: "text-primary" };
     if (friend.isUrgent) return { text: t('friends.lastChance'), color: "text-destructive" };
     return { text: t('friends.thisWeek', { done: friend.weeklyDone, goal: friend.weeklyGoal }), color: "text-accent" };
@@ -213,7 +213,7 @@ const Friends = () => {
                     </p>
                     <p className={`text-xs ${status.color}`}>{status.text}</p>
                   </div>
-                  {friend.hasChallenge && (
+                  {friend.hasChallenge && friend.weeklyGoal > 0 && (
                     <MiniProgressRing
                       done={friend.weeklyDone}
                       goal={friend.weeklyGoal}

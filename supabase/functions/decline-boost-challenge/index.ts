@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { countryToLocale, getNotifText } from "../_shared/notif-i18n.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,7 +39,6 @@ serve(async (req) => {
     const { socialChallengeId } = await req.json();
     if (!socialChallengeId) throw new Error("Missing socialChallengeId");
 
-    // Fetch the social challenge
     const { data: sc, error: scErr } = await supabaseAdmin
       .from("social_challenges")
       .select("*")
@@ -46,7 +46,6 @@ serve(async (req) => {
       .single();
     if (scErr || !sc) throw new Error("Social challenge not found");
 
-    // Verify user is the target
     if (sc.target_user_id !== user.id) {
       throw new Error("You are not the target of this challenge");
     }
@@ -60,7 +59,7 @@ serve(async (req) => {
       .update({ status: "declined" })
       .eq("id", socialChallengeId);
 
-    // Find the creator's member record to get stripe_payment_intent_id
+    // Refund
     let refunded = false;
     const { data: creatorMember } = await supabaseAdmin
       .from("social_challenge_members")
@@ -91,25 +90,30 @@ serve(async (req) => {
       .eq("type", "social_challenge")
       .filter("data->>socialChallengeId", "eq", socialChallengeId);
 
-    // Notify the creator that the challenge was declined
+    // Notify the creator
     try {
       const { data: receiverProfile } = await supabaseAdmin
         .from("profiles")
         .select("username")
         .eq("user_id", user.id)
         .single();
-      const username = receiverProfile?.username || "Quelqu'un";
+      const username = receiverProfile?.username || "Someone";
 
-      const notifBody = refunded
-        ? `@${username} a refusé le défi. Tu as été remboursé.`
-        : `@${username} a refusé le défi.`;
+      // Get creator's locale
+      const { data: creatorProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("country")
+        .eq("user_id", sc.created_by)
+        .single();
+      const creatorLocale = countryToLocale(creatorProfile?.country);
+      const notif = getNotifText(creatorLocale, 'challenge_declined', username, refunded);
 
       await supabaseAdmin.functions.invoke("send-notification", {
         body: {
           user_id: sc.created_by,
           type: "challenge_declined",
-          title: "Défi refusé",
-          body: notifBody,
+          title: notif.title,
+          body: notif.body,
           data: { socialChallengeId },
         },
       });
