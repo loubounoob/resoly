@@ -88,8 +88,10 @@ const App = () => {
           <LocaleProvider>
             <AuthProvider>
               <div className="fixed top-0 left-0 right-0 z-[100] bg-background" style={{ height: 'max(env(safe-area-inset-top, 0px), 1.5rem)' }} />
-              <div className="min-h-screen bg-background max-w-md mx-auto relative" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 1.5rem)' }}>
-                <AppRoutes />
+              <div className="h-screen flex flex-col overflow-hidden bg-background max-w-md mx-auto relative" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 1.5rem)' }}>
+                <div className="flex-1 overflow-y-auto">
+                  <AppRoutes />
+                </div>
               </div>
             </AuthProvider>
           </LocaleProvider>

@@ -46,7 +46,7 @@ const Rewards = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col px-4 pt-6 pb-24">
+    <div className="min-h-full flex flex-col px-4 pt-6 pb-24">
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <ShoppingBag className="w-6 h-6 text-primary" />

@@ -163,7 +163,7 @@ const PhotoVerify = () => {
 
   if (hasCheckedInToday && phase === "idle") {
     return (
-      <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
+      <div className="min-h-full flex flex-col px-6 pt-6 pb-24">
         <h1 className="text-2xl font-bold mb-2">{t('photoVerify.title')}</h1>
         <p className="text-muted-foreground text-sm mb-8">
           {t('photoVerify.subtitle')}
@@ -187,7 +187,7 @@ const PhotoVerify = () => {
 
   if (phase === "avatar-prompt") {
     return (
-      <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
+      <div className="min-h-full flex flex-col px-6 pt-6 pb-24">
         <div className="flex-1 flex flex-col items-center justify-center">
           <div className="w-full max-w-xs text-center space-y-6">
             <h2 className="text-2xl font-display font-bold">{t('photoVerify.addPhoto')}</h2>
@@ -210,7 +210,7 @@ const PhotoVerify = () => {
 
   if (phase === "congrats") {
     return (
-      <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
+      <div className="min-h-full flex flex-col px-6 pt-6 pb-24">
         <div className="flex-1 flex flex-col items-center justify-center">
           <div className="w-full max-w-xs text-center space-y-5">
             <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
@@ -234,7 +234,7 @@ const PhotoVerify = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
+    <div className="min-h-full flex flex-col px-6 pt-6 pb-24">
       <h1 className="text-2xl font-bold mb-2">{t('photoVerify.title')}</h1>
       <p className="text-muted-foreground text-sm mb-8">
         {t('photoVerify.subtitle')}

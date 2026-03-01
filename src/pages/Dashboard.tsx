@@ -130,7 +130,7 @@ const Dashboard = () => {
 
   if (!challenge) {
     return (
-      <div className="min-h-screen flex flex-col px-6 pt-6 pb-24 h-screen overflow-hidden">
+      <div className="min-h-full flex flex-col px-6 pt-6 pb-24 h-full overflow-hidden">
         {headerBlock}
         <div className="flex-1 flex flex-col items-center justify-center gap-6">
           <div className="text-center space-y-3">
@@ -218,7 +218,7 @@ const Dashboard = () => {
   const weekDayLabels = t('dashboard.weekDays') as unknown as string[];
 
   return (
-    <div className="min-h-screen flex flex-col px-6 pt-6 pb-24 overflow-y-auto">
+    <div className="min-h-full flex flex-col px-6 pt-6 pb-24 overflow-y-auto">
       {headerBlock}
 
       <button
