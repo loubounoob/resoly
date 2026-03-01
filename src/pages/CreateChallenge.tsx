@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { getDay } from "date-fns";
 import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 import { Badge } from "@/components/ui/badge";
-import GymLocationPicker from "@/components/GymLocationPicker";
+import { useLocale } from "@/contexts/LocaleContext";
 import {
   Dialog,
   DialogContent,
@@ -26,27 +26,23 @@ type ChallengeMode = "solo" | "social";
 const DURATION_OPTIONS = [1, 2, 3];
 const SESSIONS_OPTIONS = [2, 3, 4, 5, 6];
 
-const DAY_NAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
-
-function computeFirstWeekGoal(sessionsPerWeek: number): { firstWeekGoal: number; daysLeft: number; dayName: string; needsAdjustment: boolean } {
+function computeFirstWeekGoal(sessionsPerWeek: number, dayNames: string[]): { firstWeekGoal: number; daysLeft: number; dayName: string; needsAdjustment: boolean } {
   const today = new Date();
-  const dayOfWeek = getDay(today); // 0=Sun, 1=Mon...
-  // Days left in the week (Mon=1 to Sun=0): Mon→7, Tue→6, Wed→5, Thu→4, Fri→3, Sat→2, Sun→1
+  const dayOfWeek = getDay(today); 
   const daysLeft = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
 
-  // On weekends (Sat/Sun), don't force sessions — first real week starts Monday
   if (dayOfWeek === 0 || dayOfWeek === 6) {
-    return { firstWeekGoal: 0, daysLeft, dayName: DAY_NAMES[dayOfWeek], needsAdjustment: true };
+    return { firstWeekGoal: 0, daysLeft, dayName: dayNames[dayOfWeek], needsAdjustment: true };
   }
 
-  // On Friday with high sessions, cap at 1 to be lenient
   const firstWeekGoal = Math.max(1, Math.floor(sessionsPerWeek * daysLeft / 7));
-  const needsAdjustment = dayOfWeek !== 1; // not Monday
-  return { firstWeekGoal, daysLeft, dayName: DAY_NAMES[dayOfWeek], needsAdjustment };
+  const needsAdjustment = dayOfWeek !== 1;
+  return { firstWeekGoal, daysLeft, dayName: dayNames[dayOfWeek], needsAdjustment };
 }
 
 const CreateChallenge = () => {
   const navigate = useNavigate();
+  const { t, formatCurrency, currency } = useLocale();
   const { data: activeChallenge, isLoading: loadingActive } = useActiveChallenge();
   const [mode] = useState<ChallengeMode>("solo");
   const [betAmount, setBetAmount] = useState(100);
@@ -87,7 +83,8 @@ const CreateChallenge = () => {
 
   const totalSessions = sessionsPerWeek * duration * 4;
   const coinsPreview = calculateCoins(betAmount, duration, sessionsPerWeek);
-  const { firstWeekGoal, dayName, needsAdjustment } = computeFirstWeekGoal(sessionsPerWeek);
+  const dayNames = t('createChallenge.dayNames') as unknown as string[];
+  const { firstWeekGoal, dayName, needsAdjustment } = computeFirstWeekGoal(sessionsPerWeek, dayNames);
 
   const handleSubmit = () => {
     if (needsAdjustment) {
@@ -108,7 +105,6 @@ const CreateChallenge = () => {
         odds: 1,
       });
 
-      // Update first_week_sessions if needed
       if (firstWeekSessions != null) {
         await supabase
           .from("challenges")
@@ -120,7 +116,8 @@ const CreateChallenge = () => {
         body: {
           challengeId: challenge.id,
           amount: betAmount,
-          description: `Mise Resoly — ${betAmount}€ — ${sessionsPerWeek}x/sem pendant ${duration} mois`,
+          currency: currency,
+          description: t('createChallenge.betDescription', { amount: formatCurrency(betAmount), sessions: sessionsPerWeek, duration }),
         },
       });
 
@@ -132,32 +129,27 @@ const CreateChallenge = () => {
       }
     } catch (error) {
       console.error(error);
-      toast.error("Erreur lors du paiement");
+      toast.error(t('createChallenge.paymentError'));
       setIsProcessing(false);
     }
   };
 
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-8">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-8">
         <button onClick={() => navigate("/dashboard")} className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-6 h-6" />
         </button>
-        <h1 className="text-2xl font-bold">Créer un défi</h1>
+        <h1 className="text-2xl font-bold">{t('createChallenge.title')}</h1>
       </div>
-
-
-
 
       {mode === "solo" && (
       <>
       <div className="flex-1 space-y-8">
-        {/* Bet Amount */}
         <section>
-          <label className="text-sm text-muted-foreground mb-3 block">Ta mise</label>
+          <label className="text-sm text-muted-foreground mb-3 block">{t('createChallenge.yourBet')}</label>
           <div className="text-center mb-4">
-            <span className="text-5xl font-display font-bold text-gradient-primary">{betAmount}€</span>
+            <span className="text-5xl font-display font-bold text-gradient-primary">{formatCurrency(betAmount)}</span>
           </div>
           <Slider
             value={[betAmount]}
@@ -168,14 +160,13 @@ const CreateChallenge = () => {
             className="w-full"
           />
           <div className="flex justify-between text-xs text-muted-foreground mt-1">
-            <span>10€</span>
-            <span>1 000€</span>
+            <span>{formatCurrency(10)}</span>
+            <span>{formatCurrency(1000)}</span>
           </div>
         </section>
 
-        {/* Sessions per week */}
         <section>
-          <label className="text-sm text-muted-foreground mb-3 block">Séances par semaine</label>
+          <label className="text-sm text-muted-foreground mb-3 block">{t('createChallenge.sessionsPerWeek')}</label>
           <div className="grid grid-cols-5 gap-2">
             {SESSIONS_OPTIONS.map((s) => (
               <button
@@ -193,9 +184,8 @@ const CreateChallenge = () => {
           </div>
         </section>
 
-        {/* Duration */}
         <section>
-          <label className="text-sm text-muted-foreground mb-3 block">Durée d'engagement</label>
+          <label className="text-sm text-muted-foreground mb-3 block">{t('createChallenge.duration')}</label>
           <div className="grid grid-cols-3 gap-2">
             {DURATION_OPTIONS.map((d) => (
               <button
@@ -207,22 +197,21 @@ const CreateChallenge = () => {
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
               >
-                {d}<span className="text-xs font-normal ml-0.5">mois</span>
+                {d}<span className="text-xs font-normal ml-0.5">{t('common.months')}</span>
               </button>
             ))}
           </div>
         </section>
 
-        {/* Summary Card */}
         <div className="bg-gradient-card rounded-2xl border border-border p-5 space-y-4 shadow-card">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <span className="text-muted-foreground block">Séances totales</span>
+              <span className="text-muted-foreground block">{t('createChallenge.totalSessions')}</span>
               <span className="font-bold text-lg">{totalSessions}</span>
             </div>
             <div>
-              <span className="text-muted-foreground block">Durée</span>
-              <span className="font-bold text-lg">{duration} mois</span>
+              <span className="text-muted-foreground block">{t('createChallenge.durationLabel')}</span>
+              <span className="font-bold text-lg">{duration} {t('common.months')}</span>
             </div>
           </div>
 
@@ -231,22 +220,21 @@ const CreateChallenge = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Coins className="w-5 h-5 text-accent" />
-              <span className="text-sm text-muted-foreground">Pièces à gagner</span>
+              <span className="text-sm text-muted-foreground">{t('createChallenge.coinsToEarn')}</span>
             </div>
             <span className="font-display font-bold text-lg text-gradient-gold">
               <span className="inline-flex items-center gap-1"><CoinIcon size={18} /> {coinsPreview}</span>
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Tu gagnes {coinsPreview} pièces si tu réussis le défi
+            {t('createChallenge.coinsIfWin', { coins: coinsPreview })}
           </p>
         </div>
       </div>
 
-      {/* Produits accessibles */}
       {shopProducts.length > 0 && (
         <section className="mt-2">
-          <label className="text-sm text-muted-foreground mb-3 block">Ce que tu pourras acheter</label>
+          <label className="text-sm text-muted-foreground mb-3 block">{t('createChallenge.whatYouCanBuy')}</label>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
             {shopProducts.map((product) => {
               const price = product.node.priceRange.minVariantPrice;
@@ -273,7 +261,7 @@ const CreateChallenge = () => {
                     </div>
                     {isAccessible && (
                       <Badge className="text-[10px] px-1.5 py-0 bg-green-500/20 text-green-400 border-green-500/30">
-                        Accessible
+                        {t('createChallenge.accessible')}
                       </Badge>
                     )}
                   </div>
@@ -284,8 +272,6 @@ const CreateChallenge = () => {
         </section>
       )}
 
-
-      {/* CTA */}
       <Button
         onClick={handleSubmit}
         disabled={isProcessing || createChallenge.isPending}
@@ -296,33 +282,38 @@ const CreateChallenge = () => {
         ) : (
           <Flame className="w-5 h-5 mr-2" />
         )}
-        Lancer le défi
+        {t('createChallenge.launch')}
       </Button>
 
-      {/* First week adjustment dialog */}
       <Dialog open={showFirstWeekDialog} onOpenChange={setShowFirstWeekDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Première semaine ajustée</DialogTitle>
+            <DialogTitle>{t('createChallenge.firstWeekTitle')}</DialogTitle>
             <DialogDescription>
               {firstWeekGoal === 0 ? (
-                <>Tu commences un <strong>{dayName}</strong>. Ton objectif cette semaine sera de <strong>0 séance</strong> — ton défi démarre vraiment lundi prochain avec {sessionsPerWeek} séances/semaine.</>
+                <span dangerouslySetInnerHTML={{ 
+                  __html: t('createChallenge.firstWeekDesc0', { day: dayName, sessions: sessionsPerWeek })
+                    .replace(dayName, `<strong>${dayName}</strong>`)
+                    .replace('0', '<strong>0</strong>')
+                }} />
               ) : (
-                <>Tu commences un <strong>{dayName}</strong>. Ton objectif pour cette première semaine sera de{" "}
-                <strong>{firstWeekGoal} séance{firstWeekGoal > 1 ? "s" : ""}</strong> (au lieu de {sessionsPerWeek}).
-                Les semaines suivantes : {sessionsPerWeek} séances.</>
+                <span dangerouslySetInnerHTML={{ 
+                  __html: t('createChallenge.firstWeekDesc', { day: dayName, goal: firstWeekGoal, sessions: sessionsPerWeek })
+                    .replace(dayName, `<strong>${dayName}</strong>`)
+                    .replace(String(firstWeekGoal), `<strong>${firstWeekGoal}</strong>`)
+                }} />
               )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowFirstWeekDialog(false)}>
-              Annuler
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={() => proceedWithChallenge(firstWeekGoal)}
               className="bg-gradient-primary text-primary-foreground"
             >
-              Confirmer
+              {t('common.confirm')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,6 +1,6 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Flame, Target, TrendingUp, Zap, Star, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Flame, Target, TrendingUp, Zap, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import testimonial1 from "@/assets/testimonial-1.png";
 import testimonial2 from "@/assets/testimonial-2.png";
@@ -8,6 +8,7 @@ import testimonial3 from "@/assets/testimonial-3.png";
 import testimonial4 from "@/assets/testimonial-4.png";
 import testimonial5 from "@/assets/testimonial-5.png";
 import testimonial6 from "@/assets/testimonial-6.png";
+import { useLocale } from "@/contexts/LocaleContext";
 
 type SlideType = "single" | "multi" | "info" | "testimonials" | "final";
 
@@ -30,75 +31,64 @@ const TESTIMONIALS: Testimonial[] = [
 interface Slide {
   type: SlideType;
   emoji?: string;
-  title: string;
-  subtitle?: string;
-  options?: { label: string; emoji: string }[];
-  body?: string;
+  titleKey: string;
+  subtitleKey?: string;
+  optionsKey?: string;
+  emojisKey?: string;
+  bodyKey?: string;
 }
 
 const slides: Slide[] = [
   {
     type: "single",
     emoji: "🎯",
-    title: "Quel est ton objectif ?",
-    options: [
-      { label: "Perdre du poids", emoji: "🔥" },
-      { label: "Prendre du muscle", emoji: "💪" },
-      { label: "Être plus régulier", emoji: "📅" },
-      { label: "Me sentir mieux", emoji: "✨" },
-    ],
+    titleKey: "onboarding.slide1Title",
+    optionsKey: "onboarding.slide1Opts",
+    emojisKey: "onboarding.slide1Emojis",
   },
   {
     type: "multi",
     emoji: "🚧",
-    title: "Qu'est-ce qui t'a freiné\njusqu'ici ?",
-    subtitle: "Plusieurs réponses possibles",
-    options: [
-      { label: "Manque de motivation", emoji: "😴" },
-      { label: "Pas de régularité", emoji: "📉" },
-      { label: "Personne pour me pousser", emoji: "👤" },
-      { label: "Trop de flemme", emoji: "🛋️" },
-    ],
+    titleKey: "onboarding.slide2Title",
+    subtitleKey: "onboarding.slide2Sub",
+    optionsKey: "onboarding.slide2Opts",
+    emojisKey: "onboarding.slide2Emojis",
   },
   {
     type: "info",
     emoji: "💡",
-    title: "Le seul secret,\nc'est la régularité.",
-    body: "90% des gens abandonnent avant 3 mois.\nPas toi.",
+    titleKey: "onboarding.slide3Title",
+    bodyKey: "onboarding.slide3Body",
   },
   {
     type: "info",
     emoji: "💰",
-    title: "Mise sur toi-même.",
-    body: "Tu mets de l'argent en jeu.\nSi tu tiens, tu récupères tout\n+ des récompenses.\n\nCe système provoque 7x plus de régularité.",
+    titleKey: "onboarding.slide4Title",
+    bodyKey: "onboarding.slide4Body",
   },
   {
     type: "testimonials",
-    title: "Ils ont relevé le défi.",
-    subtitle: "+2 400 utilisateurs transformés",
+    titleKey: "onboarding.slide5Title",
+    subtitleKey: "onboarding.slide5Sub",
   },
   {
     type: "single",
     emoji: "⚡",
-    title: "À quel point\nes-tu déterminé ?",
-    options: [
-      { label: "Je vais essayer", emoji: "🤔" },
-      { label: "Je suis motivé", emoji: "💪" },
-      { label: "Rien ne m'arrêtera", emoji: "🔥" },
-    ],
+    titleKey: "onboarding.slide6Title",
+    optionsKey: "onboarding.slide6Opts",
+    emojisKey: "onboarding.slide6Emojis",
   },
   {
     type: "final",
     emoji: "🚀",
-    title: "",
-    body: "",
+    titleKey: "",
   },
 ];
 
 const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: string }) => {
   const [activeIdx, setActiveIdx] = useState(0);
   const pointerStart = useRef<{ x: number; id: number } | null>(null);
-  const t = TESTIMONIALS[activeIdx];
+  const { t } = useLocale();
 
   const goNext = () => setActiveIdx((i) => (i + 1) % TESTIMONIALS.length);
   const goPrev = () => setActiveIdx((i) => (i - 1 + TESTIMONIALS.length) % TESTIMONIALS.length);
@@ -134,23 +124,21 @@ const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: stri
       <h1 className="text-2xl font-display font-bold leading-tight">{title}</h1>
       {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
 
-      {/* Stats row */}
       <div className="flex gap-4 text-center">
         <div className="bg-secondary/60 rounded-xl px-4 py-2">
           <p className="text-lg font-bold text-primary">94%</p>
-          <p className="text-[10px] text-muted-foreground">de réussite</p>
+          <p className="text-[10px] text-muted-foreground">{t('onboarding.statsSuccess')}</p>
         </div>
         <div className="bg-secondary/60 rounded-xl px-4 py-2">
           <p className="text-lg font-bold text-primary">7x</p>
-          <p className="text-[10px] text-muted-foreground">plus réguliers</p>
+          <p className="text-[10px] text-muted-foreground">{t('onboarding.statsRegular')}</p>
         </div>
         <div className="bg-secondary/60 rounded-xl px-4 py-2">
           <p className="text-lg font-bold text-primary">2 400+</p>
-          <p className="text-[10px] text-muted-foreground">transformés</p>
+          <p className="text-[10px] text-muted-foreground">{t('onboarding.statsTransformed')}</p>
         </div>
       </div>
 
-      {/* Card carousel with swipe */}
       <div
         className="w-full relative touch-pan-y select-none cursor-grab active:cursor-grabbing overflow-hidden"
         onPointerDown={onPointerDown}
@@ -178,7 +166,6 @@ const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: stri
             </div>
           ))}
         </div>
-        {/* Nav dots */}
         <div className="flex justify-center gap-1.5 mt-3 pointer-events-auto">
           {TESTIMONIALS.map((_, i) => (
             <button
@@ -195,6 +182,7 @@ const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: stri
 
 const OnboardingChallenge = () => {
   const navigate = useNavigate();
+  const { t } = useLocale();
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string[]>>({});
   const [direction, setDirection] = useState<"next" | "prev">("next");
@@ -236,25 +224,26 @@ const OnboardingChallenge = () => {
     });
   };
 
-  // Final slide personalised message
-  const determinationLevel = answers[5]?.[0];
-  const finalMessage =
-    determinationLevel === "Rien ne m'arrêtera"
-      ? "On aime cette énergie.\nCrée ton défi et prouve-le."
-      : determinationLevel === "Je suis motivé"
-      ? "Parfait, t'as tout ce qu'il faut.\nPassons à l'action."
-      : "Chaque grand changement\ncommence par un premier pas.";
+  // Get localized options and emojis
+  // @ts-ignore
+  const slideOptions = slide.optionsKey ? t(slide.optionsKey) as unknown as string[] : [];
+  // @ts-ignore
+  const slideEmojis = slide.emojisKey ? t(slide.emojisKey) as unknown as string[] : [];
 
-  const finalTitle =
-    determinationLevel === "Rien ne m'arrêtera"
-      ? "Inarrêtable. 🔥"
-      : determinationLevel === "Je suis motivé"
-      ? "Parfait. 💪"
-      : "C'est parti. 🚀";
+  const determinationLevelIndex = slideOptions.indexOf(answers[5]?.[0] || "");
+  let finalMessage = t('onboarding.finalMsgStart');
+  let finalTitle = t('onboarding.finalStart');
+
+  if (determinationLevelIndex === 2) { // Unstoppable
+    finalMessage = t('onboarding.finalMsgUnstoppable');
+    finalTitle = t('onboarding.finalUnstoppable');
+  } else if (determinationLevelIndex === 1) { // Motivated
+    finalMessage = t('onboarding.finalMsgMotivated');
+    finalTitle = t('onboarding.finalMotivated');
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
-      {/* Progress bar */}
       <div className="px-6 pt-5 pb-2 flex items-center gap-3">
         {current > 0 && (
           <button onClick={handleBack} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -274,7 +263,6 @@ const OnboardingChallenge = () => {
         </div>
       </div>
 
-      {/* Slide content */}
       <div className="flex-1 flex flex-col items-center justify-center px-8 overflow-hidden">
         <div
           className="w-full max-w-sm flex flex-col items-center text-center transition-all duration-250"
@@ -291,50 +279,46 @@ const OnboardingChallenge = () => {
             <>
               <span className="text-5xl mb-5">{slide.emoji}</span>
               <h1 className="text-2xl font-display font-bold leading-tight whitespace-pre-line mb-2">
-                {slide.title}
+                {t(slide.titleKey)}
               </h1>
-              {slide.subtitle && (
-                <p className="text-sm text-muted-foreground mb-5">{slide.subtitle}</p>
+              {slide.subtitleKey && (
+                <p className="text-sm text-muted-foreground mb-5">{t(slide.subtitleKey)}</p>
               )}
             </>
           )}
 
-          {/* Testimonials slide */}
           {slide.type === "testimonials" && (
-            <TestimonialsSlide title={slide.title} subtitle={slide.subtitle} />
+            <TestimonialsSlide title={t(slide.titleKey)} subtitle={slide.subtitleKey ? t(slide.subtitleKey) : undefined} />
           )}
 
-          {/* Choice slides */}
-          {isChoice && slide.options && (
+          {isChoice && slideOptions.length > 0 && (
             <div className="w-full space-y-3 mt-4">
-              {slide.options.map((opt) => {
-                const isSelected = selected.includes(opt.label);
+              {slideOptions.map((opt, idx) => {
+                const isSelected = selected.includes(opt);
                 return (
                   <button
-                    key={opt.label}
-                    onClick={() => toggleOption(opt.label)}
+                    key={opt}
+                    onClick={() => toggleOption(opt)}
                     className={`w-full flex items-center gap-3 px-5 py-4 rounded-xl border-2 transition-all duration-200 text-left ${
                       isSelected
                         ? "border-primary bg-primary/10 shadow-glow"
                         : "border-border bg-secondary/50 hover:border-muted-foreground/30"
                     }`}
                   >
-                    <span className="text-xl">{opt.emoji}</span>
-                    <span className="font-medium text-sm">{opt.label}</span>
+                    <span className="text-xl">{slideEmojis[idx]}</span>
+                    <span className="font-medium text-sm">{opt}</span>
                   </button>
                 );
               })}
             </div>
           )}
 
-          {/* Info slides */}
-          {slide.type === "info" && (
+          {slide.type === "info" && slide.bodyKey && (
             <p className="text-muted-foreground text-base leading-relaxed whitespace-pre-line mt-4">
-              {slide.body}
+              {t(slide.bodyKey)}
             </p>
           )}
 
-          {/* Final slide */}
           {slide.type === "final" && (
             <>
               <span className="text-6xl mb-5">🏆</span>
@@ -346,7 +330,7 @@ const OnboardingChallenge = () => {
                 onClick={() => navigate("/create")}
                 className="h-14 px-10 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
               >
-                Créer mon défi
+                {t('onboarding.createMyChallenge')}
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </>
@@ -354,7 +338,6 @@ const OnboardingChallenge = () => {
         </div>
       </div>
 
-      {/* Bottom button */}
       {slide.type !== "final" && (
         <div className="px-8 pb-8">
           <Button
@@ -362,7 +345,7 @@ const OnboardingChallenge = () => {
             disabled={!canContinue}
             className="w-full h-14 text-base font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl disabled:opacity-40"
           >
-            Continuer
+            {t('common.continue')}
           </Button>
         </div>
       )}

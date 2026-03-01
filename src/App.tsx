@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { LocaleProvider } from "@/contexts/LocaleContext";
 
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
@@ -84,12 +85,14 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <AuthProvider>
+          <LocaleProvider>
+            <AuthProvider>
               <div className="fixed top-0 left-0 right-0 z-[100] bg-background" style={{ height: 'max(env(safe-area-inset-top, 0px), 1.5rem)' }} />
               <div className="min-h-screen bg-background max-w-md mx-auto relative" style={{ marginTop: 'max(env(safe-area-inset-top, 0px), 1.5rem)' }}>
                 <AppRoutes />
               </div>
-          </AuthProvider>
+            </AuthProvider>
+          </LocaleProvider>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

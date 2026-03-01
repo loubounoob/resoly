@@ -8,9 +8,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useCreateGroup } from "@/hooks/useGroups";
 import { useFriendsList } from "@/hooks/useFriends";
 import { toast } from "sonner";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const CreateGroup = () => {
   const navigate = useNavigate();
+  const { t } = useLocale();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -24,13 +26,13 @@ const CreateGroup = () => {
   };
 
   const handleCreate = async () => {
-    if (!name.trim()) { toast.error("Nom requis"); return; }
+    if (!name.trim()) { toast.error(t('createGroup.nameRequired')); return; }
     try {
       await createGroup.mutateAsync({ name: name.trim(), description: description.trim() || undefined, memberIds: selectedIds });
-      toast.success("Groupe créé !");
+      toast.success(t('createGroup.groupCreated'));
       navigate("/friends");
     } catch {
-      toast.error("Erreur lors de la création");
+      toast.error(t('createGroup.createError'));
     }
   };
 
@@ -42,24 +44,24 @@ const CreateGroup = () => {
         <button onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-6 h-6" />
         </button>
-        <h1 className="text-2xl font-bold">Créer un groupe</h1>
+        <h1 className="text-2xl font-bold">{t('createGroup.title')}</h1>
       </div>
 
       <div className="flex-1 space-y-6">
         <div>
-          <label className="text-sm text-muted-foreground mb-2 block">Nom du groupe</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Crew du matin" />
+          <label className="text-sm text-muted-foreground mb-2 block">{t('createGroup.groupName')}</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('createGroup.groupNamePlaceholder')} />
         </div>
 
         <div>
-          <label className="text-sm text-muted-foreground mb-2 block">Description (optionnel)</label>
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Courte description..." />
+          <label className="text-sm text-muted-foreground mb-2 block">{t('createGroup.description')}</label>
+          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('createGroup.descPlaceholder')} />
         </div>
 
         <div>
-          <label className="text-sm text-muted-foreground mb-3 block">Membres</label>
+          <label className="text-sm text-muted-foreground mb-3 block">{t('createGroup.members')}</label>
           {!friends || friends.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Ajoute d'abord des amis</p>
+            <p className="text-sm text-muted-foreground text-center py-4">{t('createGroup.addFriendsFirst')}</p>
           ) : (
             <div className="space-y-2">
               {friends.map((f: any) => (
@@ -75,7 +77,7 @@ const CreateGroup = () => {
                     <AvatarImage src={f.avatar_url} />
                     <AvatarFallback className="text-[10px] bg-secondary">{getInitials(f)}</AvatarFallback>
                   </Avatar>
-                  <span className="text-sm font-medium">{f.display_name || f.first_name || "Ami"}</span>
+                  <span className="text-sm font-medium">{f.display_name || f.first_name || t('friends.friend')}</span>
                 </button>
               ))}
             </div>
@@ -89,7 +91,7 @@ const CreateGroup = () => {
         className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl mt-6"
       >
         {createGroup.isPending ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-        Créer le groupe
+        {t('createGroup.createBtn')}
       </Button>
     </div>
   );

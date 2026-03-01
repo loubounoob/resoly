@@ -1,17 +1,19 @@
 import { forwardRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Home, Camera, Users, ShoppingBag, ClipboardList } from "lucide-react";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const BottomNav = forwardRef<HTMLElement>(function BottomNav(_, ref) {
   const location = useLocation();
+  const { t } = useLocale();
   if (location.pathname === "/") return null;
 
   const links = [
-    { to: "/dashboard", icon: Home, label: "Accueil" },
-    { to: "/verify", icon: Camera, label: "Check-in" },
-    { to: "/friends", icon: Users, label: "Amis" },
-    { to: "/shop", icon: ShoppingBag, label: "Shop" },
-    { to: "/orders", icon: ClipboardList, label: "Commandes" },
+    { to: "/dashboard", icon: Home, label: t('bottomNav.home') },
+    { to: "/verify", icon: Camera, label: t('bottomNav.checkIn') },
+    { to: "/friends", icon: Users, label: t('bottomNav.friends') },
+    { to: "/shop", icon: ShoppingBag, label: t('bottomNav.shop') },
+    { to: "/orders", icon: ClipboardList, label: t('bottomNav.orders') },
   ];
 
   return (
@@ -23,9 +25,7 @@ const BottomNav = forwardRef<HTMLElement>(function BottomNav(_, ref) {
             to={to}
             className={({ isActive }) =>
               `flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg transition-all ${
-                isActive
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
+                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`
             }
           >

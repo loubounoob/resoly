@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ShieldOff, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/contexts/LocaleContext";
 
 interface ChallengeFailedOverlayProps {
   betLost: number;
@@ -10,13 +11,13 @@ interface ChallengeFailedOverlayProps {
 
 const ChallengeFailedOverlay = ({ betLost, onClose }: ChallengeFailedOverlayProps) => {
   const navigate = useNavigate();
+  const { t, formatCurrency } = useLocale();
   const [visible, setVisible] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true));
 
-    // Falling particles animation
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -60,11 +61,10 @@ const ChallengeFailedOverlay = ({ betLost, onClose }: ChallengeFailedOverlayProp
     };
     animate();
 
-    // No auto-dismiss — let user click the button
     return () => {
       cancelAnimationFrame(animId);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleGo = () => {
     setVisible(false);
@@ -80,7 +80,6 @@ const ChallengeFailedOverlay = ({ betLost, onClose }: ChallengeFailedOverlayProp
         visible ? "bg-black/90 backdrop-blur-md" : "bg-transparent"
       }`}
     >
-      {/* Falling particles canvas */}
       <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
 
       <div
@@ -88,7 +87,6 @@ const ChallengeFailedOverlay = ({ betLost, onClose }: ChallengeFailedOverlayProp
           visible ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-75 translate-y-8"
         }`}
       >
-        {/* Broken shield icon */}
         <div className="relative">
           <div className="w-24 h-24 rounded-full bg-gradient-to-br from-destructive/40 to-destructive/20 flex items-center justify-center border-2 border-destructive/30">
             <ShieldOff className="w-12 h-12 text-destructive" />
@@ -96,28 +94,24 @@ const ChallengeFailedOverlay = ({ betLost, onClose }: ChallengeFailedOverlayProp
           <div className="absolute inset-0 w-24 h-24 rounded-full bg-destructive/10 animate-ping" />
         </div>
 
-        {/* Title */}
         <div>
           <h1 className="text-3xl font-display font-bold text-destructive mb-2">
-            Défi terminé...
+            {t('failed.title')}
           </h1>
           <p className="text-lg text-foreground/80 font-medium">
-            Tu n'as pas atteint ton objectif 😔
+            {t('failed.didntReach')}
           </p>
         </div>
 
-        {/* Bet lost */}
         <div className="bg-destructive/10 border border-destructive/20 rounded-2xl px-6 py-3">
-          <p className="text-sm text-muted-foreground">Mise perdue</p>
-          <p className="text-2xl font-display font-bold text-destructive">{betLost}€</p>
+          <p className="text-sm text-muted-foreground">{t('failed.betLost')}</p>
+          <p className="text-2xl font-display font-bold text-destructive">{formatCurrency(betLost)}</p>
         </div>
 
-        {/* Encouraging message */}
         <p className="text-muted-foreground text-sm max-w-[280px] leading-relaxed">
-          Chaque échec rapproche du succès. La régularité s'apprend — reviens plus fort ! 💪
+          {t('failed.encouragement')}
         </p>
 
-        {/* CTA button */}
         <Button
           onClick={(e) => {
             e.stopPropagation();
@@ -125,7 +119,7 @@ const ChallengeFailedOverlay = ({ betLost, onClose }: ChallengeFailedOverlayProp
           }}
           className="h-12 px-8 text-base font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
         >
-          Relever le défi
+          {t('failed.retryChallenge')}
           <ArrowRight className="w-5 h-5 ml-2" />
         </Button>
       </div>

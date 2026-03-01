@@ -4,15 +4,16 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useStories, type StoryGroup, type Story } from "@/hooks/useStories";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
 import { X, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const StoriesBar = () => {
   const { data: storyGroups, isLoading } = useStories();
   const { user } = useAuth();
+  const { t, dateLocale } = useLocale();
   const queryClient = useQueryClient();
   const [selectedGroup, setSelectedGroup] = useState<StoryGroup | null>(null);
   const [storyIndex, setStoryIndex] = useState(0);
@@ -44,10 +45,8 @@ const StoriesBar = () => {
     }
   }, [selectedGroup, storyGroups, storyIndex]);
 
-  // Timer logic
   useEffect(() => {
     if (!selectedGroup) return;
-    // Reset on story change
     elapsedRef.current = 0;
     setProgress(0);
 
@@ -73,7 +72,6 @@ const StoriesBar = () => {
     };
   }, [selectedGroup, storyIndex, paused, advanceStory]);
 
-  // Pause / resume helpers
   const handlePointerDown = () => {
     elapsedRef.current += Date.now() - startTimeRef.current;
     if (timerRef.current) cancelAnimationFrame(timerRef.current);
@@ -106,26 +104,22 @@ const StoriesBar = () => {
 
   const deleteStory = async () => {
     if (!currentStory || !user) return;
-    // Extract file path from URL
     const url = currentStory.photoUrl;
     const pathMatch = url.match(/check-in-photos\/(.+)$/);
     const filePath = pathMatch ? pathMatch[1] : null;
 
-    // Remove photo_url from check_in
     await supabase
       .from("check_ins")
       .update({ photo_url: null })
       .eq("id", currentStory.checkInId);
 
-    // Delete file from storage
     if (filePath) {
       await supabase.storage.from("check-in-photos").remove([filePath]);
     }
 
-    toast.success("Story supprimée");
+    toast.success(t('stories.deleted'));
     queryClient.invalidateQueries({ queryKey: ["stories"] });
 
-    // Advance or close
     if (selectedGroup && selectedGroup.stories.length <= 1) {
       closeStory();
     } else {
@@ -135,11 +129,10 @@ const StoriesBar = () => {
 
   return (
     <>
-      {/* Compact horizontal scroll bar */}
       <div className="flex gap-3 overflow-x-auto no-scrollbar py-1 mb-4">
         {storyGroups.map((group) => {
           const isMe = group.userId === user?.id;
-          const label = isMe ? "Toi" : group.username || group.displayName || "?";
+          const label = isMe ? t('stories.you') : group.username || group.displayName || "?";
           return (
             <button
               key={group.userId}
@@ -162,7 +155,6 @@ const StoriesBar = () => {
         })}
       </div>
 
-      {/* Story viewer dialog */}
       <Dialog open={!!selectedGroup} onOpenChange={(open) => !open && closeStory()}>
         <DialogContent className="max-w-md w-full h-[85vh] p-0 border-0 bg-black rounded-2xl overflow-hidden [&>button]:hidden">
           {currentStory && selectedGroup && (
@@ -172,7 +164,6 @@ const StoriesBar = () => {
               onPointerUp={handlePointerUp}
               onPointerLeave={handlePointerUp}
             >
-              {/* Progress bars */}
               <div className="absolute top-0 left-0 right-0 z-30 flex gap-1 p-2">
                 {selectedGroup.stories.map((_, i) => (
                   <div key={i} className="flex-1 h-[3px] rounded-full bg-white/30 overflow-hidden">
@@ -192,7 +183,6 @@ const StoriesBar = () => {
                 ))}
               </div>
 
-              {/* Header */}
               <div className="absolute top-6 left-0 right-0 z-30 flex items-center justify-between px-3">
                 <div className="flex items-center gap-2">
                   <Avatar className="w-8 h-8 border border-white/30">
@@ -203,10 +193,10 @@ const StoriesBar = () => {
                   </Avatar>
                   <div>
                     <p className="text-white text-sm font-semibold leading-tight">
-                      {currentStory.userId === user?.id ? "Toi" : currentStory.username || currentStory.displayName}
+                      {currentStory.userId === user?.id ? t('stories.you') : currentStory.username || currentStory.displayName}
                     </p>
                     <p className="text-white/60 text-[10px]">
-                      {formatDistanceToNow(new Date(currentStory.checkedInAt), { addSuffix: true, locale: fr })}
+                      {formatDistanceToNow(new Date(currentStory.checkedInAt), { addSuffix: true, locale: dateLocale })}
                     </p>
                   </div>
                 </div>
@@ -230,25 +220,23 @@ const StoriesBar = () => {
                 </div>
               </div>
 
-              {/* Photo */}
               <img
                 src={currentStory.photoUrl}
                 alt="Story"
                 className="w-full h-full object-cover pointer-events-none"
               />
 
-              {/* Navigation zones */}
               <button
                 onClick={prevStory}
                 onPointerDown={(e) => e.stopPropagation()}
                 className="absolute left-0 top-0 bottom-0 w-1/3 z-20"
-                aria-label="Précédent"
+                aria-label={t('stories.previous')}
               />
               <button
                 onClick={advanceStory}
                 onPointerDown={(e) => e.stopPropagation()}
                 className="absolute right-0 top-0 bottom-0 w-2/3 z-20"
-                aria-label="Suivant"
+                aria-label={t('stories.next')}
               />
             </div>
           )}

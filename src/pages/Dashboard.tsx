@@ -17,19 +17,18 @@ import ChallengeFailedOverlay from "@/components/ChallengeFailedOverlay";
 import ChallengeVictoryOverlay from "@/components/ChallengeVictoryOverlay";
 import ChallengeAcceptedOverlay from "@/components/ChallengeAcceptedOverlay";
 import { useMyProfile } from "@/hooks/useFriends";
-import { supabase } from "@/integrations/supabase/client";
 import { calculateCoins } from "@/lib/coins";
-import { startOfWeek, endOfWeek, isWithinInterval, format, startOfDay, getDay } from "date-fns";
+import { startOfWeek, endOfWeek, isWithinInterval, getDay } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import NotificationBell from "@/components/NotificationBell";
 import { useGymProximity } from "@/hooks/useGymProximity";
 import StoriesBar from "@/components/StoriesBar";
-
-const weekDayLabels = ["L", "M", "M", "J", "V", "S", "D"];
+import { useLocale } from "@/contexts/LocaleContext";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t, formatCurrency } = useLocale();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
@@ -38,24 +37,20 @@ const Dashboard = () => {
   const [showVictoryOverlay, setShowVictoryOverlay] = useState(false);
   const [showAcceptedOverlay, setShowAcceptedOverlay] = useState(false);
 
-  // Show celebration overlay when arriving from promo code challenge creation
   useEffect(() => {
     if ((location.state as any)?.challengeJustCreated) {
       setShowAcceptedOverlay(true);
-      // Clear the state so it doesn't show again on refresh
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
   const { data: challenge, isLoading: loadingChallenge } = useActiveChallenge();
-  const { data: checkIns, isLoading: loadingCheckIns } = useCheckIns(challenge?.id);
+  const { data: checkIns } = useCheckIns(challenge?.id);
   const { data: coins } = useUserCoins();
   const { data: myProfile } = useMyProfile();
   const { data: failedChallenge } = useRecentlyFailedChallenge();
 
-  // Auto-detect impossible challenges and trigger server-side failure
   useAutoFailCheck(challenge, checkIns);
 
-  // Show failed overlay ONCE per failed challenge, then never again
   useEffect(() => {
     if (!loadingChallenge && !challenge && failedChallenge) {
       const seenKey = `failed-overlay-seen-${failedChallenge.id}`;
@@ -79,7 +74,6 @@ const Dashboard = () => {
     );
   }
 
-  // Header component reused in both states
   const headerBlock = (
     <>
       <div className="flex items-center justify-between mb-6">
@@ -116,7 +110,7 @@ const Dashboard = () => {
       <Dialog open={avatarDialogOpen} onOpenChange={setAvatarDialogOpen}>
         <DialogContent className="max-w-xs">
           <DialogHeader>
-            <DialogTitle className="text-center">Photo de profil</DialogTitle>
+            <DialogTitle className="text-center">{t('dashboard.profilePhoto')}</DialogTitle>
           </DialogHeader>
           <AvatarUpload
             currentUrl={myProfile?.avatar_url}
@@ -136,20 +130,20 @@ const Dashboard = () => {
 
   if (!challenge) {
     return (
-      <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
+      <div className="min-h-screen flex flex-col px-6 pt-6 pb-24 h-screen overflow-hidden">
         {headerBlock}
         <div className="flex-1 flex flex-col items-center justify-center gap-6">
           <div className="text-center space-y-3">
             <Flame className="w-12 h-12 text-primary mx-auto" />
-            <h2 className="text-2xl font-display font-bold">Aucun défi actif</h2>
-            <p className="text-muted-foreground text-sm">Crée ton premier défi fitness et commence à gagner des pièces !</p>
+            <h2 className="text-2xl font-display font-bold">{t('dashboard.noChallenge')}</h2>
+            <p className="text-muted-foreground text-sm">{t('dashboard.noChallengeSub')}</p>
           </div>
           <Button
             onClick={() => navigate("/onboarding-challenge")}
             className="h-14 px-8 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
             <Plus className="w-5 h-5 mr-2" />
-            Créer un défi
+            {t('dashboard.createChallenge')}
           </Button>
         </div>
         {showFailedOverlay && failedChallenge && (
@@ -171,7 +165,6 @@ const Dashboard = () => {
   const totalSessions = challenge.total_sessions;
   const isChallengeComplete = completedSessions >= totalSessions && totalSessions > 0;
 
-  // Week tracker
   const now = new Date();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
@@ -179,9 +172,8 @@ const Dashboard = () => {
     isWithinInterval(new Date(ci.checked_in_at), { start: weekStart, end: weekEnd })
   );
   const checkedDays = new Set(thisWeekCheckIns.map(ci => new Date(ci.checked_in_at).getDay()));
-  const weeklyDone = checkedDays.size; // count unique days, not total check-ins
+  const weeklyDone = checkedDays.size;
 
-  // First week adjustment: detect if we're in the first week of the challenge
   const challengeStartDate = new Date(challenge.started_at);
   const challengeWeekStart = startOfWeek(challengeStartDate, { weekStartsOn: 1 });
   const isFirstWeek = weekStart.getTime() === challengeWeekStart.getTime();
@@ -192,11 +184,10 @@ const Dashboard = () => {
 
   const weeklyProgress = weeklyGoal > 0 ? Math.min(100, Math.round((weeklyDone / weeklyGoal) * 100)) : 0;
 
-  // Dynamic ring color logic
   const isGoalMet = weeklyDone >= weeklyGoal;
   const sessionsRemaining = weeklyGoal - weeklyDone;
-  const dayOfWeek = getDay(now); // 0=Sun, 1=Mon...
-  const daysLeftInWeek = dayOfWeek === 0 ? 1 : 7 - dayOfWeek + 1; // days left including today, week ends Sunday
+  const dayOfWeek = getDay(now);
+  const daysLeftInWeek = dayOfWeek === 0 ? 1 : 7 - dayOfWeek + 1;
   const isUrgent = !isGoalMet && sessionsRemaining >= daysLeftInWeek;
 
   const ringColors = isGoalMet
@@ -213,31 +204,28 @@ const Dashboard = () => {
     return checkedDays.has(dayIndex) ? true : false;
   });
 
-  // Motivation message
   const remaining = weeklyGoal - weeklyDone;
   const motivationMessage =
     weeklyDone === 0
-      ? "C'est le moment de commencer ! 💪"
+      ? t('dashboard.motivStart')
       : weeklyDone >= weeklyGoal
-      ? "Objectif de la semaine atteint ! 🎉"
-      : `Continue comme ça, plus que ${remaining} ! 🔥`;
+      ? t('dashboard.motivDone')
+      : t('dashboard.motivRemaining', { remaining });
 
   const totalBet = challenge.bet_per_month;
   const coinsToEarn = calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week);
 
-  // Victory overlay handles complete-challenge call now
+  const weekDayLabels = t('dashboard.weekDays') as unknown as string[];
 
   return (
-    <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
+    <div className="min-h-screen flex flex-col px-6 pt-6 pb-24 overflow-y-auto">
       {headerBlock}
 
-      {/* Weekly Progress Ring — clickable */}
       <button
         onClick={() => !isGoalMet && navigate("/verify")}
         className={`flex flex-col items-center mb-6 group ${!isGoalMet ? "cursor-pointer" : "cursor-default"}`}
       >
         <div className={`relative w-44 h-44 transition-transform duration-200 ${!isGoalMet ? "group-hover:scale-105 group-active:scale-95" : ""}`}>
-          {/* Pulse animation only when urgent (red) */}
           {isUrgent && (
             <div className="absolute inset-0 rounded-full animate-ping opacity-10" style={{ background: ringColors.start }} />
           )}
@@ -261,11 +249,11 @@ const Dashboard = () => {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
             <span className="text-4xl font-display font-bold">{weeklyDone}/{weeklyGoal}</span>
-            <span className="text-xs text-muted-foreground">cette semaine</span>
+            <span className="text-xs text-muted-foreground">{t('dashboard.thisWeek')}</span>
             {!isGoalMet && (
               <div className="flex items-center gap-1 mt-1 text-muted-foreground">
                 <Camera className="w-3.5 h-3.5" />
-                <span className="text-[10px] font-medium">Check-in</span>
+                <span className="text-[10px] font-medium">{t('dashboard.checkIn')}</span>
               </div>
             )}
           </div>
@@ -273,15 +261,13 @@ const Dashboard = () => {
         <p className="text-sm font-medium mt-3 text-center">{motivationMessage}</p>
       </button>
 
-      {/* First week banner */}
       {isFirstWeek && firstWeekSessions != null && (
         <div className="bg-accent/20 border border-accent/30 rounded-xl p-3 mb-4 text-center">
-          <p className="text-sm font-medium">🌱 Première semaine : objectif adapté à <span className="font-bold text-primary">{firstWeekSessions} séance{firstWeekSessions > 1 ? "s" : ""}</span></p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">L'objectif normal de {challenge.sessions_per_week} séances/sem commence la semaine prochaine</p>
+          <p className="text-sm font-medium" dangerouslySetInnerHTML={{ __html: t('dashboard.firstWeekBanner', { sessions: firstWeekSessions }).replace(String(firstWeekSessions), `<span class="font-bold text-primary">${firstWeekSessions}</span>`) }} />
+          <p className="text-[11px] text-muted-foreground mt-0.5">{t('dashboard.firstWeekNormal', { sessions: challenge.sessions_per_week })}</p>
         </div>
       )}
 
-      {/* Weeks remaining */}
       {(() => {
         const challengeEnd = new Date(challenge.started_at);
         challengeEnd.setMonth(challengeEnd.getMonth() + challenge.duration_months);
@@ -289,16 +275,15 @@ const Dashboard = () => {
         const weeksRemaining = Math.max(0, Math.ceil(msLeft / (7 * 24 * 60 * 60 * 1000)));
         return weeksRemaining > 0 ? (
           <div className="text-center mb-4">
-            <p className="text-xs text-muted-foreground">⏳ <span className="font-semibold">{weeksRemaining} semaine{weeksRemaining > 1 ? "s" : ""}</span> restante{weeksRemaining > 1 ? "s" : ""} pour remporter le défi</p>
+            <p className="text-xs text-muted-foreground" dangerouslySetInnerHTML={{ __html: t('dashboard.weeksRemaining', { count: weeksRemaining }).replace(String(weeksRemaining), `<span class="font-semibold">${weeksRemaining}</span>`) }} />
           </div>
         ) : null;
       })()}
 
-      {/* Week tracker */}
       <div className="bg-gradient-card rounded-2xl border border-border p-4 mb-4 shadow-card">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-medium">🗓️ Ta semaine</span>
-          <span className="text-xs text-muted-foreground">{weeklyDone}/{weeklyGoal} séances</span>
+          <span className="text-sm font-medium">{t('dashboard.yourWeek')}</span>
+          <span className="text-xs text-muted-foreground">{weeklyDone}/{weeklyGoal} {t('common.sessions')}</span>
         </div>
         <div className="grid grid-cols-7 gap-2 mb-3">
           {weekDayLabels.map((day, i) => (
@@ -321,10 +306,8 @@ const Dashboard = () => {
         <Progress value={weeklyProgress} className="h-2" />
       </div>
 
-      {/* Stories bar */}
       <StoriesBar />
 
-      {/* Bet & Coins — golden version when complete */}
       {isChallengeComplete ? (
         <button
           onClick={() => setShowVictoryOverlay(true)}
@@ -337,14 +320,14 @@ const Dashboard = () => {
             </div>
             <div className="flex-1 space-y-1.5">
               <div className="flex items-baseline gap-2">
-                <span className="text-xl font-display font-bold tracking-tight text-gradient-gold">{totalBet}€ gagnés !</span>
+                <span className="text-xl font-display font-bold tracking-tight text-gradient-gold">{t('dashboard.betWon', { amount: formatCurrency(totalBet) })}</span>
               </div>
               <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-0.5">
                 <CoinIcon size={13} />
                 <span className="text-xs font-display font-bold text-amber-400">+{coinsToEarn}</span>
-                <span className="text-[10px] text-muted-foreground">bonus</span>
+                <span className="text-[10px] text-muted-foreground">{t('common.bonus')}</span>
               </div>
-              <p className="text-xs text-amber-300/60 animate-pulse">Appuie pour récupérer 🏆</p>
+              <p className="text-xs text-amber-300/60 animate-pulse">{t('dashboard.tapToClaim')}</p>
             </div>
           </div>
         </button>
@@ -358,21 +341,20 @@ const Dashboard = () => {
             </div>
             <div className="flex-1 space-y-1.5">
               <div className="flex items-baseline gap-2">
-                <span className="text-xl font-display font-bold tracking-tight">{totalBet}€</span>
-                <span className="text-xs text-muted-foreground font-medium">en jeu</span>
+                <span className="text-xl font-display font-bold tracking-tight">{formatCurrency(totalBet)}</span>
+                <span className="text-xs text-muted-foreground font-medium">{t('dashboard.atStake')}</span>
               </div>
-              <p className="text-xs text-muted-foreground">Tiens bon pour tout récupérer !</p>
+              <p className="text-xs text-muted-foreground">{t('dashboard.holdOn')}</p>
               <div className="inline-flex items-center gap-1.5 bg-accent/10 border border-accent/20 rounded-full px-2.5 py-0.5">
                 <CoinIcon size={13} />
                 <span className="text-xs font-display font-bold text-accent">+{coinsToEarn}</span>
-                <span className="text-[10px] text-muted-foreground">bonus</span>
+                <span className="text-[10px] text-muted-foreground">{t('common.bonus')}</span>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Victory Overlay */}
       {showVictoryOverlay && (
         <ChallengeVictoryOverlay
           betAmount={totalBet}
@@ -383,7 +365,6 @@ const Dashboard = () => {
         />
       )}
 
-      {/* Challenge just created overlay */}
       {showAcceptedOverlay && (
         <ChallengeAcceptedOverlay onClose={() => setShowAcceptedOverlay(false)} />
       )}

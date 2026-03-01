@@ -17,7 +17,7 @@ serve(async (req) => {
       throw new Error("GOOGLE_AI_API_KEY is not configured");
     }
 
-    const { imageBase64 } = await req.json();
+    const { imageBase64, locale } = await req.json();
     if (!imageBase64) {
       return new Response(
         JSON.stringify({ error: "No image provided" }),
@@ -33,6 +33,21 @@ serve(async (req) => {
     const mimeMatch = imageBase64.match(/^data:(image\/\w+);base64,/);
     const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
 
+    const promptText = `
+      You are a gym check-in verification assistant. Analyze this photo and determine if it shows a gym/fitness environment.
+      
+      Respond ONLY with a JSON object (no markdown, no code blocks):
+      {"verified": true/false, "reason": "brief explanation"}
+      
+      The photo is verified (true) if it shows: gym equipment, weight machines, dumbbells, treadmills, exercise bikes, yoga mats, gym interior, locker rooms, swimming pools, sports facilities, or a person clearly in a gym/fitness environment.
+      
+      The photo is NOT verified (false) if it shows: home environment, office, non-sports outdoor places, food, or anything clearly unrelated to fitness.
+      
+      Be lenient — if there are reasonable signs of a gym/sport environment, validate it.
+      
+      IMPORTANT: The "reason" field MUST be in the language requested: "${locale || 'en'}".
+    `;
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_AI_API_KEY}`,
       {
@@ -42,18 +57,7 @@ serve(async (req) => {
           contents: [
             {
               parts: [
-                {
-                  text: `Tu es un assistant de vérification de check-in en salle de sport. Analyse cette photo et détermine si elle montre un environnement de gym/fitness.
-
-Réponds UNIQUEMENT avec un objet JSON (pas de markdown, pas de blocs de code) :
-{"verified": true/false, "reason": "explication brève en français"}
-
-La photo est validée (true) si elle montre : équipements de gym, machines de musculation, haltères, tapis de course, vélos d'exercice, tapis de yoga, intérieur de salle de sport, vestiaires, piscines, installations sportives, ou une personne clairement dans un environnement gym/fitness.
-
-La photo n'est PAS validée (false) si elle montre : environnement domestique, bureaux, lieux extérieurs non sportifs, nourriture, ou tout ce qui n'est clairement pas lié au fitness.
-
-Sois indulgent — s'il y a des indices raisonnables d'un environnement gym/sport, valide-la.`,
-                },
+                { text: promptText },
                 {
                   inlineData: {
                     mimeType,

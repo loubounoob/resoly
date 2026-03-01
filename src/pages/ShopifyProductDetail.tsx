@@ -10,12 +10,14 @@ import { CartDrawer } from "@/components/CartDrawer";
 import { ShippingFormDrawer, ShippingInfo } from "@/components/ShippingFormDrawer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const COINS_PER_EURO = 50;
 
 const ShopifyProductDetail = () => {
   const { handle } = useParams<{ handle: string }>();
   const navigate = useNavigate();
+  const { t, formatCurrency, currency } = useLocale();
   const addItem = useCartStore(state => state.addItem);
   const [product, setProduct] = useState<ShopifyProduct | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,8 +54,8 @@ const ShopifyProductDetail = () => {
   if (!product) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6">
-        <p className="text-muted-foreground">Produit introuvable</p>
-        <Button variant="outline" onClick={() => navigate("/shop")}>Retour au shop</Button>
+        <p className="text-muted-foreground">{t('shop.productNotFound')}</p>
+        <Button variant="outline" onClick={() => navigate("/shop")}>{t('shop.backToShop')}</Button>
       </div>
     );
   }
@@ -77,7 +79,7 @@ const ShopifyProductDetail = () => {
       quantity: 1,
       selectedOptions: selectedVariant.selectedOptions || [],
     });
-    toast.success("Ajouté au panier !");
+    toast.success(t('shop.addedToCart'));
   };
 
   const handleBuyWithCoins = async (shipping: ShippingInfo) => {
@@ -85,7 +87,7 @@ const ShopifyProductDetail = () => {
     setPurchasing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Non connecté");
+      if (!session) throw new Error(t('shop.notConnected'));
 
       const res = await supabase.functions.invoke("purchase-with-coins", {
         body: {
@@ -105,12 +107,12 @@ const ShopifyProductDetail = () => {
       if (data?.error) throw new Error(data.error);
 
       setShippingOpen(false);
-      toast.success(`Acheté avec ${data.coinsSpent} pièces !`, {
-        description: `Il vous reste ${data.remainingCoins} pièces.`,
+      toast.success(t('shop.boughtWithCoins', { coins: data.coinsSpent }), {
+        description: t('shop.remainingCoins', { coins: data.remainingCoins }),
       });
       refetchCoins();
     } catch (err: any) {
-      toast.error(err.message === "Not enough coins" ? "Pas assez de pièces" : err.message || "Erreur lors de l'achat");
+      toast.error(err.message === "Not enough coins" ? t('shop.notEnoughCoins') : err.message || t('shop.purchaseError'));
     } finally {
       setPurchasing(false);
     }
@@ -166,8 +168,8 @@ const ShopifyProductDetail = () => {
       <div className="px-5 pt-5 flex-1 flex flex-col">
         <h1 className="text-2xl font-bold">{product.node.title}</h1>
         <div className="flex items-center gap-3 mt-2">
-          <span className="text-2xl font-bold text-primary flex items-center gap-1"><CoinIcon size={20} /> {coinsPrice} pièces</span>
-          <span className="text-muted-foreground text-sm">{parseFloat(variantPrice.amount).toFixed(2)} {variantPrice.currencyCode}</span>
+          <span className="text-2xl font-bold text-primary flex items-center gap-1"><CoinIcon size={20} /> {coinsPrice} {t('common.coins')}</span>
+          <span className="text-muted-foreground text-sm">{formatCurrency(parseFloat(variantPrice.amount))}</span>
         </div>
 
         {options.length > 0 && (
@@ -208,13 +210,13 @@ const ShopifyProductDetail = () => {
         <div className="text-muted-foreground text-sm mt-4 leading-relaxed prose prose-sm prose-invert max-w-none [&_p]:mb-2 [&_br]:block [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4" dangerouslySetInnerHTML={{ __html: product.node.descriptionHtml }} />
         <div className="mt-auto pt-6 flex flex-col gap-3">
           <Button className="w-full h-12 text-base" disabled={!selectedVariant?.availableForSale} onClick={handleAdd}>
-            {selectedVariant?.availableForSale ? "🛒 Ajouter au panier" : "Indisponible"}
+            {selectedVariant?.availableForSale ? t('shop.addToCart') : t('shop.unavailable')}
           </Button>
           <Button variant="secondary" className="w-full h-12 text-base" disabled={purchasing || (coins ?? 0) < coinsPrice || !selectedVariant?.availableForSale} onClick={() => setShippingOpen(true)}>
-            {purchasing ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CoinIcon size={16} /> Acheter — {coinsPrice} pièces</>}
+            {purchasing ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CoinIcon size={16} /> {t('shop.buyWithCoins', { coins: coinsPrice })}</>}
           </Button>
           {(coins ?? 0) < coinsPrice && (
-            <p className="text-xs text-destructive text-center">Solde insuffisant ({coins ?? 0}/{coinsPrice} pièces)</p>
+            <p className="text-xs text-destructive text-center">{t('shop.insufficientBalance', { current: coins ?? 0, needed: coinsPrice })}</p>
           )}
         </div>
       </div>

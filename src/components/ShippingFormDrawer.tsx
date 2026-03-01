@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { supabase } from "@/integrations/supabase/client";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export interface ShippingInfo {
   firstName: string;
@@ -27,6 +28,7 @@ interface ShippingFormDrawerProps {
 }
 
 export const ShippingFormDrawer = ({ open, onOpenChange, coinsPrice, onConfirm, isPurchasing }: ShippingFormDrawerProps) => {
+  const { t, country } = useLocale();
   const [form, setForm] = useState<ShippingInfo>({
     firstName: "",
     lastName: "",
@@ -34,12 +36,11 @@ export const ShippingFormDrawer = ({ open, onOpenChange, coinsPrice, onConfirm, 
     address2: "",
     city: "",
     zip: "",
-    country: "FR",
+    country: country,
     phone: "",
   });
   const [loaded, setLoaded] = useState(false);
 
-  // Pre-fill from profile
   useEffect(() => {
     if (!open || loaded) return;
     (async () => {
@@ -70,52 +71,52 @@ export const ShippingFormDrawer = ({ open, onOpenChange, coinsPrice, onConfirm, 
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="max-h-[90vh]">
         <DrawerHeader>
-          <DrawerTitle>Adresse de livraison</DrawerTitle>
-          <DrawerDescription>Remplissez vos informations pour finaliser l'achat avec vos pièces.</DrawerDescription>
+          <DrawerTitle>{t('shipping.title')}</DrawerTitle>
+          <DrawerDescription>{t('shipping.subtitle')}</DrawerDescription>
         </DrawerHeader>
         <div className="px-4 pb-2 space-y-3 overflow-y-auto">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="firstName">Prénom *</Label>
+              <Label htmlFor="firstName">{t('shipping.firstName')} *</Label>
               <Input id="firstName" value={form.firstName} onChange={e => update("firstName", e.target.value)} placeholder="Jean" />
             </div>
             <div>
-              <Label htmlFor="lastName">Nom *</Label>
+              <Label htmlFor="lastName">{t('shipping.lastName')} *</Label>
               <Input id="lastName" value={form.lastName} onChange={e => update("lastName", e.target.value)} placeholder="Dupont" />
             </div>
           </div>
           <div>
-            <Label htmlFor="address1">Adresse *</Label>
+            <Label htmlFor="address1">{t('shipping.address')} *</Label>
             <Input id="address1" value={form.address1} onChange={e => update("address1", e.target.value)} placeholder="12 rue de la Paix" />
           </div>
           <div>
-            <Label htmlFor="address2">Complément</Label>
+            <Label htmlFor="address2">{t('shipping.complement')}</Label>
             <Input id="address2" value={form.address2} onChange={e => update("address2", e.target.value)} placeholder="Apt 4B" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="zip">Code postal *</Label>
+              <Label htmlFor="zip">{t('shipping.zip')} *</Label>
               <Input id="zip" value={form.zip} onChange={e => update("zip", e.target.value)} placeholder="75001" />
             </div>
             <div>
-              <Label htmlFor="city">Ville *</Label>
+              <Label htmlFor="city">{t('shipping.city')} *</Label>
               <Input id="city" value={form.city} onChange={e => update("city", e.target.value)} placeholder="Paris" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="country">Pays *</Label>
+              <Label htmlFor="country">{t('shipping.country')} *</Label>
               <Input id="country" value={form.country} onChange={e => update("country", e.target.value)} placeholder="FR" />
             </div>
             <div>
-              <Label htmlFor="phone">Téléphone</Label>
+              <Label htmlFor="phone">{t('shipping.phone')}</Label>
               <Input id="phone" type="tel" value={form.phone} onChange={e => update("phone", e.target.value)} placeholder="+33 6 12 34 56 78" />
             </div>
           </div>
         </div>
         <DrawerFooter>
           <Button className="w-full h-12 text-base" disabled={!isValid || isPurchasing} onClick={() => onConfirm(form)}>
-            {isPurchasing ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CoinIcon size={16} /> Confirmer — {coinsPrice} pièces</>}
+            {isPurchasing ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CoinIcon size={16} /> {t('shipping.confirmCoins', { coins: coinsPrice })}</>}
           </Button>
         </DrawerFooter>
       </DrawerContent>

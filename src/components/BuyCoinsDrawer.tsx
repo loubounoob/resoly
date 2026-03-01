@@ -5,12 +5,13 @@ import { Coins, Copy, Check, Loader2, Gift, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import CoinIcon from "@/components/CoinIcon";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const PACKS = [
-  { euros: 10, coins: 500 },
-  { euros: 20, coins: 1000 },
-  { euros: 50, coins: 2500 },
-  { euros: 100, coins: 5000 },
+  { amount: 10, coins: 500 },
+  { amount: 20, coins: 1000 },
+  { amount: 50, coins: 2500 },
+  { amount: 100, coins: 5000 },
 ];
 
 interface BuyCoinsDrawerProps {
@@ -23,12 +24,13 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
   const [loadingPack, setLoadingPack] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const { t, formatCurrency, currencySymbol } = useLocale();
 
-  const handleBuy = async (euros: number) => {
-    setLoadingPack(euros);
+  const handleBuy = async (amount: number) => {
+    setLoadingPack(amount);
     try {
       const { data, error } = await supabase.functions.invoke("buy-coins", {
-        body: { pack: euros },
+        body: { pack: amount },
       });
       if (error) throw error;
       if (data?.url) {
@@ -36,8 +38,8 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
       }
     } catch (err: any) {
       toast({
-        title: "Erreur",
-        description: err.message || "Impossible de lancer le paiement",
+        title: t('common.error'),
+        description: err.message || t('buyCoins.paymentError'),
         variant: "destructive",
       });
     } finally {
@@ -49,7 +51,7 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
     if (!inviteCode) return;
     navigator.clipboard.writeText(inviteCode);
     setCopied(true);
-    toast({ title: "Code copié !" });
+    toast({ title: t('buyCoins.codeCopied') });
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -59,15 +61,15 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
         <DrawerHeader>
           <DrawerTitle className="flex items-center gap-2 justify-center font-display">
             <Coins className="w-5 h-5 text-accent" />
-            Acheter des pièces
+            {t('buyCoins.title')}
           </DrawerTitle>
         </DrawerHeader>
 
         <div className="px-4 pb-6 space-y-3">
           {PACKS.map((pack) => (
             <button
-              key={pack.euros}
-              onClick={() => handleBuy(pack.euros)}
+              key={pack.amount}
+              onClick={() => handleBuy(pack.amount)}
               disabled={loadingPack !== null}
               className="w-full flex items-center justify-between p-4 rounded-xl bg-secondary border border-border hover:border-primary/50 transition-all"
             >
@@ -77,14 +79,14 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
                 </div>
                 <div className="text-left">
                   <p className="font-display font-bold text-foreground">
-                    {pack.coins.toLocaleString()} pièces
+                    {t('buyCoins.coins', { count: pack.coins.toLocaleString() })}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {pack.euros}€
+                    {formatCurrency(pack.amount)}
                   </p>
                 </div>
               </div>
-              {loadingPack === pack.euros ? (
+              {loadingPack === pack.amount ? (
                 <Loader2 className="w-5 h-5 animate-spin text-primary" />
               ) : (
                 <Sparkles className="w-5 h-5 text-accent" />
@@ -97,11 +99,11 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
             <div className="mt-6 p-4 rounded-xl bg-primary/5 border border-primary/20">
               <div className="flex items-center gap-2 mb-2">
                 <Gift className="w-5 h-5 text-primary" />
-                <p className="font-display font-bold text-sm">Parrainage</p>
+                <p className="font-display font-bold text-sm">{t('buyCoins.referral')}</p>
               </div>
-              <p className="text-xs text-muted-foreground mb-3">
-                Partage ton code et gagne <strong>50 pièces</strong> par filleul + <strong>250 pièces</strong> s'il crée un défi de +50€ !
-              </p>
+              <p className="text-xs text-muted-foreground mb-3" dangerouslySetInnerHTML={{ 
+                __html: t('buyCoins.referralDesc', { currency: currencySymbol }).replace('50', '<strong>50</strong>').replace('250', '<strong>250</strong>').replace('+50', '<strong>+50</strong>')
+              }} />
               <Button
                 variant="outline"
                 size="sm"
@@ -109,7 +111,7 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
                 className="w-full rounded-xl gap-2"
               >
                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                {copied ? "Copié !" : `Code : ${inviteCode}`}
+                {copied ? t('buyCoins.codeCopied') : t('buyCoins.code', { code: inviteCode })}
               </Button>
             </div>
           )}

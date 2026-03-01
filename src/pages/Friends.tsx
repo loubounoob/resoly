@@ -14,9 +14,11 @@ import { useFriendsActivity, useFriendRequests, useSendFriendRequest, useRespond
 import { useReceivedSocialChallenges, useAcceptSocialChallenge } from "@/hooks/useSocialChallenges";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const Friends = () => {
   const navigate = useNavigate();
+  const { t, formatCurrency } = useLocale();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
@@ -30,7 +32,6 @@ const Friends = () => {
   const { data: myProfile } = useMyProfile();
   const sendRequest = useSendFriendRequest();
   const respondRequest = useRespondFriendRequest();
-  const acceptChallenge = useAcceptSocialChallenge();
 
   const getInitials = (profile: any) => {
     const name = profile?.username || "?";
@@ -38,26 +39,26 @@ const Friends = () => {
   };
 
   const getStatusInfo = (friend: any) => {
-    if (!friend.hasChallenge) return { text: "Pas de défi actif", color: "text-muted-foreground" };
-    if (friend.isGoalMet) return { text: "Défi réussi ✅", color: "text-primary" };
-    if (friend.isUrgent) return { text: "Dernière chance aujourd'hui", color: "text-destructive" };
-    return { text: `${friend.weeklyDone}/${friend.weeklyGoal} cette semaine`, color: "text-accent" };
+    if (!friend.hasChallenge) return { text: t('friends.noActiveChallenge'), color: "text-muted-foreground" };
+    if (friend.isGoalMet) return { text: t('friends.challengeSuccess'), color: "text-primary" };
+    if (friend.isUrgent) return { text: t('friends.lastChance'), color: "text-destructive" };
+    return { text: t('friends.thisWeek', { done: friend.weeklyDone, goal: friend.weeklyGoal }), color: "text-accent" };
   };
 
   const handleCopyInvite = () => {
     if (myProfile?.invite_code) {
       navigator.clipboard.writeText((myProfile as any).invite_code);
-      toast.success("Code de parrainage copié !");
+      toast.success(t('friends.referralCopied'));
     }
   };
 
   const handleSendRequest = async (userId: string) => {
     try {
       await sendRequest.mutateAsync(userId);
-      toast.success("Demande envoyée !");
+      toast.success(t('friends.requestSent'));
       setSearchQuery("");
     } catch {
-      toast.error("Erreur lors de l'envoi");
+      toast.error(t('friends.sendError'));
     }
   };
 
@@ -71,10 +72,10 @@ const Friends = () => {
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Erreur");
 
-      toast.success("Défi accepté ! C'est parti 🔥");
+      toast.success(t('friends.challengeAccepted'));
       navigate("/dashboard");
     } catch (err: any) {
-      toast.error(err?.message || "Erreur lors de l'acceptation");
+      toast.error(err?.message || t('friends.acceptError'));
       setAcceptingId(null);
     }
   };
@@ -82,19 +83,12 @@ const Friends = () => {
   const pendingCount = requests?.length ?? 0;
   const receivedCount = receivedChallenges?.length ?? 0;
 
-  // Compute challenge details for the selected friend
-  const friendChallenge = selectedFriend?.challenge;
-  const totalDone = selectedFriend?.challenge
-    ? undefined // we'll compute from check-ins data if available
-    : 0;
-
   return (
     <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
     <div className="flex items-center gap-2">
           <Users className="w-6 h-6 text-primary" />
-          <h1 className="text-2xl font-display font-bold">Amis</h1>
+          <h1 className="text-2xl font-display font-bold">{t('friends.title')}</h1>
           {(pendingCount + receivedCount) > 0 && (
             <Badge className="bg-destructive text-destructive-foreground text-[10px] px-1.5 py-0.5 min-w-[20px] flex items-center justify-center">
               {pendingCount + receivedCount}
@@ -106,12 +100,11 @@ const Friends = () => {
         </Button>
       </div>
 
-      {/* Section 0: Pending friend requests */}
       {pendingCount > 0 && (
         <section className="mb-6">
           <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
             <UserPlus className="w-4 h-4 text-primary" />
-            Demandes en attente
+            {t('friends.pendingRequests')}
             <Badge variant="secondary" className="text-[10px] ml-1">{pendingCount}</Badge>
           </h2>
           <div className="space-y-2">
@@ -125,7 +118,7 @@ const Friends = () => {
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">
-                    {req.profile?.username || "Inconnu"}
+                    {req.profile?.username || t('friends.unknown')}
                   </p>
                 </div>
                 <button
@@ -146,12 +139,11 @@ const Friends = () => {
         </section>
       )}
 
-      {/* Section 0b: Received social challenges */}
       {receivedCount > 0 && (
         <section className="mb-6">
           <h2 className="text-sm font-medium mb-3 flex items-center gap-1.5">
             <Swords className="w-4 h-4 text-accent" />
-            Défis reçus
+            {t('friends.receivedChallenges')}
             <Badge variant="secondary" className="text-[10px] ml-1">{receivedCount}</Badge>
           </h2>
           <div className="space-y-2">
@@ -166,10 +158,10 @@ const Friends = () => {
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {sc.creatorProfile?.username || "Quelqu'un"} t'offre un défi !
+                      {t('friends.offersChallenge', { name: sc.creatorProfile?.username || t('friends.someone') })}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      🎁 {sc.bet_amount}€ · {sc.sessions_per_week}x/sem · {sc.duration_months} mois
+                      🎁 {formatCurrency(sc.bet_amount)} · {sc.sessions_per_week}x/{t('common.week')} · {sc.duration_months} {t('common.months')}
                     </p>
                   </div>
                 </div>
@@ -180,7 +172,7 @@ const Friends = () => {
                   className="w-full h-12 font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
                 >
                   {acceptingId === sc.id ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Flame className="w-4 h-4 mr-2" />}
-                  Accepter le défi
+                  {t('friends.acceptChallenge')}
                 </Button>
               </div>
             ))}
@@ -188,9 +180,8 @@ const Friends = () => {
         </section>
       )}
 
-      {/* Section 1: Fil d'activité */}
       <section className="mb-6">
-        <h2 className="text-sm text-muted-foreground mb-3">Fil d'activité</h2>
+        <h2 className="text-sm text-muted-foreground mb-3">{t('friends.activityFeed')}</h2>
         {loadingActivity ? (
           <div className="flex justify-center py-8">
             <Loader2 className="w-6 h-6 text-primary animate-spin" />
@@ -198,7 +189,7 @@ const Friends = () => {
         ) : !activity || activity.length === 0 ? (
           <div className="bg-gradient-card rounded-2xl border border-border p-6 text-center shadow-card">
             <Users className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Ajoute des amis pour voir leur activité</p>
+            <p className="text-sm text-muted-foreground">{t('friends.noActivity')}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -218,7 +209,7 @@ const Friends = () => {
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {friend.profile?.username || "Ami"}
+                      {friend.profile?.username || t('friends.friend')}
                     </p>
                     <p className={`text-xs ${status.color}`}>{status.text}</p>
                   </div>
@@ -237,17 +228,15 @@ const Friends = () => {
           </div>
         )}
 
-        {/* Offrir un défi button */}
         <Button
           onClick={() => navigate("/friends/create-social?type=boost")}
           className="w-full h-12 mt-4 font-display font-bold bg-accent/10 text-accent hover:bg-accent/20 border border-accent/20 rounded-xl"
         >
           <Gift className="w-4 h-4 mr-2" />
-          Offrir un défi
+          {t('friends.giftChallenge')}
         </Button>
       </section>
 
-      {/* Friend Detail Drawer */}
       <Drawer open={!!selectedFriend} onOpenChange={(open) => { if (!open) setSelectedFriend(null); }}>
         <DrawerContent>
           <DrawerHeader>
@@ -258,10 +247,10 @@ const Friends = () => {
                   {getInitials(selectedFriend?.profile)}
                 </AvatarFallback>
               </Avatar>
-              <span>{selectedFriend?.profile?.username || "Ami"}</span>
+              <span>{selectedFriend?.profile?.username || t('friends.friend')}</span>
             </DrawerTitle>
             <DrawerDescription>
-              {selectedFriend?.hasChallenge ? "Détails du défi actif" : "Aucun défi actif"}
+              {selectedFriend?.hasChallenge ? t('friends.friendDetail') : t('friends.noActiveDetail')}
             </DrawerDescription>
           </DrawerHeader>
           <div className="px-4 pb-6">
@@ -274,20 +263,18 @@ const Friends = () => {
                   : f.isUrgent
                   ? { start: "hsl(0, 85%, 55%)", end: "hsl(0, 70%, 45%)" }
                   : { start: "hsl(35, 95%, 55%)", end: "hsl(25, 90%, 45%)" };
-                const weekDayLabels = ["L", "M", "M", "J", "V", "S", "D"];
+                const weekDayLabels = t('dashboard.weekDays') as unknown as string[];
                 const motivationMessage = f.weeklyDone >= f.weeklyGoal
-                  ? "Objectif de la semaine atteint ! 🎉"
-                  : `🔥 ${f.weeklyGoal - f.weeklyDone} séance(s) restante(s)`;
+                  ? t('friends.weekGoalDone')
+                  : t('friends.sessionsRemaining', { count: f.weeklyGoal - f.weeklyDone });
 
                 return (
                   <div className="space-y-4">
-                    {/* First week banner */}
                     {f.isFirstWeek && (
                       <div className="bg-accent/10 border border-accent/20 rounded-xl px-4 py-2 text-center">
-                        <span className="text-xs font-medium text-accent">⭐ Première semaine — objectif adapté</span>
+                        <span className="text-xs font-medium text-accent">{t('friends.firstWeekAdapted')}</span>
                       </div>
                     )}
-                    {/* Progress ring */}
                     <div className="flex flex-col items-center">
                       <div className="relative w-32 h-32">
                         <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
@@ -310,25 +297,23 @@ const Friends = () => {
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
                           <span className="text-2xl font-display font-bold">{f.weeklyDone}/{f.weeklyGoal}</span>
-                          <span className="text-[10px] text-muted-foreground">cette semaine</span>
+                          <span className="text-[10px] text-muted-foreground">{t('dashboard.thisWeek')}</span>
                         </div>
                       </div>
                       <p className="text-sm font-medium mt-2">{motivationMessage}</p>
                     </div>
 
-                    {/* Weeks remaining */}
                     {f.weeksRemaining > 0 && (
-                      <p className="text-center text-xs text-muted-foreground">
-                        ⏳ <span className="font-semibold">{f.weeksRemaining} semaine{f.weeksRemaining > 1 ? "s" : ""}</span> restante{f.weeksRemaining > 1 ? "s" : ""} pour remporter le défi
-                      </p>
+                      <p className="text-center text-xs text-muted-foreground" dangerouslySetInnerHTML={{ 
+                        __html: t('friends.weeksRemainingFriend', { count: f.weeksRemaining }).replace(String(f.weeksRemaining), `<span class="font-semibold">${f.weeksRemaining}</span>`)
+                      }} />
                     )}
 
-                    {/* Week tracker */}
                     {f.weekStatus && (
                       <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card">
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm font-medium">🗓️ Sa semaine</span>
-                          <span className="text-xs text-muted-foreground">{f.weeklyDone}/{f.weeklyGoal} séances</span>
+                          <span className="text-sm font-medium">{t('friends.hisWeek')}</span>
+                          <span className="text-xs text-muted-foreground">{f.weeklyDone}/{f.weeklyGoal} {t('common.sessions')}</span>
                         </div>
                         <div className="grid grid-cols-7 gap-2 mb-3">
                           {weekDayLabels.map((day, i) => (
@@ -350,22 +335,20 @@ const Friends = () => {
                       </div>
                     )}
 
-                    {/* Bet & stats */}
                     <div className="bg-gradient-card rounded-2xl border border-border p-4 shadow-card flex items-center gap-4">
                       <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
                         <span className="text-xl">💰</span>
                       </div>
                       <div className="flex-1">
-                        <span className="text-xl font-display font-bold">{f.challenge.bet_per_month}€</span>
+                        <span className="text-xl font-display font-bold">{formatCurrency(f.challenge.bet_per_month)}</span>
                         <p className="text-xs text-muted-foreground">
-                          {f.challenge.sessions_per_week}x/sem · {f.challenge.duration_months} mois
+                          {f.challenge.sessions_per_week}x/{t('common.week')} · {f.challenge.duration_months} {t('common.months')}
                         </p>
                       </div>
                     </div>
 
-                    {/* Coins */}
                     <div className="bg-gradient-card rounded-2xl border border-border p-3 shadow-card flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Pièces gagnées</span>
+                      <span className="text-xs text-muted-foreground">{t('friends.coinsEarned')}</span>
                       <span className="font-display font-bold text-gradient-gold inline-flex items-center gap-1">
                         <CoinIcon size={16} /> {f.challenge.coins_awarded}
                       </span>
@@ -376,7 +359,7 @@ const Friends = () => {
             ) : (
               <div className="text-center py-8">
                 <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">Cet ami n'a pas de défi actif</p>
+                <p className="text-muted-foreground">{t('friends.noChallengeFriend')}</p>
                 <Button
                   onClick={() => {
                     setSelectedFriend(null);
@@ -385,7 +368,7 @@ const Friends = () => {
                   className="mt-4 bg-gradient-primary text-primary-foreground hover:opacity-90 rounded-xl shadow-glow"
                 >
                   <Gift className="w-4 h-4 mr-2" />
-                  Lui offrir un défi
+                  {t('friends.giftToFriend')}
                 </Button>
               </div>
             )}
@@ -393,18 +376,17 @@ const Friends = () => {
         </DrawerContent>
       </Drawer>
 
-      {/* Add Friend Drawer */}
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>Ajouter des amis</DrawerTitle>
-            <DrawerDescription>Recherche par pseudo ou partage ton lien</DrawerDescription>
+            <DrawerTitle>{t('friends.addFriends')}</DrawerTitle>
+            <DrawerDescription>{t('friends.searchByPseudo')}</DrawerDescription>
           </DrawerHeader>
           <div className="px-4 pb-6 space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher un pseudo..."
+                placeholder={t('friends.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -438,7 +420,7 @@ const Friends = () => {
 
             <Button variant="outline" className="w-full" onClick={handleCopyInvite}>
               <Copy className="w-4 h-4 mr-2" />
-              Copier mon code de parrainage
+              {t('friends.copyReferral')}
             </Button>
           </div>
         </DrawerContent>
