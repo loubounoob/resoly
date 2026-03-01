@@ -72,8 +72,8 @@ export const CartDrawer = () => {
             )}
           </Button>
         </SheetTrigger>
-        <SheetContent className="w-full sm:max-w-lg flex flex-col h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.5rem)' }}>
-          <SheetHeader className="flex-shrink-0 mt-2">
+        <SheetContent className="w-full sm:max-w-lg flex flex-col h-full">
+          <SheetHeader className="flex-shrink-0">
             <SheetTitle>{t('cart.title')}</SheetTitle>
             <SheetDescription>
               {totalItems === 0 ? t('cart.empty') : t('cart.articles', { count: totalItems })}
