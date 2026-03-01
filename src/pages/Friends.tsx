@@ -84,7 +84,7 @@ const Friends = () => {
   const receivedCount = receivedChallenges?.length ?? 0;
 
   return (
-    <div className="min-h-screen flex flex-col px-6 pt-6 pb-24">
+    <div className="min-h-full flex flex-col px-6 pt-6 pb-24">
       <div className="flex items-center justify-between mb-6">
     <div className="flex items-center gap-2">
           <Users className="w-6 h-6 text-primary" />

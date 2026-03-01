@@ -106,7 +106,7 @@ const Shop = () => {
 
   if (loading || coinsLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-full flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
@@ -114,7 +114,7 @@ const Shop = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-4">
+      <div className="min-h-full flex flex-col items-center justify-center gap-4 px-4">
         <p className="text-muted-foreground text-center">{t('shop.loadError')}</p>
         <Button onClick={() => { setError(false); setLoading(true); fetchShopifyProducts(20).then(setProducts).catch(() => setError(true)).finally(() => setLoading(false)); }}>
           {t('common.retry')}
@@ -125,7 +125,7 @@ const Shop = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col px-4 pt-6 pb-24">
+    <div className="min-h-full flex flex-col px-4 pt-6 pb-24">
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <ShoppingBag className="w-6 h-6 text-primary" />

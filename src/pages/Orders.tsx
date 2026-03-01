@@ -83,7 +83,7 @@ const Orders = () => {
   });
 
   return (
-    <div className="min-h-screen flex flex-col px-4 pt-6 pb-24">
+    <div className="min-h-full flex flex-col px-4 pt-6 pb-24">
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-lg hover:bg-secondary transition-colors">
           <ArrowLeft className="w-5 h-5" />
