@@ -85,8 +85,8 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-              <div className="fixed top-0 left-0 right-0 z-[100] bg-background safe-top max-w-md mx-auto" style={{ left: '50%', transform: 'translateX(-50%)' }} />
-              <div className="min-h-screen bg-background max-w-md mx-auto relative safe-top">
+              <div className="fixed top-0 left-0 right-0 z-[100] bg-background max-w-md mx-auto" style={{ left: '50%', transform: 'translateX(-50%)', height: 'max(env(safe-area-inset-top, 0px), 1rem)' }} />
+              <div className="min-h-screen bg-background max-w-md mx-auto relative" style={{ marginTop: 'max(env(safe-area-inset-top, 0px), 1rem)' }}>
                 <AppRoutes />
               </div>
           </AuthProvider>
