@@ -55,10 +55,13 @@ const Dashboard = () => {
   // Auto-detect impossible challenges and trigger server-side failure
   useAutoFailCheck(challenge, checkIns);
 
-  // Show failed overlay if recently failed and no active challenge
+  // Show failed overlay ONCE per failed challenge, then never again
   useEffect(() => {
     if (!loadingChallenge && !challenge && failedChallenge) {
-      setShowFailedOverlay(true);
+      const seenKey = `failed-overlay-seen-${failedChallenge.id}`;
+      if (!localStorage.getItem(seenKey)) {
+        setShowFailedOverlay(true);
+      }
     }
   }, [loadingChallenge, challenge, failedChallenge]);
 
@@ -152,7 +155,10 @@ const Dashboard = () => {
         {showFailedOverlay && failedChallenge && (
           <ChallengeFailedOverlay
             betLost={failedChallenge.bet_per_month}
-            onClose={() => setShowFailedOverlay(false)}
+            onClose={() => {
+              localStorage.setItem(`failed-overlay-seen-${failedChallenge.id}`, "1");
+              setShowFailedOverlay(false);
+            }}
           />
         )}
         <BottomNav />
