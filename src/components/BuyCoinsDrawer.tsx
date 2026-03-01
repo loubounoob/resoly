@@ -24,13 +24,13 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
   const [loadingPack, setLoadingPack] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
-  const { t, formatCurrency, currencySymbol } = useLocale();
+  const { t, formatCurrency, currencySymbol, locale } = useLocale();
 
   const handleBuy = async (amount: number) => {
     setLoadingPack(amount);
     try {
       const { data, error } = await supabase.functions.invoke("buy-coins", {
-        body: { pack: amount },
+        body: { pack: amount, locale },
       });
       if (error) throw error;
       if (data?.url) {

@@ -244,7 +244,8 @@ const OnboardingChallenge = () => {
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
-      <div className="px-6 pt-5 pb-2 flex items-center gap-3">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-background" style={{ height: 'max(env(safe-area-inset-top, 0px), 1.5rem)' }} />
+      <div className="px-6 pb-2 flex items-center gap-3" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 1.5rem)' }}>
         {current > 0 && (
           <button onClick={handleBack} className="text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="w-5 h-5" />

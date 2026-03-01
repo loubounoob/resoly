@@ -42,7 +42,7 @@ function computeFirstWeekGoal(sessionsPerWeek: number, dayNames: string[]): { fi
 
 const CreateChallenge = () => {
   const navigate = useNavigate();
-  const { t, formatCurrency, currency } = useLocale();
+  const { t, formatCurrency, currency, locale } = useLocale();
   const { data: activeChallenge, isLoading: loadingActive } = useActiveChallenge();
   const [mode] = useState<ChallengeMode>("solo");
   const [betAmount, setBetAmount] = useState(100);
@@ -117,6 +117,7 @@ const CreateChallenge = () => {
           challengeId: challenge.id,
           amount: betAmount,
           currency: currency,
+          locale: locale,
           description: t('createChallenge.betDescription', { amount: formatCurrency(betAmount), sessions: sessionsPerWeek, duration }),
         },
       });

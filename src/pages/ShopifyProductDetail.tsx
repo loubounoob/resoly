@@ -14,10 +14,13 @@ import { useLocale } from "@/contexts/LocaleContext";
 
 const COINS_PER_EURO = 50;
 
+// Simple in-memory cache for translations
+const translationCache: Record<string, string> = {};
+
 const ShopifyProductDetail = () => {
   const { handle } = useParams<{ handle: string }>();
   const navigate = useNavigate();
-  const { t, formatCurrency, currency } = useLocale();
+  const { t, formatCurrency, currency, locale } = useLocale();
   const addItem = useCartStore(state => state.addItem);
   const [product, setProduct] = useState<ShopifyProduct | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,6 +30,10 @@ const ShopifyProductDetail = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const touchStartX = useRef(0);
   const { data: coins, isLoading: coinsLoading, refetch: refetchCoins } = useUserCoins();
+
+  // Translation state
+  const [translatedDescription, setTranslatedDescription] = useState<string | null>(null);
+  const [translatedOptionNames, setTranslatedOptionNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchShopifyProducts(50).then(products => {
@@ -42,6 +49,48 @@ const ShopifyProductDetail = () => {
       }
     }).catch(console.error).finally(() => setLoading(false));
   }, [handle]);
+
+  // Translate description & option names when locale !== 'fr'
+  useEffect(() => {
+    if (!product || locale === 'fr') {
+      setTranslatedDescription(null);
+      setTranslatedOptionNames({});
+      return;
+    }
+
+    const translateText = async (text: string, format: string): Promise<string> => {
+      const cacheKey = `${locale}:${format}:${text.substring(0, 50)}`;
+      if (translationCache[cacheKey]) return translationCache[cacheKey];
+
+      try {
+        const res = await supabase.functions.invoke("translate-text", {
+          body: { text, targetLocale: locale, format },
+        });
+        const translated = res.data?.translated || text;
+        translationCache[cacheKey] = translated;
+        return translated;
+      } catch {
+        return text;
+      }
+    };
+
+    // Translate description
+    if (product.node.descriptionHtml) {
+      translateText(product.node.descriptionHtml, "html").then(setTranslatedDescription);
+    }
+
+    // Translate option names
+    const options = product.node.options.filter(o => !(o.values.length === 1 && o.values[0] === "Default Title"));
+    if (options.length > 0) {
+      const names = options.map(o => o.name).join(", ");
+      translateText(names, "text").then(result => {
+        const translatedNames = result.split(", ");
+        const map: Record<string, string> = {};
+        options.forEach((o, i) => { map[o.name] = translatedNames[i] || o.name; });
+        setTranslatedOptionNames(map);
+      });
+    }
+  }, [product, locale]);
 
   const selectedVariant = product?.node.variants.edges.find(v =>
     v.node.selectedOptions.every(opt => selectedOptions[opt.name] === opt.value)
@@ -118,6 +167,8 @@ const ShopifyProductDetail = () => {
     }
   };
 
+  const descriptionHtml = translatedDescription || product.node.descriptionHtml;
+
   return (
     <div className="min-h-screen flex flex-col pb-8">
       <div className="relative"
@@ -176,7 +227,7 @@ const ShopifyProductDetail = () => {
           <div className="mt-4 space-y-3">
             {options.map(option => (
               <div key={option.name}>
-                <p className="text-sm font-medium mb-2">{option.name}</p>
+                <p className="text-sm font-medium mb-2">{translatedOptionNames[option.name] || option.name}</p>
                 <div className="flex flex-wrap gap-2">
                   {option.values.map(value => {
                     const isSelected = selectedOptions[option.name] === value;
@@ -207,7 +258,7 @@ const ShopifyProductDetail = () => {
           </div>
         )}
 
-        <div className="text-muted-foreground text-sm mt-4 leading-relaxed prose prose-sm prose-invert max-w-none [&_p]:mb-2 [&_br]:block [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4" dangerouslySetInnerHTML={{ __html: product.node.descriptionHtml }} />
+        <div className="text-muted-foreground text-sm mt-4 leading-relaxed prose prose-sm prose-invert max-w-none [&_p]:mb-2 [&_br]:block [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4" dangerouslySetInnerHTML={{ __html: descriptionHtml }} />
         <div className="mt-auto pt-6 flex flex-col gap-3">
           <Button className="w-full h-12 text-base" disabled={!selectedVariant?.availableForSale} onClick={handleAdd}>
             {selectedVariant?.availableForSale ? t('shop.addToCart') : t('shop.unavailable')}

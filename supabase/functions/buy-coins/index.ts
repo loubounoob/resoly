@@ -31,7 +31,7 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated");
 
-    const { pack, currency } = await req.json();
+    const { pack, currency, locale } = await req.json();
     const packInfo = PACKS[String(pack)];
     if (!packInfo) throw new Error("Invalid pack");
 
@@ -50,6 +50,7 @@ serve(async (req) => {
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
+      locale: locale || 'auto',
       line_items: [
         {
           price_data: {
