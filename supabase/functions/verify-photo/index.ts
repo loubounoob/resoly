@@ -25,6 +25,14 @@ serve(async (req) => {
       );
     }
 
+    const localeNames: Record<string, string> = { fr: "French", en: "English", de: "German" };
+    const localeName = localeNames[locale] || "English";
+    const fallbackReasons: Record<string, string> = {
+      fr: "Impossible d'analyser la photo",
+      en: "Unable to analyze the photo",
+      de: "Foto konnte nicht analysiert werden",
+    };
+
     // Extract pure base64 data (remove data:image/...;base64, prefix if present)
     const base64Data = imageBase64.includes(",")
       ? imageBase64.split(",")[1]
@@ -45,7 +53,7 @@ serve(async (req) => {
       
       Be lenient — if there are reasonable signs of a gym/sport environment, validate it.
       
-      IMPORTANT: The "reason" field MUST be in the language requested: "${locale || 'en'}".
+      CRITICAL: You MUST respond in ${localeName}. The "reason" field MUST be written entirely in ${localeName}. Do NOT use any other language.
     `;
 
     const response = await fetch(
@@ -84,7 +92,7 @@ serve(async (req) => {
     const content = aiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
     let verified = false;
-    let reason = "Impossible d'analyser la photo";
+    let reason = fallbackReasons[locale] || fallbackReasons["en"];
 
     try {
       const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();

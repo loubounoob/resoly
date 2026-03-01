@@ -24,7 +24,7 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated");
 
-    const { challengeId, socialChallengeId, memberId, amount, description, currency } = await req.json();
+    const { challengeId, socialChallengeId, memberId, amount, description, currency, locale } = await req.json();
     if (!amount) throw new Error("Missing amount");
     if (!challengeId && !socialChallengeId) throw new Error("Missing challengeId or socialChallengeId");
 
@@ -51,6 +51,7 @@ serve(async (req) => {
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
+      locale: locale || 'auto',
       line_items: [
         {
           price_data: {
