@@ -121,9 +121,9 @@ const en: TranslationKeys = {
     betDescription: "Resoly Stake — {amount} — {sessions}x/week for {duration} months",
     promoPlaceholder: "Promo code",
     promoApply: "Apply",
-    promoApplied: "Code applied! ×1.5 coins 🎉",
+    promoApplied: "Code applied! +50% coins 🎉",
     promoInvalid: "Invalid code",
-    promoBonus: "×1.5 bonus",
+    promoBonus: "+50% bonus",
   },
   photoVerify: {
     title: "Gym check-in",

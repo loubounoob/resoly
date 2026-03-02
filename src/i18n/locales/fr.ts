@@ -119,9 +119,9 @@ const fr = {
     betDescription: "Mise Resoly — {amount} — {sessions}x/sem pendant {duration} mois",
     promoPlaceholder: "Code promo",
     promoApply: "Appliquer",
-    promoApplied: "Code appliqué ! ×1.5 pièces 🎉",
+    promoApplied: "Code appliqué ! +50% pièces 🎉",
     promoInvalid: "Code invalide",
-    promoBonus: "×1.5 bonus",
+    promoBonus: "+50% bonus",
   },
   photoVerify: {
     title: "Check-in salle",
