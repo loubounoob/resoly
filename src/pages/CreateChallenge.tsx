@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { ArrowLeft, Flame, Coins, Loader2, Users, User } from "lucide-react";
+import { ArrowLeft, Flame, Coins, Loader2, Users, User, Timer } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { useCreateChallenge, useActiveChallenge } from "@/hooks/useChallenge";
 import { calculateCoins, VALID_PROMO_CODES } from "@/lib/coins";
@@ -26,6 +26,7 @@ type ChallengeMode = "solo" | "social";
 
 const DURATION_OPTIONS = [1, 2, 3];
 const SESSIONS_OPTIONS = [2, 3, 4, 5, 6];
+const PROMO_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 
 function computeFirstWeekGoal(sessionsPerWeek: number, dayNames: string[]): { firstWeekGoal: number; daysLeft: number; dayName: string; needsAdjustment: boolean } {
   const today = new Date();
@@ -39,6 +40,12 @@ function computeFirstWeekGoal(sessionsPerWeek: number, dayNames: string[]): { fi
   const firstWeekGoal = Math.max(1, Math.floor(sessionsPerWeek * daysLeft / 7));
   const needsAdjustment = dayOfWeek !== 1;
   return { firstWeekGoal, daysLeft, dayName: dayNames[dayOfWeek], needsAdjustment };
+}
+
+function formatCountdown(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
 const CreateChallenge = () => {
@@ -56,6 +63,11 @@ const CreateChallenge = () => {
   const [promoInput, setPromoInput] = useState("");
   const [promoApplied, setPromoApplied] = useState<string | null>(null);
   const [promoAnimating, setPromoAnimating] = useState(false);
+  const [animatedCoins, setAnimatedCoins] = useState<number | null>(null);
+
+  // Promo countdown
+  const [promoExpiresAt, setPromoExpiresAt] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState(0);
 
   const createChallenge = useCreateChallenge();
 
@@ -77,6 +89,24 @@ const CreateChallenge = () => {
       .catch(console.error);
   }, []);
 
+  // Promo countdown timer
+  useEffect(() => {
+    if (!promoExpiresAt) return;
+    const tick = () => {
+      const remaining = Math.max(0, Math.round((promoExpiresAt - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        setPromoApplied(null);
+        setPromoExpiresAt(null);
+        setPromoInput("");
+        toast.error(t('createChallenge.promoExpired'));
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [promoExpiresAt, t]);
+
   if (loadingActive) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -93,9 +123,29 @@ const CreateChallenge = () => {
     const code = promoInput.trim().toUpperCase();
     if (VALID_PROMO_CODES.includes(code)) {
       setPromoApplied(code);
+      setPromoExpiresAt(Date.now() + PROMO_DURATION_MS);
       setPromoAnimating(true);
+      setAnimatedCoins(baseCoins);
       toast.success(t('createChallenge.promoApplied'));
-      setTimeout(() => setPromoAnimating(false), 800);
+
+      // Animate coin counter from base → boosted over 2s
+      const target = Math.round(baseCoins * 1.5);
+      const steps = 40;
+      const stepTime = 2000 / steps;
+      let current = baseCoins;
+      const increment = (target - baseCoins) / steps;
+      let step = 0;
+      const timer = setInterval(() => {
+        step++;
+        current += increment;
+        if (step >= steps) {
+          clearInterval(timer);
+          setAnimatedCoins(null);
+        }
+        setAnimatedCoins(Math.round(current));
+      }, stepTime);
+
+      setTimeout(() => setPromoAnimating(false), 2500);
     } else {
       toast.error(t('createChallenge.promoInvalid'));
     }
@@ -233,8 +283,16 @@ const CreateChallenge = () => {
               disabled={!!promoApplied}
             />
             {promoApplied ? (
-              <div className="flex items-center gap-1 px-3 rounded-lg bg-green-500/20 text-green-400 text-sm font-bold whitespace-nowrap">
-                ✅ {t('createChallenge.promoBonus')}
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-1 px-3 rounded-lg bg-green-500/20 text-green-400 text-sm font-bold whitespace-nowrap">
+                  ✅ {t('createChallenge.promoBonus')}
+                </div>
+                {promoExpiresAt && (
+                  <div className={`flex items-center gap-1 text-xs font-mono ${timeLeft < 300 ? 'text-destructive animate-pulse' : 'text-muted-foreground'}`}>
+                    <Timer className="w-3 h-3" />
+                    {formatCountdown(timeLeft)}
+                  </div>
+                )}
               </div>
             ) : (
               <Button
@@ -263,14 +321,33 @@ const CreateChallenge = () => {
 
           <div className="h-px bg-border" />
 
-          <div className="flex items-center justify-between">
+          <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Coins className="w-5 h-5 text-accent" />
               <span className="text-sm text-muted-foreground">{t('createChallenge.coinsToEarn')}</span>
             </div>
-            <span className={`font-display font-bold text-lg text-gradient-gold transition-all duration-500 ${promoAnimating ? 'scale-125 drop-shadow-[0_0_12px_hsl(var(--accent))]' : 'scale-100'}`}>
-              <span className="inline-flex items-center gap-1"><CoinIcon size={18} /> {coinsPreview}</span>
-            </span>
+            <div className="relative">
+              {/* Floating +50% badge */}
+              {promoAnimating && (
+                <span className="absolute -top-6 right-0 text-xs font-display font-bold text-accent animate-float-up pointer-events-none whitespace-nowrap">
+                  +50% 🔥
+                </span>
+              )}
+              {/* Strikethrough base + animated boosted value */}
+              <span className={`font-display font-bold text-lg text-gradient-gold ${promoAnimating ? 'animate-coin-glow-burst' : ''}`}>
+                <span className="inline-flex items-center gap-1">
+                  <CoinIcon size={18} />
+                  {promoAnimating && animatedCoins !== null ? (
+                    <>
+                      <span className="line-through text-muted-foreground text-sm mr-1">{baseCoins}</span>
+                      {animatedCoins}
+                    </>
+                  ) : (
+                    coinsPreview
+                  )}
+                </span>
+              </span>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">
             {t('createChallenge.coinsIfWin', { coins: coinsPreview })}

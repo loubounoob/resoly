@@ -124,6 +124,8 @@ const en: TranslationKeys = {
     promoApplied: "Code applied! +50% coins 🎉",
     promoInvalid: "Invalid code",
     promoBonus: "+50% bonus",
+    promoExpired: "Code expired! Re-apply it.",
+    promoTimeLeft: "Time left",
   },
   photoVerify: {
     title: "Gym check-in",
