@@ -1,53 +1,51 @@
 
 
-## Plan: Currency multiplier on coins + Countdown verification
+## Plan: Promo codes with ×1.5 coin multiplier + animation
 
-### 1. Currency multiplier on coin calculation
+### Overview
+Add a promo code input field on the CreateChallenge page. When a valid code is entered, coins preview is multiplied by 1.5 with a celebratory animation. The valid codes are: `SUMMER`, `SUMMERBODY`, `WINTER`, `NEWYEAR`, `2027`.
 
-The coin formula needs a currency-based multiplier to account for weaker currencies:
-- **AUD / CAD** → multiply result by **0.65**
-- **USD** → multiply result by **0.85**
-- **EUR / GBP / CHF** → no change (×1.0)
+### 1. Promo code validation (frontend only)
 
-This must be applied in **3 places**:
-
-| File | What changes |
-|------|-------------|
-| `src/lib/coins.ts` | Add a `getCurrencyMultiplier(currency)` function. Update `calculateCoins` to accept an optional `currency` param and apply the multiplier. |
-| `src/pages/Dashboard.tsx` (line 216) | Pass `currency` to `calculateCoins` so the preview matches actual server award. |
-| `src/pages/CreateChallenge.tsx` (line 85) | Pass `currency` to `calculateCoins`. |
-| `src/pages/CreateSocialChallenge.tsx` (line 42) | Pass `currency` to `calculateCoins`. |
-| `supabase/functions/complete-challenge/index.ts` (line 84) | After computing `coinsToEarn`, look up the user's `country` from `profiles`, map it to a currency, and apply the same multiplier before awarding coins. |
-
-The country→currency mapping on the server will be a simple inline map:
-```
-AU→AUD(×0.65), CA→CAD(×0.65), US→USD(×0.85), others→×1.0
+A simple constant list of valid codes in `CreateChallenge.tsx`:
+```typescript
+const PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027"];
 ```
 
-### 2. Weeks remaining countdown verification
+No server-side validation needed — the multiplier is purely cosmetic for the preview. The actual coin award at challenge completion stays unchanged (server-controlled).
 
-The current logic (Dashboard.tsx lines 271-281):
-```
-challengeEnd = started_at + duration_months
-weeksRemaining = ceil(msLeft / 7days)
-```
+**Wait — should the ×1.5 also apply to the actual coins awarded server-side?** Based on the request ("multiplient par 1,5 le nombre de pièce"), yes. So:
 
-**Issue**: When `weeksRemaining === 0`, the countdown text is hidden. This means during the very last partial week, the text disappears. This is correct behavior — the user is in their final stretch and the weekly ring shows their progress.
-
-**Completion trigger**: `isChallengeComplete` (line 166) checks `completedSessions >= totalSessions`. When true, the golden "tap to claim" card appears and clicking it triggers `ChallengeVictoryOverlay` which calls `complete-challenge`. The server validates `count >= total_sessions` before awarding. This flow is correct.
-
-**Plural handling**: The `{s}` in translation strings like `"⏳ {count} semaine{s} restante{s}"` is never replaced because no `s` param is passed. The literal `{s}` stays in the output. This needs fixing: when count=1, remove the `s`; when count>1, show `s`.
-
-I'll fix this by updating the `t()` function in `LocaleContext.tsx` to handle `{s}` as a conditional plural based on a `count` param.
-
-### Files to modify
+### 2. Changes needed
 
 | File | Change |
 |------|--------|
-| `src/lib/coins.ts` | Add currency multiplier function, update `calculateCoins` signature |
-| `src/pages/Dashboard.tsx` | Pass currency to `calculateCoins` |
-| `src/pages/CreateChallenge.tsx` | Pass currency to `calculateCoins` |
-| `src/pages/CreateSocialChallenge.tsx` | Pass currency to `calculateCoins` |
-| `supabase/functions/complete-challenge/index.ts` | Apply currency multiplier server-side |
-| `src/contexts/LocaleContext.tsx` | Handle `{s}` plural marker based on `count` param |
+| `src/pages/CreateChallenge.tsx` | Add promo code input + state (`promoCode`, `promoApplied`). Validate against the list. Apply ×1.5 to `coinsPreview`. Show animation on valid code. Pass `promoCode` to the edge function. |
+| `src/lib/coins.ts` | Add `VALID_PROMO_CODES` constant and `getPromoMultiplier(code)` helper (returns 1.5 or 1.0). |
+| `supabase/functions/complete-challenge/index.ts` | Read `promo_code` from the challenge row. If valid, apply ×1.5 to coins before awarding. |
+| `challenges` table | Add a `promo_code` column (text, nullable) via migration to persist the code used at creation. |
+| `src/i18n/locales/fr.ts`, `en.ts`, `de.ts` | Add translation keys for promo code UI (`promoCode`, `promoApplied`, `promoInvalid`, `promoPlaceholder`). |
+
+### 3. UI design
+
+Below the duration section (before the summary card), add:
+- A text input with a "Appliquer" button
+- On valid code: input turns green, a ✅ badge appears, coins preview animates (scale-up + glow) to show the new ×1.5 value
+- On invalid code: toast error "Code invalide"
+- The animation: the coins number scales up with a brief `animate-scale-in` + golden glow pulse
+
+### 4. Server-side persistence
+
+- **Migration**: `ALTER TABLE challenges ADD COLUMN promo_code text;`
+- At challenge creation in `useCreateChallenge`, pass the promo code to the insert
+- In `complete-challenge` edge function, check `challenge.promo_code` against the valid list and apply ×1.5
+
+### 5. Files to modify
+
+1. **Migration** — add `promo_code` column to `challenges`
+2. **`src/lib/coins.ts`** — add promo codes list + helper
+3. **`src/pages/CreateChallenge.tsx`** — promo input UI, animation, pass code to challenge creation
+4. **`src/hooks/useChallenge.ts`** — accept `promo_code` in `useCreateChallenge`
+5. **`supabase/functions/complete-challenge/index.ts`** — apply ×1.5 if valid promo
+6. **`src/i18n/locales/fr.ts`**, **`en.ts`**, **`de.ts`** — translation keys
 
