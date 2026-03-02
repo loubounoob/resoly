@@ -65,6 +65,13 @@ serve(async (req) => {
       throw new Error("Not all sessions completed");
     }
 
+    // Fetch profile first (needed for currency multiplier and coin update)
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("coins, country")
+      .eq("user_id", userId)
+      .single();
+
     // Calculate coins
     const getCoefficientDeMise = (I: number): number => {
       if (I <= 50) return 1 + 0.004 * I;
@@ -89,13 +96,6 @@ serve(async (req) => {
     const userCountry = (profile?.country || 'FR').toUpperCase();
     const currencyMult = countryToCurrencyMult[userCountry] ?? 1.0;
     const coinsToEarn = Math.round(I * CI * monthFactor * sessionFactor * currencyMult);
-
-    // Update profile coins
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("coins, country")
-      .eq("user_id", userId)
-      .single();
 
     const userLocale = countryToLocale(profile?.country);
 

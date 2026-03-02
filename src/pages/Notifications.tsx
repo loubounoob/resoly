@@ -274,7 +274,7 @@ const Notifications = () => {
                     </Button>
                   </div>
                 )}
-                {isReferralReward && !alreadyResponded && (
+                {isReferralReward && !alreadyResponded && notif.data?.claimed !== true && (
                   <Button
                     size="sm"
                     className="h-9 text-xs font-display font-bold bg-gradient-gold text-accent-foreground hover:opacity-90 shadow-gold"
