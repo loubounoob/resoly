@@ -124,6 +124,8 @@ const de: TranslationKeys = {
     promoApplied: "Code angewendet! +50% Münzen 🎉",
     promoInvalid: "Ungültiger Code",
     promoBonus: "+50% Bonus",
+    promoExpired: "Code abgelaufen! Erneut anwenden.",
+    promoTimeLeft: "Verbleibend",
   },
   photoVerify: {
     title: "Gym Check-in",

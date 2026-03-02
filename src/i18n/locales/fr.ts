@@ -122,6 +122,8 @@ const fr = {
     promoApplied: "Code appliqué ! +50% pièces 🎉",
     promoInvalid: "Code invalide",
     promoBonus: "+50% bonus",
+    promoExpired: "Code expiré ! Réapplique-le.",
+    promoTimeLeft: "Temps restant",
   },
   photoVerify: {
     title: "Check-in salle",
