@@ -121,9 +121,9 @@ const de: TranslationKeys = {
     betDescription: "Resoly Einsatz — {amount} — {sessions}x/Woche für {duration} Monate",
     promoPlaceholder: "Aktionscode",
     promoApply: "Anwenden",
-    promoApplied: "Code angewendet! ×1.5 Münzen 🎉",
+    promoApplied: "Code angewendet! +50% Münzen 🎉",
     promoInvalid: "Ungültiger Code",
-    promoBonus: "×1.5 Bonus",
+    promoBonus: "+50% Bonus",
   },
   photoVerify: {
     title: "Gym Check-in",
