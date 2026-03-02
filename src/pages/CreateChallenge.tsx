@@ -283,16 +283,14 @@ const CreateChallenge = () => {
               disabled={!!promoApplied}
             />
             {promoApplied ? (
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-1 px-3 rounded-lg bg-green-500/20 text-green-400 text-sm font-bold whitespace-nowrap">
-                  ✅ {t('createChallenge.promoBonus')}
+              <div className="flex items-center gap-2">
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono font-bold text-sm tabular-nums ${timeLeft < 300 ? 'bg-destructive/15 text-destructive animate-pulse border border-destructive/30' : 'bg-accent/15 text-accent border border-accent/30'}`}>
+                  <Timer className="w-4 h-4" />
+                  {formatCountdown(timeLeft)}
                 </div>
-                {promoExpiresAt && (
-                  <div className={`flex items-center gap-1 text-xs font-mono ${timeLeft < 300 ? 'text-destructive animate-pulse' : 'text-muted-foreground'}`}>
-                    <Timer className="w-3 h-3" />
-                    {formatCountdown(timeLeft)}
-                  </div>
-                )}
+                <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-500/20 text-green-400 text-xs font-bold whitespace-nowrap">
+                  ✅ +50%
+                </div>
               </div>
             ) : (
               <Button
