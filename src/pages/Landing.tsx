@@ -41,13 +41,13 @@ const Landing = () => {
 
         <div className="space-y-3 mt-auto">
           <Button
-            onClick={() => navigate("/auth")}
+            onClick={() => navigate("/auth?mode=signup")}
             className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity shadow-glow animate-pulse-glow rounded-xl"
           >
             {t('landing.cta')}
           </Button>
           <Button
-            onClick={() => navigate("/auth")}
+            onClick={() => navigate("/auth?mode=login")}
             variant="outline"
             className="w-full h-12 font-medium border-border/50 text-foreground hover:bg-secondary rounded-xl"
           >
