@@ -17,7 +17,7 @@ import ChallengeFailedOverlay from "@/components/ChallengeFailedOverlay";
 import ChallengeVictoryOverlay from "@/components/ChallengeVictoryOverlay";
 import ChallengeAcceptedOverlay from "@/components/ChallengeAcceptedOverlay";
 import { useMyProfile } from "@/hooks/useFriends";
-import { calculateCoins } from "@/lib/coins";
+import { calculateCoins, getPromoMultiplier } from "@/lib/coins";
 import { startOfWeek, endOfWeek, isWithinInterval, getDay } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import NotificationBell from "@/components/NotificationBell";
@@ -213,7 +213,8 @@ const Dashboard = () => {
       : t('dashboard.motivRemaining', { remaining });
 
   const totalBet = challenge.bet_per_month;
-  const coinsToEarn = calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week, currency);
+  const promoMult = getPromoMultiplier(challenge.promo_code ?? undefined);
+  const coinsToEarn = Math.round(calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week, currency) * promoMult);
 
   const weekDayLabels = t('dashboard.weekDays') as unknown as string[];
 

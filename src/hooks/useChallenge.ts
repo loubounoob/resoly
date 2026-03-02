@@ -20,6 +20,7 @@ export interface Challenge {
   stripe_payment_intent_id: string | null;
   coins_awarded: number;
   social_challenge_id: string | null;
+  promo_code: string | null;
 }
 
 export interface CheckIn {
