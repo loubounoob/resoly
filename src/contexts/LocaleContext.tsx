@@ -69,6 +69,11 @@ export const LocaleProvider = ({ children }: { children: ReactNode }) => {
         value = value.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
       });
     }
+    // Handle {s} conditional plural: show 's' when count > 1, remove otherwise
+    if (params && 'count' in params) {
+      const count = Number(params.count);
+      value = value.replace(/\{s\}/g, count > 1 ? 's' : '');
+    }
     return value;
   }, [locale]);
 

@@ -39,7 +39,7 @@ const CreateSocialChallenge = () => {
     fetchShopifyProducts(20).then(setShopProducts).catch(console.error);
   }, []);
 
-  const coinsPreview = calculateCoins(betAmount, duration, sessionsPerWeek);
+  const coinsPreview = calculateCoins(betAmount, duration, sessionsPerWeek, currency);
   const totalSessions = sessionsPerWeek * duration * 4;
 
   const handleParamsNext = () => {
