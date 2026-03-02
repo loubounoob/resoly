@@ -1,31 +1,53 @@
 
 
-## Plan: Fix scrollbar on all pages + verify translations
+## Plan: Currency multiplier on coins + Countdown verification
 
-### Root cause of scrollbar
-App.tsx uses `paddingTop` on a `min-h-screen` container. Inner pages also use `min-h-screen` (= 100vh). So total height = 100vh + safe-area padding → always overflows by ~24px → scrollbar appears everywhere.
+### 1. Currency multiplier on coin calculation
 
-### Fix approach
-Change App.tsx wrapper to `h-screen flex flex-col overflow-hidden` with the paddingTop. Wrap `<AppRoutes />` in a `flex-1 overflow-y-auto` div. Then replace `min-h-screen` with `min-h-full` on all pages so they fill the remaining space exactly.
+The coin formula needs a currency-based multiplier to account for weaker currencies:
+- **AUD / CAD** → multiply result by **0.65**
+- **USD** → multiply result by **0.85**
+- **EUR / GBP / CHF** → no change (×1.0)
+
+This must be applied in **3 places**:
+
+| File | What changes |
+|------|-------------|
+| `src/lib/coins.ts` | Add a `getCurrencyMultiplier(currency)` function. Update `calculateCoins` to accept an optional `currency` param and apply the multiplier. |
+| `src/pages/Dashboard.tsx` (line 216) | Pass `currency` to `calculateCoins` so the preview matches actual server award. |
+| `src/pages/CreateChallenge.tsx` (line 85) | Pass `currency` to `calculateCoins`. |
+| `src/pages/CreateSocialChallenge.tsx` (line 42) | Pass `currency` to `calculateCoins`. |
+| `supabase/functions/complete-challenge/index.ts` (line 84) | After computing `coinsToEarn`, look up the user's `country` from `profiles`, map it to a currency, and apply the same multiplier before awarding coins. |
+
+The country→currency mapping on the server will be a simple inline map:
+```
+AU→AUD(×0.65), CA→CAD(×0.65), US→USD(×0.85), others→×1.0
+```
+
+### 2. Weeks remaining countdown verification
+
+The current logic (Dashboard.tsx lines 271-281):
+```
+challengeEnd = started_at + duration_months
+weeksRemaining = ceil(msLeft / 7days)
+```
+
+**Issue**: When `weeksRemaining === 0`, the countdown text is hidden. This means during the very last partial week, the text disappears. This is correct behavior — the user is in their final stretch and the weekly ring shows their progress.
+
+**Completion trigger**: `isChallengeComplete` (line 166) checks `completedSessions >= totalSessions`. When true, the golden "tap to claim" card appears and clicking it triggers `ChallengeVictoryOverlay` which calls `complete-challenge`. The server validates `count >= total_sessions` before awarding. This flow is correct.
+
+**Plural handling**: The `{s}` in translation strings like `"⏳ {count} semaine{s} restante{s}"` is never replaced because no `s` param is passed. The literal `{s}` stays in the output. This needs fixing: when count=1, remove the `s`; when count>1, show `s`.
+
+I'll fix this by updating the `t()` function in `LocaleContext.tsx` to handle `{s}` as a conditional plural based on a `count` param.
 
 ### Files to modify
 
-**`src/App.tsx`** (line 91):
-- Change wrapper to `h-screen flex flex-col overflow-hidden bg-background max-w-md mx-auto relative`
-- Wrap `<AppRoutes />` in `<div className="flex-1 overflow-y-auto">`
-
-**All pages — replace `min-h-screen` with `min-h-full`** (8 files):
-| File | Lines |
-|------|-------|
-| `src/pages/Dashboard.tsx` | 133, 221 |
-| `src/pages/Shop.tsx` | 109, 117, 128 |
-| `src/pages/PhotoVerify.tsx` | 166, 190, 213, 237 |
-| `src/pages/Friends.tsx` | 87 |
-| `src/pages/Orders.tsx` | 86 |
-| `src/pages/Notifications.tsx` | 161 |
-| `src/pages/Settings.tsx` | 39 |
-| `src/pages/Rewards.tsx` | 49 |
-
-### Translations verification
-All notification types (11 types) are already translated in `notif-i18n.ts`. Edge functions and `useFriends.ts` already use locale-aware notifications. The DB trigger for referral_signup is also translated. The UI strings use `t()` throughout. No remaining hardcoded French strings found in notification logic.
+| File | Change |
+|------|--------|
+| `src/lib/coins.ts` | Add currency multiplier function, update `calculateCoins` signature |
+| `src/pages/Dashboard.tsx` | Pass currency to `calculateCoins` |
+| `src/pages/CreateChallenge.tsx` | Pass currency to `calculateCoins` |
+| `src/pages/CreateSocialChallenge.tsx` | Pass currency to `calculateCoins` |
+| `supabase/functions/complete-challenge/index.ts` | Apply currency multiplier server-side |
+| `src/contexts/LocaleContext.tsx` | Handle `{s}` plural marker based on `count` param |
 
