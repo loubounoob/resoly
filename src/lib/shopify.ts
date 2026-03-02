@@ -5,6 +5,14 @@ const SHOPIFY_STORE_PERMANENT_DOMAIN = 'sbqb12-w0.myshopify.com';
 const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
 const SHOPIFY_STOREFRONT_TOKEN = 'dea130615072a7c29e6b478f2c947473';
 
+export interface ShopifyMediaNode {
+  mediaContentType: 'IMAGE' | 'VIDEO' | 'EXTERNAL_VIDEO' | 'MODEL_3D';
+  image?: { url: string; altText: string | null };
+  sources?: Array<{ url: string; mimeType: string }>;
+  embedUrl?: string;
+  host?: string;
+}
+
 export interface ShopifyProduct {
   node: {
     id: string;
@@ -24,6 +32,11 @@ export interface ShopifyProduct {
           url: string;
           altText: string | null;
         };
+      }>;
+    };
+    media?: {
+      edges: Array<{
+        node: ShopifyMediaNode;
       }>;
     };
     variants: {
@@ -107,6 +120,29 @@ const PRODUCTS_QUERY = `
               node {
                 url
                 altText
+              }
+            }
+          }
+          media(first: 10) {
+            edges {
+              node {
+                mediaContentType
+                ... on Video {
+                  sources {
+                    url
+                    mimeType
+                  }
+                }
+                ... on ExternalVideo {
+                  embedUrl
+                  host
+                }
+                ... on MediaImage {
+                  image {
+                    url
+                    altText
+                  }
+                }
               }
             }
           }

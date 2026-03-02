@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, ShoppingBag } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
-import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
+import { fetchShopifyProducts, ShopifyProduct, ShopifyMediaNode } from "@/lib/shopify";
 import { useCartStore } from "@/stores/cartStore";
 import { useUserCoins } from "@/hooks/useChallenge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,6 +26,9 @@ const ShopifyProductCard = ({ product }: { product: ShopifyProduct }) => {
   const variant = product.node.variants.edges[0]?.node;
   const price = product.node.priceRange.minVariantPrice;
   const coinsPrice = Math.ceil(parseFloat(price.amount) * COINS_PER_EURO);
+  const firstMedia = product.node.media?.edges?.[0]?.node;
+  const firstImageUrl = product.node.images.edges[0]?.node?.url || "/placeholder.svg";
+  const firstImageAlt = product.node.images.edges[0]?.node?.altText || product.node.title;
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -43,8 +46,19 @@ const ShopifyProductCard = ({ product }: { product: ShopifyProduct }) => {
 
   return (
     <Card className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate(`/shopify/${product.node.handle}`)}>
-      <AspectRatio ratio={1}>
-        <img src={product.node.images.edges[0]?.node?.url || "/placeholder.svg"} alt={product.node.images.edges[0]?.node?.altText || product.node.title} className="w-full h-full object-cover" />
+      <AspectRatio ratio={3/4}>
+        {firstMedia?.mediaContentType === 'VIDEO' && firstMedia.sources?.[0] ? (
+          <video
+            src={firstMedia.sources[0].url}
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <img src={firstImageUrl} alt={firstImageAlt} className="w-full h-full object-cover" />
+        )}
       </AspectRatio>
       <CardContent className="p-3">
         <h3 className="font-semibold text-sm truncate">{product.node.title}</h3>
