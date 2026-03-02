@@ -10,7 +10,9 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { COUNTRY_CODES, COUNTRY_MAP, type CountryCode } from "@/i18n/currencies";
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [searchParams] = useSearchParams();
+  const mode = searchParams.get("mode");
+  const [isLogin, setIsLogin] = useState(mode !== "signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [age, setAge] = useState("");
@@ -19,7 +21,6 @@ const Auth = () => {
   const [referralCode, setReferralCode] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { t, locale, country, setCountry } = useLocale();
 
