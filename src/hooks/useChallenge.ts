@@ -79,6 +79,7 @@ export const useCreateChallenge = () => {
       duration_months: number;
       bet_per_month: number;
       odds: number;
+      promo_code?: string;
     }) => {
       // Cancel any zombie challenges (created but never paid)
       await supabase
@@ -98,7 +99,8 @@ export const useCreateChallenge = () => {
           bet_per_month: params.bet_per_month,
           odds: params.odds,
           total_sessions,
-        })
+          ...(params.promo_code ? { promo_code: params.promo_code } : {}),
+        } as any)
         .select()
         .single();
       if (error) throw error;

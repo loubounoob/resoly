@@ -1,0 +1,1 @@
+ALTER TABLE public.challenges ADD COLUMN promo_code text;

@@ -119,6 +119,11 @@ const de: TranslationKeys = {
     paymentError: "Zahlungsfehler",
     dayNames: ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"],
     betDescription: "Resoly Einsatz — {amount} — {sessions}x/Woche für {duration} Monate",
+    promoPlaceholder: "Aktionscode",
+    promoApply: "Anwenden",
+    promoApplied: "Code angewendet! ×1.5 Münzen 🎉",
+    promoInvalid: "Ungültiger Code",
+    promoBonus: "×1.5 Bonus",
   },
   photoVerify: {
     title: "Gym Check-in",

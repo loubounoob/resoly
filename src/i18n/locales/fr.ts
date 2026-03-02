@@ -117,6 +117,11 @@ const fr = {
     paymentError: "Erreur lors du paiement",
     dayNames: ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"],
     betDescription: "Mise Resoly — {amount} — {sessions}x/sem pendant {duration} mois",
+    promoPlaceholder: "Code promo",
+    promoApply: "Appliquer",
+    promoApplied: "Code appliqué ! ×1.5 pièces 🎉",
+    promoInvalid: "Code invalide",
+    promoBonus: "×1.5 bonus",
   },
   photoVerify: {
     title: "Check-in salle",
