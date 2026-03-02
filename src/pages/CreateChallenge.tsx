@@ -283,14 +283,9 @@ const CreateChallenge = () => {
               disabled={!!promoApplied}
             />
             {promoApplied ? (
-              <div className="flex items-center gap-2">
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono font-bold text-sm tabular-nums ${timeLeft < 300 ? 'bg-destructive/15 text-destructive animate-pulse border border-destructive/30' : 'bg-accent/15 text-accent border border-accent/30'}`}>
-                  <Timer className="w-4 h-4" />
-                  {formatCountdown(timeLeft)}
-                </div>
-                <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-500/20 text-green-400 text-xs font-bold whitespace-nowrap">
-                  ✅ +50%
-                </div>
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono font-bold text-sm tabular-nums ${timeLeft < 300 ? 'bg-destructive/15 text-destructive animate-pulse border border-destructive/30' : 'bg-accent/15 text-accent border border-accent/30'}`}>
+                <Timer className="w-4 h-4" />
+                {formatCountdown(timeLeft)}
               </div>
             ) : (
               <Button
@@ -324,8 +319,8 @@ const CreateChallenge = () => {
               <Coins className="w-5 h-5 text-accent" />
               <span className="text-sm text-muted-foreground">{t('createChallenge.coinsToEarn')}</span>
             </div>
-            <div className="relative">
-              {/* Floating +50% badge */}
+            <div className="relative flex items-center gap-2">
+              {/* Floating +50% badge during animation */}
               {promoAnimating && (
                 <span className="absolute -top-6 right-0 text-xs font-display font-bold text-accent animate-float-up pointer-events-none whitespace-nowrap">
                   +50% 🔥
@@ -345,6 +340,12 @@ const CreateChallenge = () => {
                   )}
                 </span>
               </span>
+              {/* Static +50% badge next to coins when promo is active */}
+              {promoApplied && !promoAnimating && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-green-500/20 text-green-400 text-xs font-bold whitespace-nowrap border border-green-500/30">
+                  ✅ +50%
+                </span>
+              )}
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
