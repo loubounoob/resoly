@@ -82,7 +82,7 @@ const CreateChallenge = () => {
   }
 
   const totalSessions = sessionsPerWeek * duration * 4;
-  const coinsPreview = calculateCoins(betAmount, duration, sessionsPerWeek);
+  const coinsPreview = calculateCoins(betAmount, duration, sessionsPerWeek, currency);
   const dayNames = t('createChallenge.dayNames') as unknown as string[];
   const { firstWeekGoal, dayName, needsAdjustment } = computeFirstWeekGoal(sessionsPerWeek, dayNames);
 

@@ -28,7 +28,7 @@ import { useLocale } from "@/contexts/LocaleContext";
 const Dashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t, formatCurrency } = useLocale();
+  const { t, formatCurrency, currency } = useLocale();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
@@ -213,7 +213,7 @@ const Dashboard = () => {
       : t('dashboard.motivRemaining', { remaining });
 
   const totalBet = challenge.bet_per_month;
-  const coinsToEarn = calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week);
+  const coinsToEarn = calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week, currency);
 
   const weekDayLabels = t('dashboard.weekDays') as unknown as string[];
 

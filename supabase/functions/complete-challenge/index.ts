@@ -81,7 +81,14 @@ serve(async (req) => {
     const CI = getCoefficientDeMise(I);
     const monthFactor = 0.3 + 0.6 * Math.pow(M, 1.5);
     const sessionFactor = Math.pow(S / 3, 1.1);
-    const coinsToEarn = Math.round(I * CI * monthFactor * sessionFactor);
+
+    // Currency multiplier based on user's country
+    const countryToCurrencyMult: Record<string, number> = {
+      AU: 0.65, CA: 0.65, US: 0.85,
+    };
+    const userCountry = (profile?.country || 'FR').toUpperCase();
+    const currencyMult = countryToCurrencyMult[userCountry] ?? 1.0;
+    const coinsToEarn = Math.round(I * CI * monthFactor * sessionFactor * currencyMult);
 
     // Update profile coins
     const { data: profile } = await supabaseAdmin
