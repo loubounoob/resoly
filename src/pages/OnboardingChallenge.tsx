@@ -19,14 +19,7 @@ interface Testimonial {
   quote: string;
 }
 
-const TESTIMONIALS: Testimonial[] = [
-  { image: testimonial1, name: "Clara, 26 ans", result: "-8 kg en 2 mois", quote: "J'ai jamais tenu aussi longtemps. Le fait de miser m'a tout changé." },
-  { image: testimonial2, name: "Thomas, 31 ans", result: "-14 kg en 3 mois", quote: "Je pensais que c'était impossible. Resoly m'a prouvé le contraire." },
-  { image: testimonial3, name: "Karim, 24 ans", result: "+6 kg de muscle", quote: "Le challenge avec un pote m'a donné une discipline de fou." },
-  { image: testimonial4, name: "Philippe, 52 ans", result: "-11 kg en 3 mois", quote: "À mon âge, j'aurais jamais cru reprendre le sport. Merci Resoly." },
-  { image: testimonial5, name: "Marc, 41 ans", result: "-9 kg en 2 mois", quote: "Simple, efficace. J'ai retrouvé la forme et la confiance." },
-  { image: testimonial6, name: "Sophie, 35 ans", result: "-7 kg en 2 mois", quote: "Les résultats parlent d'eux-mêmes. Je recommande à 100%." },
-];
+const TESTIMONIAL_IMAGES = [testimonial1, testimonial2, testimonial3, testimonial4, testimonial5, testimonial6];
 
 interface Slide {
   type: SlideType;
@@ -90,8 +83,8 @@ const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: stri
   const pointerStart = useRef<{ x: number; id: number } | null>(null);
   const { t } = useLocale();
 
-  const goNext = () => setActiveIdx((i) => (i + 1) % TESTIMONIALS.length);
-  const goPrev = () => setActiveIdx((i) => (i - 1 + TESTIMONIALS.length) % TESTIMONIALS.length);
+  const goNext = () => setActiveIdx((i) => (i + 1) % TESTIMONIAL_IMAGES.length);
+  const goPrev = () => setActiveIdx((i) => (i - 1 + TESTIMONIAL_IMAGES.length) % TESTIMONIAL_IMAGES.length);
 
   const onPointerDown = (e: React.PointerEvent) => {
     pointerStart.current = { x: e.clientX, id: e.pointerId };
@@ -146,28 +139,33 @@ const TestimonialsSlide = ({ title, subtitle }: { title: string; subtitle?: stri
         onPointerCancel={() => { pointerStart.current = null; }}
       >
         <div className="flex" style={{ transform: `translateX(-${activeIdx * 100}%)`, transition: "transform 0.25s ease-out" }}>
-          {TESTIMONIALS.map((item, i) => (
+          {TESTIMONIAL_IMAGES.map((image, i) => {
+            const names = t('onboarding.testimonialNames') as unknown as string[];
+            const results = t('onboarding.testimonialResults') as unknown as string[];
+            const quotes = t('onboarding.testimonialQuotes') as unknown as string[];
+            return (
             <div key={i} className="w-full flex-shrink-0">
               <div className="rounded-2xl border border-border bg-secondary/30 overflow-hidden pointer-events-none">
                 <img
-                  src={item.image}
-                  alt={item.name}
+                  src={image}
+                  alt={Array.isArray(names) ? names[i] : ''}
                   className="w-full aspect-[4/3] object-contain bg-black/20"
                   draggable={false}
                 />
                 <div className="p-4 text-left space-y-1">
                   <div className="flex items-center justify-between">
-                    <p className="font-bold text-sm">{item.name}</p>
-                    <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{item.result}</span>
+                    <p className="font-bold text-sm">{Array.isArray(names) ? names[i] : ''}</p>
+                    <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{Array.isArray(results) ? results[i] : ''}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground italic">"{item.quote}"</p>
+                  <p className="text-xs text-muted-foreground italic">"{Array.isArray(quotes) ? quotes[i] : ''}"</p>
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
         <div className="flex justify-center gap-1.5 mt-3 pointer-events-auto">
-          {TESTIMONIALS.map((_, i) => (
+          {TESTIMONIAL_IMAGES.map((_, i) => (
             <button
               key={i}
               onClick={() => setActiveIdx(i)}
