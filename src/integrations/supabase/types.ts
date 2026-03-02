@@ -24,6 +24,7 @@ export type Database = {
           id: string
           odds: number
           payment_status: string
+          promo_code: string | null
           sessions_per_week: number
           social_challenge_id: string | null
           started_at: string
@@ -42,6 +43,7 @@ export type Database = {
           id?: string
           odds?: number
           payment_status?: string
+          promo_code?: string | null
           sessions_per_week?: number
           social_challenge_id?: string | null
           started_at?: string
@@ -60,6 +62,7 @@ export type Database = {
           id?: string
           odds?: number
           payment_status?: string
+          promo_code?: string | null
           sessions_per_week?: number
           social_challenge_id?: string | null
           started_at?: string

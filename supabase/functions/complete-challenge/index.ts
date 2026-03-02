@@ -95,7 +95,10 @@ serve(async (req) => {
     };
     const userCountry = (profile?.country || 'FR').toUpperCase();
     const currencyMult = countryToCurrencyMult[userCountry] ?? 1.0;
-    const coinsToEarn = Math.round(I * CI * monthFactor * sessionFactor * currencyMult);
+    // Promo code multiplier
+    const VALID_PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027"];
+    const promoMult = challenge.promo_code && VALID_PROMO_CODES.includes(challenge.promo_code.toUpperCase()) ? 1.5 : 1.0;
+    const coinsToEarn = Math.round(I * CI * monthFactor * sessionFactor * currencyMult * promoMult);
 
     const userLocale = countryToLocale(profile?.country);
 

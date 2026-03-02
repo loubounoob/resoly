@@ -5,7 +5,8 @@ import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, Flame, Coins, Loader2, Users, User } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { useCreateChallenge, useActiveChallenge } from "@/hooks/useChallenge";
-import { calculateCoins } from "@/lib/coins";
+import { calculateCoins, VALID_PROMO_CODES } from "@/lib/coins";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getDay } from "date-fns";
@@ -52,6 +53,9 @@ const CreateChallenge = () => {
   
   const [showFirstWeekDialog, setShowFirstWeekDialog] = useState(false);
   const [shopProducts, setShopProducts] = useState<ShopifyProduct[]>([]);
+  const [promoInput, setPromoInput] = useState("");
+  const [promoApplied, setPromoApplied] = useState<string | null>(null);
+  const [promoAnimating, setPromoAnimating] = useState(false);
 
   const createChallenge = useCreateChallenge();
 
@@ -82,7 +86,20 @@ const CreateChallenge = () => {
   }
 
   const totalSessions = sessionsPerWeek * duration * 4;
-  const coinsPreview = calculateCoins(betAmount, duration, sessionsPerWeek, currency);
+  const baseCoins = calculateCoins(betAmount, duration, sessionsPerWeek, currency);
+  const coinsPreview = promoApplied ? Math.round(baseCoins * 1.5) : baseCoins;
+
+  const handleApplyPromo = () => {
+    const code = promoInput.trim().toUpperCase();
+    if (VALID_PROMO_CODES.includes(code)) {
+      setPromoApplied(code);
+      setPromoAnimating(true);
+      toast.success(t('createChallenge.promoApplied'));
+      setTimeout(() => setPromoAnimating(false), 800);
+    } else {
+      toast.error(t('createChallenge.promoInvalid'));
+    }
+  };
   const dayNames = t('createChallenge.dayNames') as unknown as string[];
   const { firstWeekGoal, dayName, needsAdjustment } = computeFirstWeekGoal(sessionsPerWeek, dayNames);
 
@@ -103,6 +120,7 @@ const CreateChallenge = () => {
         duration_months: duration,
         bet_per_month: betAmount,
         odds: 1,
+        ...(promoApplied ? { promo_code: promoApplied } : {}),
       });
 
       if (firstWeekSessions != null) {
@@ -204,6 +222,33 @@ const CreateChallenge = () => {
           </div>
         </section>
 
+        <section>
+          <label className="text-sm text-muted-foreground mb-3 block">{t('createChallenge.promoPlaceholder')}</label>
+          <div className="flex gap-2">
+            <Input
+              value={promoInput}
+              onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+              placeholder={t('createChallenge.promoPlaceholder')}
+              className={`flex-1 font-mono tracking-wider uppercase ${promoApplied ? 'border-green-500 bg-green-500/10 text-green-400' : ''}`}
+              disabled={!!promoApplied}
+            />
+            {promoApplied ? (
+              <div className="flex items-center gap-1 px-3 rounded-lg bg-green-500/20 text-green-400 text-sm font-bold whitespace-nowrap">
+                ✅ {t('createChallenge.promoBonus')}
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={handleApplyPromo}
+                disabled={!promoInput.trim()}
+                className="whitespace-nowrap"
+              >
+                {t('createChallenge.promoApply')}
+              </Button>
+            )}
+          </div>
+        </section>
+
         <div className="bg-gradient-card rounded-2xl border border-border p-5 space-y-4 shadow-card">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
@@ -223,7 +268,7 @@ const CreateChallenge = () => {
               <Coins className="w-5 h-5 text-accent" />
               <span className="text-sm text-muted-foreground">{t('createChallenge.coinsToEarn')}</span>
             </div>
-            <span className="font-display font-bold text-lg text-gradient-gold">
+            <span className={`font-display font-bold text-lg text-gradient-gold transition-all duration-500 ${promoAnimating ? 'scale-125 drop-shadow-[0_0_12px_hsl(var(--accent))]' : 'scale-100'}`}>
               <span className="inline-flex items-center gap-1"><CoinIcon size={18} /> {coinsPreview}</span>
             </span>
           </div>

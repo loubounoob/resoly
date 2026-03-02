@@ -14,6 +14,13 @@ export const getCoefficientDeMise = (I: number): number => {
 /**
  * Currency multiplier for weaker currencies
  */
+export const VALID_PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027"];
+
+export const getPromoMultiplier = (code?: string): number => {
+  if (!code) return 1.0;
+  return VALID_PROMO_CODES.includes(code.toUpperCase()) ? 1.5 : 1.0;
+};
+
 export const getCurrencyMultiplier = (currency?: string): number => {
   if (!currency) return 1.0;
   const c = currency.toUpperCase();
