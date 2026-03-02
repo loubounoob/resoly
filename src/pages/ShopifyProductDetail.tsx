@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import CoinIcon from "@/components/CoinIcon";
 import { Button } from "@/components/ui/button";
-import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
+import { fetchShopifyProducts, ShopifyProduct, ShopifyMediaNode } from "@/lib/shopify";
 import { useCartStore } from "@/stores/cartStore";
 import { useUserCoins } from "@/hooks/useChallenge";
 import { CartDrawer } from "@/components/CartDrawer";
@@ -109,7 +109,22 @@ const ShopifyProductDetail = () => {
     );
   }
 
+  const mediaEdges = product.node.media?.edges || [];
   const images = product.node.images.edges;
+  // Build slides from media, fallback to images
+  const slides: Array<{ type: 'image' | 'video' | 'external_video'; url: string; alt?: string | null; sources?: Array<{ url: string; mimeType: string }>; embedUrl?: string }> =
+    mediaEdges.length > 0
+      ? mediaEdges.map(({ node: m }) => {
+          if (m.mediaContentType === 'VIDEO' && m.sources?.length) {
+            return { type: 'video' as const, url: m.sources[0].url, sources: m.sources };
+          }
+          if (m.mediaContentType === 'EXTERNAL_VIDEO' && m.embedUrl) {
+            return { type: 'external_video' as const, url: m.embedUrl, embedUrl: m.embedUrl };
+          }
+          return { type: 'image' as const, url: m.image?.url || '/placeholder.svg', alt: m.image?.altText };
+        })
+      : images.map(({ node: img }) => ({ type: 'image' as const, url: img.url, alt: img.altText }));
+
   const variantPrice = selectedVariant?.price ?? product.node.priceRange.minVariantPrice;
   const coinsPrice = Math.ceil(parseFloat(variantPrice.amount) * COINS_PER_EURO);
   const options = product.node.options.filter(o => !(o.values.length === 1 && o.values[0] === "Default Title"));
@@ -220,7 +235,6 @@ const ShopifyProductDetail = () => {
         <h1 className="text-2xl font-bold">{product.node.title}</h1>
         <div className="flex items-center gap-3 mt-2">
           <span className="text-2xl font-bold text-primary flex items-center gap-1"><CoinIcon size={20} /> {coinsPrice} {t('common.coins')}</span>
-          <span className="text-muted-foreground text-sm">{formatCurrency(parseFloat(variantPrice.amount))}</span>
         </div>
 
         {options.length > 0 && (
