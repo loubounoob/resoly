@@ -1,45 +1,59 @@
 
 
-## Plan: Compte à rebours 30min pour code promo + animation coins améliorée
+## Plan: Images plus hautes, vidéos Shopify autoplay, suppression du prix fiat
 
-### 1. Compte à rebours de 30 minutes
+### 1. Images moins coupées (Shop + Product Detail)
 
-Quand un code promo valide est appliqué, un timer de 30 minutes démarre. Si le timer expire avant que l'utilisateur ne lance le défi, le code promo est automatiquement retiré.
+**Shop.tsx** — Changer l'aspect ratio des cards de `1:1` (carré) à `3/4` (portrait) pour montrer plus de hauteur :
+- Ligne 46 : `<AspectRatio ratio={1}>` → `<AspectRatio ratio={3/4}>`
 
-**Changements dans `src/pages/CreateChallenge.tsx`** :
-- Ajouter un state `promoExpiresAt: number | null` (timestamp)
-- Ajouter un state `timeLeft: number` (secondes restantes)
-- Au moment de l'application du code : `setPromoExpiresAt(Date.now() + 30 * 60 * 1000)`
-- Un `useEffect` avec `setInterval` toutes les secondes qui décrémente `timeLeft` et qui, à expiration, reset `promoApplied`, `promoExpiresAt`, et affiche un toast d'expiration
-- Afficher le countdown formaté `MM:SS` à côté du badge "+50% bonus" en rouge/orange quand < 5 min
+**ShopifyProductDetail.tsx** — Changer l'image produit de `aspect-square` à `aspect-[3/4]` :
+- Ligne 187 : `className="w-full aspect-square object-cover"` → `className="w-full aspect-[3/4] object-cover"`
 
-### 2. Animation des coins plus visible
+### 2. Support vidéos Shopify (autoplay, sans bouton play)
 
-L'animation actuelle dure 800ms avec un simple `scale-125`. On la remplace par une animation en 2 phases bien plus visible :
+Actuellement, la query GraphQL ne récupère que les `images`. Il faut aussi récupérer les `media` qui incluent les vidéos.
 
-**Phase 1** — Le nombre de base s'affiche barré, puis le nouveau nombre "count-up" depuis la base vers le total boosté avec un effet de compteur incrémental (comme `AnimatedCoinCounter` qui existe déjà dans le projet).
+**shopify.ts** — Ajouter un champ `media` à la query GraphQL et à l'interface :
+```graphql
+media(first: 10) {
+  edges {
+    node {
+      mediaContentType
+      ... on Video {
+        sources { url mimeType }
+      }
+      ... on ExternalVideo {
+        embedUrl
+        host
+      }
+      ... on MediaImage {
+        image { url altText }
+      }
+    }
+  }
+}
+```
 
-**Phase 2** — Éclat doré + particules autour du nombre pendant ~2s.
+Ajouter l'interface `ShopifyMedia` au type `ShopifyProduct`.
 
-**Implémentation concrète** :
-- Quand `promoAnimating` passe à `true`, afficher d'abord `baseCoins` barré, puis animer le nombre de `baseCoins` → `coinsPreview` avec un compteur qui s'incrémente sur ~2 secondes
-- Ajouter un keyframe `coin-glow-burst` dans `tailwind.config.ts` : scale 1→1.3→1 + glow doré pulsant sur 2s
-- Passer `promoAnimating` timeout de 800ms → 2500ms
-- Ajouter un badge flottant "+50%" qui apparaît au-dessus du nombre avec une animation `slide-up` + `fade-in`
+**ShopifyProductDetail.tsx** — Construire un tableau de "slides" (images + vidéos) à partir de `media`. Pour chaque slide :
+- Si `mediaContentType === "VIDEO"` : afficher un `<video autoPlay muted loop playsInline>` avec les sources
+- Si `mediaContentType === "EXTERNAL_VIDEO"` : afficher un `<iframe>` avec autoplay (YouTube/Vimeo embed)
+- Si `mediaContentType === "IMAGE"` : afficher un `<img>` comme actuellement
+- Fallback sur `images.edges` si `media` est vide
 
-### 3. Traductions
+**Shop.tsx** — Même logique pour la card : si le premier media est une vidéo, afficher `<video autoPlay muted loop playsInline>` au lieu de `<img>`.
 
-Ajouter dans les 3 fichiers i18n :
-- `promoExpired` : "Code expiré ! Réapplique-le." / "Code expired! Re-apply it." / "Code abgelaufen! Erneut anwenden."
-- `promoTimeLeft` : "Temps restant" (affiché à côté du timer)
+### 3. Supprimer le prix fiat sur la page détail
 
-### 4. Fichiers modifiés
+**ShopifyProductDetail.tsx** — Retirer la `<span>` qui affiche `formatCurrency(...)` à la ligne 223.
+
+### Fichiers modifiés
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/pages/CreateChallenge.tsx` | Timer 30min + countdown UI + animation coins améliorée |
-| `tailwind.config.ts` | Keyframe `coin-glow-burst` |
-| `src/i18n/locales/fr.ts` | Clés `promoExpired`, `promoTimeLeft` |
-| `src/i18n/locales/en.ts` | Idem |
-| `src/i18n/locales/de.ts` | Idem |
+| `src/lib/shopify.ts` | Ajouter `media` à la query GQL + interface `ShopifyMedia` |
+| `src/pages/Shop.tsx` | Ratio 3/4 + support vidéo autoplay en card |
+| `src/pages/ShopifyProductDetail.tsx` | Ratio 3/4, slides media (vidéo autoplay), supprimer prix fiat |
 
