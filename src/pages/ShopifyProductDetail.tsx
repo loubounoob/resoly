@@ -191,30 +191,49 @@ const ShopifyProductDetail = () => {
         onTouchEnd={(e) => {
           const diff = touchStartX.current - e.changedTouches[0].clientX;
           if (Math.abs(diff) > 50) {
-            if (diff > 0 && currentImageIndex < images.length - 1) setCurrentImageIndex(i => i + 1);
+            if (diff > 0 && currentImageIndex < slides.length - 1) setCurrentImageIndex(i => i + 1);
             if (diff < 0 && currentImageIndex > 0) setCurrentImageIndex(i => i - 1);
           }
         }}
       >
-        <img
-          src={images[currentImageIndex]?.node.url || "/placeholder.svg"}
-          alt={images[currentImageIndex]?.node.altText || product.node.title}
-          className="w-full aspect-square object-cover"
-        />
-        {images.length > 1 && (
+        {slides[currentImageIndex]?.type === 'video' ? (
+          <video
+            key={slides[currentImageIndex].url}
+            src={slides[currentImageIndex].url}
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="w-full aspect-[3/4] object-cover"
+          />
+        ) : slides[currentImageIndex]?.type === 'external_video' ? (
+          <iframe
+            src={`${slides[currentImageIndex].embedUrl}?autoplay=1&mute=1&loop=1`}
+            className="w-full aspect-[3/4]"
+            allow="autoplay; encrypted-media"
+            allowFullScreen
+          />
+        ) : (
+          <img
+            src={slides[currentImageIndex]?.url || "/placeholder.svg"}
+            alt={slides[currentImageIndex]?.alt || product.node.title}
+            className="w-full aspect-[3/4] object-cover"
+          />
+        )}
+        {slides.length > 1 && (
           <>
             {currentImageIndex > 0 && (
               <button onClick={() => setCurrentImageIndex(i => i - 1)} className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur rounded-full p-1.5">
                 <ChevronLeft className="w-5 h-5" />
               </button>
             )}
-            {currentImageIndex < images.length - 1 && (
+            {currentImageIndex < slides.length - 1 && (
               <button onClick={() => setCurrentImageIndex(i => i + 1)} className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur rounded-full p-1.5">
                 <ChevronRight className="w-5 h-5" />
               </button>
             )}
             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-              {images.map((_, idx) => (
+              {slides.map((_, idx) => (
                 <button key={idx} onClick={() => setCurrentImageIndex(idx)} className={`w-2 h-2 rounded-full transition-all ${idx === currentImageIndex ? "bg-primary scale-125" : "bg-background/60"}`} />
               ))}
             </div>
