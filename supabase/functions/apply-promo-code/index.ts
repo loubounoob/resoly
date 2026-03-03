@@ -48,17 +48,8 @@ serve(async (req) => {
       });
     }
 
-    // Internal promo codes (these give +50% coins, not a discount on amount)
-    if (VALID_PROMO_CODES.includes(code)) {
-      return new Response(JSON.stringify({ 
-        valid: true, 
-        message: "+50% coins bonus! 🎉",
-        type: "coins_bonus",
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      });
-    }
+    // Internal promo codes (SUMMER, etc.) are NOT valid at payment stage — they are applied before payment.
+    // Only LOUBOUNOOBLEGOAT (handled above) and Stripe promotion codes are accepted here.
 
     // Then check Stripe promotion codes
     try {
