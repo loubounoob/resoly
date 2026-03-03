@@ -214,7 +214,7 @@ const CreateChallenge = () => {
     }
   };
 
-  const handlePaymentSuccess = async (piId: string) => {
+  const handlePaymentSuccess = async (piId: string, isFreePromo?: boolean) => {
     setPaymentSheetOpen(false);
     setIsProcessing(true);
     try {
@@ -222,6 +222,7 @@ const CreateChallenge = () => {
         body: {
           paymentIntentId: piId,
           challengeId: pendingChallengeId,
+          ...(isFreePromo ? { promoFree: true } : {}),
         },
       });
       if (error) throw error;
