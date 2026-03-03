@@ -98,12 +98,42 @@ serve(async (req) => {
       challengeId = body.challengeId || null;
       socialChallengeId = body.socialChallengeId || null;
       memberId = body.memberId || null;
+      const promoFree = body.promoFree === true;
 
       const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
         apiVersion: "2025-08-27.basil",
       });
 
-      if (paymentIntentId) {
+      // Handle free promo code bypass — validate that the challenge actually has a free promo code
+      const FREE_PROMO_CODES = ["LOUBOUNOOBLEGOAT"];
+      if (promoFree) {
+        let hasValidFreePromo = false;
+        if (challengeId) {
+          const { data: ch } = await supabaseAdmin
+            .from("challenges")
+            .select("promo_code")
+            .eq("id", challengeId)
+            .eq("user_id", userId)
+            .single();
+          hasValidFreePromo = !!ch?.promo_code && FREE_PROMO_CODES.includes(ch.promo_code.toUpperCase());
+        }
+        // For social challenges, allow free promo bypass (validated by apply-promo-code)
+        if (socialChallengeId) {
+          hasValidFreePromo = true;
+        }
+        if (!hasValidFreePromo) {
+          return new Response(JSON.stringify({ success: false, error: "Invalid free promo" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+        // Cancel the unused PaymentIntent
+        if (paymentIntentId) {
+          try { await stripe.paymentIntents.cancel(paymentIntentId); } catch { /* already canceled or completed */ }
+        }
+        // Create a fake paymentIntent object for the shared logic
+        paymentIntent = { id: paymentIntentId || "free_promo", metadata: {} };
+      } else if (paymentIntentId) {
         paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
         if (paymentIntent.status !== "succeeded") {
           return new Response(JSON.stringify({ success: false, status: paymentIntent.status }), {

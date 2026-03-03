@@ -17,7 +17,7 @@ interface StripePaymentSheetProps {
   paymentIntentId: string;
   amount: number;
   description?: string;
-  onSuccess: (paymentIntentId: string) => void;
+  onSuccess: (paymentIntentId: string, isFreePromo?: boolean) => void;
   onError?: (error: string) => void;
   showPromoCode?: boolean;
   promoEndpoint?: string;
@@ -84,8 +84,8 @@ function PaymentForm({
   };
 
   const handleFreeConfirm = () => {
-    // Bypass Stripe payment entirely — call onSuccess with the paymentIntentId
-    onSuccess(paymentIntentId);
+    // Bypass Stripe payment entirely — call onSuccess with the paymentIntentId and free flag
+    onSuccess(paymentIntentId, true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

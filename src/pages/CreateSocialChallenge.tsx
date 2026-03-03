@@ -93,7 +93,7 @@ const CreateSocialChallenge = () => {
     }
   };
 
-  const handlePaymentSuccess = async (piId: string) => {
+  const handlePaymentSuccess = async (piId: string, isFreePromo?: boolean) => {
     setPaymentSheetOpen(false);
     setIsProcessing(true);
     try {
@@ -102,6 +102,7 @@ const CreateSocialChallenge = () => {
           paymentIntentId: piId,
           socialChallengeId: pendingSocialChallengeId,
           memberId: pendingMemberId,
+          ...(isFreePromo ? { promoFree: true } : {}),
         },
       });
       if (error) throw error;
@@ -339,6 +340,8 @@ const CreateSocialChallenge = () => {
         amount={betAmount}
         description={t('createSocial.betDescription', { amount: formatCurrency(betAmount), sessions: sessionsPerWeek, duration })}
         onSuccess={handlePaymentSuccess}
+        showPromoCode={true}
+        promoEndpoint="apply-promo-code"
         stripeLocale={locale}
         userCountry={country}
       />
