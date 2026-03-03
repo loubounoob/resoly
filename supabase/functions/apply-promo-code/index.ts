@@ -8,7 +8,10 @@ const corsHeaders = {
 };
 
 // Internal promo codes (same as in lib/coins.ts)
-const VALID_PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027"];
+const VALID_PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027", "LOUBOUNOOBLEGOAT"];
+
+// Special promo code for 100% discount
+const FREE_PROMO_CODES = ["LOUBOUNOOBLEGOAT"];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -32,10 +35,33 @@ serve(async (req) => {
 
     const code = promoCode.trim().toUpperCase();
 
-    // First check internal promo codes (these give +50% coins, not a discount on amount)
+    // Check for free promo codes (-100% discount)
+    if (FREE_PROMO_CODES.includes(code)) {
+      const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+        apiVersion: "2025-08-27.basil",
+      });
+
+      const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+      // Set amount to minimum (50 cents) — Stripe doesn't allow 0
+      const newAmount = 50;
+      await stripe.paymentIntents.update(paymentIntentId, {
+        amount: newAmount,
+        metadata: { ...pi.metadata, promo_code: code },
+      });
+
+      return new Response(JSON.stringify({ 
+        valid: true, 
+        message: "-100% 🎉 Free challenge!",
+        type: "amount_discount",
+        newAmount: newAmount / 100,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
+    // Internal promo codes (these give +50% coins, not a discount on amount)
     if (VALID_PROMO_CODES.includes(code)) {
-      // Internal promo codes don't change the payment amount
-      // They give +50% bonus coins — handled at challenge creation time
       return new Response(JSON.stringify({ 
         valid: true, 
         message: "+50% coins bonus! 🎉",
