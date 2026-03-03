@@ -1,59 +1,75 @@
 
 
-## Plan: Images plus hautes, vidéos Shopify autoplay, suppression du prix fiat
+## Migration Stripe Checkout → Stripe Payment Sheet : Analyse complète
 
-### 1. Images moins coupées (Shop + Product Detail)
+### Scope de la migration
 
-**Shop.tsx** — Changer l'aspect ratio des cards de `1:1` (carré) à `3/4` (portrait) pour montrer plus de hauteur :
-- Ligne 46 : `<AspectRatio ratio={1}>` → `<AspectRatio ratio={3/4}>`
+Après audit complet, voici tous les points d'impact :
 
-**ShopifyProductDetail.tsx** — Changer l'image produit de `aspect-square` à `aspect-[3/4]` :
-- Ligne 187 : `className="w-full aspect-square object-cover"` → `className="w-full aspect-[3/4] object-cover"`
+**Edge Functions à modifier (4) :**
+1. `create-challenge-payment` — remplacer `checkout.sessions.create()` par `paymentIntents.create()` + retourner `clientSecret` au lieu d'une URL
+2. `buy-coins` — même transformation
+3. `verify-payment` — adapter le path frontend (plus de `sessionId`, utiliser `paymentIntentId`) ; le path webhook passe de `checkout.session.completed` à `payment_intent.succeeded`
+4. `verify-coin-purchase` — même adaptation
 
-### 2. Support vidéos Shopify (autoplay, sans bouton play)
+**Edge Functions inchangées (2) :**
+- `complete-challenge` — utilise déjà `stripe.refunds.create({ payment_intent })`, pas de changement
+- `fail-challenge` — pas de logique Stripe
 
-Actuellement, la query GraphQL ne récupère que les `images`. Il faut aussi récupérer les `media` qui incluent les vidéos.
+**Pages frontend à modifier (4) :**
+1. `CreateChallenge.tsx` — remplacer `window.location.href = data.url` par un composant Stripe Elements intégré (PaymentSheet-like)
+2. `CreateSocialChallenge.tsx` — idem
+3. `BuyCoinsDrawer.tsx` — idem
+4. `PaymentSuccess.tsx` — adapter la vérification (plus de `session_id` dans l'URL, confirmer via `paymentIntentId`)
 
-**shopify.ts** — Ajouter un champ `media` à la query GraphQL et à l'interface :
-```graphql
-media(first: 10) {
-  edges {
-    node {
-      mediaContentType
-      ... on Video {
-        sources { url mimeType }
-      }
-      ... on ExternalVideo {
-        embedUrl
-        host
-      }
-      ... on MediaImage {
-        image { url altText }
-      }
-    }
-  }
-}
-```
+**Nouveau composant à créer (1) :**
+- `StripePaymentSheet.tsx` — drawer/modal avec Stripe Elements (`PaymentElement`) qui gère la confirmation du paiement in-app sans redirection
 
-Ajouter l'interface `ShopifyMedia` au type `ShopifyProduct`.
+**Nouveau package npm (1) :**
+- `@stripe/react-stripe-js` + `@stripe/stripe-js` pour Stripe Elements côté frontend
 
-**ShopifyProductDetail.tsx** — Construire un tableau de "slides" (images + vidéos) à partir de `media`. Pour chaque slide :
-- Si `mediaContentType === "VIDEO"` : afficher un `<video autoPlay muted loop playsInline>` avec les sources
-- Si `mediaContentType === "EXTERNAL_VIDEO"` : afficher un `<iframe>` avec autoplay (YouTube/Vimeo embed)
-- Si `mediaContentType === "IMAGE"` : afficher un `<img>` comme actuellement
-- Fallback sur `images.edges` si `media` est vide
+### Point critique : les codes promo
 
-**Shop.tsx** — Même logique pour la card : si le premier media est une vidéo, afficher `<video autoPlay muted loop playsInline>` au lieu de `<img>`.
+Stripe Checkout gère nativement `allow_promotion_codes: true`. Avec PaymentIntent, il faut :
+- Soit ajouter un champ promo côté frontend + valider via l'API Stripe `promotionCodes.list()` côté edge function et appliquer la réduction manuellement sur le `amount`
+- Soit utiliser des Coupons Stripe appliqués avant la création du PaymentIntent
 
-### 3. Supprimer le prix fiat sur la page détail
+Actuellement `create-challenge-payment` utilise `allow_promotion_codes: true` — cette logique devra être reconstruite.
 
-**ShopifyProductDetail.tsx** — Retirer la `<span>` qui affiche `formatCurrency(...)` à la ligne 223.
+### Plan d'implémentation
 
-### Fichiers modifiés
+**Étape 1 : Installer les dépendances Stripe Elements**
+- Ajouter `@stripe/react-stripe-js` et `@stripe/stripe-js`
 
-| Fichier | Modification |
-|---------|-------------|
-| `src/lib/shopify.ts` | Ajouter `media` à la query GQL + interface `ShopifyMedia` |
-| `src/pages/Shop.tsx` | Ratio 3/4 + support vidéo autoplay en card |
-| `src/pages/ShopifyProductDetail.tsx` | Ratio 3/4, slides media (vidéo autoplay), supprimer prix fiat |
+**Étape 2 : Créer le composant `StripePaymentSheet`**
+- Un drawer/modal qui charge `<Elements>` avec le `clientSecret`
+- Affiche un `<PaymentElement>` (formulaire carte intégré, identique au PaymentSheet natif)
+- Bouton "Payer" qui appelle `stripe.confirmPayment()`
+- Gère le retour `succeeded` / `failed` directement dans l'app
+
+**Étape 3 : Modifier les 2 edge functions de création de paiement**
+- `create-challenge-payment` : créer un `PaymentIntent` au lieu d'une `CheckoutSession`, retourner `{ clientSecret, paymentIntentId }` 
+- `buy-coins` : idem
+- Stocker les metadata (`user_id`, `challenge_id`, etc.) sur le PaymentIntent
+
+**Étape 4 : Modifier les pages frontend**
+- `CreateChallenge.tsx` et `CreateSocialChallenge.tsx` : au lieu de rediriger, ouvrir le `StripePaymentSheet` avec le `clientSecret`
+- `BuyCoinsDrawer.tsx` : idem
+- Sur confirmation réussie, appeler `verify-payment` / `verify-coin-purchase` directement
+
+**Étape 5 : Adapter les fonctions de vérification**
+- `verify-payment` : accepter `paymentIntentId` au lieu de `sessionId`, utiliser `stripe.paymentIntents.retrieve()` au lieu de `checkout.sessions.retrieve()`
+- `verify-coin-purchase` : idem
+- Adapter le webhook pour écouter `payment_intent.succeeded` au lieu de `checkout.session.completed`
+
+**Étape 6 : Gérer les codes promo**
+- Ajouter un champ texte promo dans le `StripePaymentSheet`
+- Valider côté edge function via l'API Stripe Promotion Codes
+- Appliquer la réduction sur le montant du PaymentIntent
+
+### Verdict
+
+C'est faisable en une fois. Le chantier touche ~10 fichiers (4 edge functions + 4 pages + 1 nouveau composant + 1 package). Le risque principal est la gestion des codes promo qui nécessite une reconstruction manuelle. Le reste est une transformation mécanique bien définie.
+
+Voulez-vous que je procède ?
 
