@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, CreditCard, Tag, X, CheckCircle2 } from "lucide-react";
+import { Loader2, CreditCard, Tag, X, CheckCircle2, Gift } from "lucide-react";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import type { Stripe } from "@stripe/stripe-js";
 import { getStripe } from "@/lib/stripe";
@@ -19,12 +19,13 @@ interface StripePaymentSheetProps {
   description?: string;
   onSuccess: (paymentIntentId: string) => void;
   onError?: (error: string) => void;
-  /** For challenge payments: allow promo codes */
   showPromoCode?: boolean;
-  /** Edge function name to call for applying promo */
   promoEndpoint?: string;
-  /** Extra body params for promo endpoint */
   promoBody?: Record<string, unknown>;
+  /** User locale for Stripe Elements (e.g. 'en', 'fr', 'de') */
+  stripeLocale?: string;
+  /** User country code for pre-filling billing (e.g. 'US', 'FR') */
+  userCountry?: string;
 }
 
 function PaymentForm({
@@ -36,7 +37,8 @@ function PaymentForm({
   showPromoCode,
   promoEndpoint,
   promoBody,
-}: Omit<StripePaymentSheetProps, "open" | "onOpenChange" | "clientSecret">) {
+  userCountry,
+}: Omit<StripePaymentSheetProps, "open" | "onOpenChange" | "clientSecret" | "stripeLocale">) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -44,6 +46,7 @@ function PaymentForm({
   const [promoApplied, setPromoApplied] = useState<string | null>(null);
   const [promoLoading, setPromoLoading] = useState(false);
   const [discountedAmount, setDiscountedAmount] = useState<number | null>(null);
+  const [isFree, setIsFree] = useState(false);
   const { toast } = useToast();
   const { t, formatCurrency } = useLocale();
 
@@ -63,7 +66,12 @@ function PaymentForm({
       if (error) throw error;
       if (data?.valid) {
         setPromoApplied(promoInput.trim().toUpperCase());
-        if (data.newAmount) setDiscountedAmount(data.newAmount);
+        if (data.type === "free") {
+          setDiscountedAmount(0);
+          setIsFree(true);
+        } else if (data.newAmount != null) {
+          setDiscountedAmount(data.newAmount);
+        }
         toast({ title: data.message || "Code applied!" });
       } else {
         toast({ title: data?.message || t('createChallenge.promoInvalid'), variant: "destructive" });
@@ -75,8 +83,19 @@ function PaymentForm({
     }
   };
 
+  const handleFreeConfirm = () => {
+    // Bypass Stripe payment entirely — call onSuccess with the paymentIntentId
+    onSuccess(paymentIntentId);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isFree) {
+      handleFreeConfirm();
+      return;
+    }
+
     if (!stripe || !elements) return;
 
     setIsProcessing(true);
@@ -114,9 +133,9 @@ function PaymentForm({
 
       <div className="text-center">
         <span className="text-3xl font-display font-bold text-gradient-primary">
-          {formatCurrency(displayAmount)}
+          {isFree ? t('common.free') || "Free" : formatCurrency(displayAmount)}
         </span>
-        {discountedAmount && discountedAmount < amount && (
+        {discountedAmount != null && discountedAmount < amount && (
           <span className="text-sm text-muted-foreground line-through ml-2">{formatCurrency(amount)}</span>
         )}
       </div>
@@ -147,7 +166,7 @@ function PaymentForm({
           <span className="font-mono font-bold">{promoApplied}</span>
           <button
             type="button"
-            onClick={() => { setPromoApplied(null); setDiscountedAmount(null); }}
+            onClick={() => { setPromoApplied(null); setDiscountedAmount(null); setIsFree(false); }}
             className="ml-auto"
           >
             <X className="w-4 h-4" />
@@ -155,26 +174,46 @@ function PaymentForm({
         </div>
       )}
 
-      <div className="rounded-xl border border-border p-4 bg-secondary/50">
-        <PaymentElement
-          options={{
-            layout: "tabs",
-          }}
-        />
-      </div>
+      {/* Hide PaymentElement when payment is free */}
+      {!isFree && (
+        <div className="rounded-xl border border-border p-4 bg-secondary/50">
+          <PaymentElement
+            options={{
+              layout: "tabs",
+              defaultValues: {
+                billingDetails: {
+                  address: {
+                    country: userCountry || undefined,
+                  },
+                },
+              },
+            }}
+          />
+        </div>
+      )}
 
-      <Button
-        type="submit"
-        disabled={isProcessing || !stripe || !elements}
-        className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
-      >
-        {isProcessing ? (
-          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-        ) : (
-          <CreditCard className="w-5 h-5 mr-2" />
-        )}
-        {isProcessing ? t('common.loading') : `${t('common.confirm')} — ${formatCurrency(displayAmount)}`}
-      </Button>
+      {isFree ? (
+        <Button
+          type="submit"
+          className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
+        >
+          <Gift className="w-5 h-5 mr-2" />
+          {t('common.confirm')} — {t('common.free') || "Free"}
+        </Button>
+      ) : (
+        <Button
+          type="submit"
+          disabled={isProcessing || !stripe || !elements}
+          className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
+        >
+          {isProcessing ? (
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+          ) : (
+            <CreditCard className="w-5 h-5 mr-2" />
+          )}
+          {isProcessing ? t('common.loading') : `${t('common.confirm')} — ${formatCurrency(displayAmount)}`}
+        </Button>
+      )}
     </form>
   );
 }
@@ -191,15 +230,17 @@ const StripePaymentSheet = ({
   showPromoCode,
   promoEndpoint,
   promoBody,
+  stripeLocale,
+  userCountry,
 }: StripePaymentSheetProps) => {
   const [stripeInstance, setStripeInstance] = useState<Stripe | null>(null);
   const { t } = useLocale();
 
   useEffect(() => {
     if (open && !stripeInstance) {
-      getStripe().then((s) => setStripeInstance(s));
+      getStripe(stripeLocale).then((s) => setStripeInstance(s));
     }
-  }, [open, stripeInstance]);
+  }, [open, stripeInstance, stripeLocale]);
 
   if (!stripeInstance || !clientSecret) {
     return (
@@ -249,6 +290,7 @@ const StripePaymentSheet = ({
               showPromoCode={showPromoCode}
               promoEndpoint={promoEndpoint}
               promoBody={promoBody}
+              userCountry={userCountry}
             />
           </Elements>
         </div>

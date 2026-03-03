@@ -35,25 +35,13 @@ serve(async (req) => {
 
     const code = promoCode.trim().toUpperCase();
 
-    // Check for free promo codes (-100% discount)
+    // Check for free promo codes — bypass payment entirely (don't touch PI to avoid Stripe minimum issues)
     if (FREE_PROMO_CODES.includes(code)) {
-      const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-        apiVersion: "2025-08-27.basil",
-      });
-
-      const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
-      // Set amount to minimum (50 cents) — Stripe doesn't allow 0
-      const newAmount = 50;
-      await stripe.paymentIntents.update(paymentIntentId, {
-        amount: newAmount,
-        metadata: { ...pi.metadata, promo_code: code },
-      });
-
       return new Response(JSON.stringify({ 
         valid: true, 
-        message: "-100% 🎉 Free challenge!",
-        type: "amount_discount",
-        newAmount: newAmount / 100,
+        message: "-100% 🎉 Free!",
+        type: "free",
+        newAmount: 0,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,

@@ -28,6 +28,13 @@ serve(async (req) => {
     if (!amount) throw new Error("Missing amount");
     if (!challengeId && !socialChallengeId) throw new Error("Missing challengeId or socialChallengeId");
 
+    // Fetch user profile for Stripe customer enrichment
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("display_name, first_name, last_name, country")
+      .eq("user_id", user.id)
+      .single();
+
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2025-08-27.basil",
     });
@@ -39,6 +46,19 @@ serve(async (req) => {
     } else {
       const customer = await stripe.customers.create({ email: user.email });
       customerId = customer.id;
+    }
+
+    // Enrich Stripe customer with profile data
+    const customerName = profile?.first_name && profile?.last_name
+      ? `${profile.first_name} ${profile.last_name}`
+      : profile?.display_name || undefined;
+    const customerCountry = profile?.country || undefined;
+
+    if (customerName || customerCountry) {
+      await stripe.customers.update(customerId, {
+        ...(customerName ? { name: customerName } : {}),
+        ...(customerCountry ? { address: { country: customerCountry } } : {}),
+      });
     }
 
     const currencyCode = (currency || 'EUR').toLowerCase();
