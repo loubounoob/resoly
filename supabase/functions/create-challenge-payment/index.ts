@@ -36,48 +36,33 @@ serve(async (req) => {
     let customerId;
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
-    }
-
-    const origin = req.headers.get("origin");
-    let successUrl: string;
-    if (socialChallengeId) {
-      successUrl = `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&social_challenge_id=${socialChallengeId}&member_id=${memberId}`;
     } else {
-      successUrl = `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&challenge_id=${challengeId}`;
+      const customer = await stripe.customers.create({ email: user.email });
+      customerId = customer.id;
     }
 
     const currencyCode = (currency || 'EUR').toLowerCase();
 
-    const session = await stripe.checkout.sessions.create({
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100),
+      currency: currencyCode,
       customer: customerId,
-      customer_email: customerId ? undefined : user.email,
-      locale: locale || 'auto',
-      line_items: [
-        {
-          price_data: {
-            currency: currencyCode,
-            product_data: {
-              name: "Resoly",
-              description: description || "Fitness Challenge",
-            },
-            unit_amount: Math.round(amount * 100),
-          },
-          quantity: 1,
-        },
-      ],
-      mode: "payment",
-      allow_promotion_codes: true,
-      success_url: successUrl,
-      cancel_url: `${origin}/create`,
+      description: description || "Fitness Challenge",
       metadata: {
         challenge_id: challengeId || "",
         social_challenge_id: socialChallengeId || "",
         member_id: memberId || "",
         user_id: user.id,
       },
+      automatic_payment_methods: {
+        enabled: true,
+      },
     });
 
-    return new Response(JSON.stringify({ url: session.url }), {
+    return new Response(JSON.stringify({ 
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

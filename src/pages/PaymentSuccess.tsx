@@ -13,15 +13,28 @@ const PaymentSuccess = () => {
   const [visible, setVisible] = useState(false);
   const { t } = useLocale();
 
-  const isSocial = !!searchParams.get("social_challenge_id");
+  const isSocial = searchParams.get("type") === "social";
   const isCoins = searchParams.get("type") === "coins";
-  const isPersonalChallenge = !isCoins && !isSocial;
+  const isPersonalChallenge = searchParams.get("type") === "challenge";
+  const isVerified = searchParams.get("verified") === "true";
+
+  // Legacy support for old redirect-based flow
+  const legacySocialChallengeId = searchParams.get("social_challenge_id");
+  const legacySessionId = searchParams.get("session_id");
+  const isLegacy = !!legacySessionId;
 
   useEffect(() => {
+    // New flow: already verified by the calling page
+    if (isVerified) {
+      setStatus("success");
+      return;
+    }
+
+    // Legacy flow: verify via session_id (backward compatibility)
     const verify = async () => {
       const sessionId = searchParams.get("session_id");
 
-      if (isCoins) {
+      if (isCoins || searchParams.get("type") === "coins") {
         if (!sessionId) { setStatus("error"); return; }
         try {
           const { data, error } = await supabase.functions.invoke("verify-coin-purchase", {
@@ -59,8 +72,12 @@ const PaymentSuccess = () => {
       }
     };
 
-    verify();
-  }, [searchParams]);
+    if (isLegacy) {
+      verify();
+    } else if (!isVerified) {
+      setStatus("error");
+    }
+  }, [searchParams, isVerified, isLegacy]);
 
   useEffect(() => {
     if (status !== "success" || !isPersonalChallenge) return;
