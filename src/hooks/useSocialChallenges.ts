@@ -18,7 +18,8 @@ export const useFriendsWithActiveChallenge = (friendIds: string[]) => {
         .from("social_challenge_members" as any)
         .select("user_id, social_challenge_id")
         .in("user_id", friendIds)
-        .eq("status", "joined");
+        .eq("status", "joined")
+        .eq("payment_status", "paid");
 
       const socialMembersList = (socialMembers as any[] ?? []);
       let activeSocialUserIds: string[] = [];
