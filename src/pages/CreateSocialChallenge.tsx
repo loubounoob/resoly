@@ -14,6 +14,7 @@ import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLocale } from "@/contexts/LocaleContext";
+import StripePaymentSheet from "@/components/StripePaymentSheet";
 
 const DURATION_OPTIONS = [1, 2, 3];
 const SESSIONS_OPTIONS = [2, 3, 4, 5, 6];
@@ -29,6 +30,13 @@ const CreateSocialChallenge = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   
   const [shopProducts, setShopProducts] = useState<ShopifyProduct[]>([]);
+
+  // Stripe PaymentSheet state
+  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+  const [clientSecret, setClientSecret] = useState("");
+  const [paymentIntentId, setPaymentIntentId] = useState("");
+  const [pendingSocialChallengeId, setPendingSocialChallengeId] = useState<string | null>(null);
+  const [pendingMemberId, setPendingMemberId] = useState<string | null>(null);
 
   const createSocial = useCreateSocialChallenge();
   const { data: friends } = useFriendsList();
@@ -69,13 +77,42 @@ const CreateSocialChallenge = () => {
       });
 
       if (error) throw error;
-      if (data?.url) {
-        window.location.href = data.url;
+      if (data?.clientSecret && data?.paymentIntentId) {
+        setPendingSocialChallengeId(result.challenge.id);
+        setPendingMemberId(result.member.id);
+        setClientSecret(data.clientSecret);
+        setPaymentIntentId(data.paymentIntentId);
+        setPaymentSheetOpen(true);
+        setIsProcessing(false);
       } else {
-        throw new Error("No checkout URL returned");
+        throw new Error("No payment data returned");
       }
     } catch {
       toast.error(t('createSocial.createError'));
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePaymentSuccess = async (piId: string) => {
+    setPaymentSheetOpen(false);
+    setIsProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-payment", {
+        body: {
+          paymentIntentId: piId,
+          socialChallengeId: pendingSocialChallengeId,
+          memberId: pendingMemberId,
+        },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        navigate("/payment-success?type=social&verified=true");
+      } else {
+        toast.error(t('createSocial.createError'));
+      }
+    } catch {
+      toast.error(t('createSocial.createError'));
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -293,6 +330,16 @@ const CreateSocialChallenge = () => {
           </Button>
         </div>
       )}
+
+      <StripePaymentSheet
+        open={paymentSheetOpen}
+        onOpenChange={setPaymentSheetOpen}
+        clientSecret={clientSecret}
+        paymentIntentId={paymentIntentId}
+        amount={betAmount}
+        description={t('createSocial.betDescription', { amount: formatCurrency(betAmount), sessions: sessionsPerWeek, duration })}
+        onSuccess={handlePaymentSuccess}
+      />
     </div>
   );
 };

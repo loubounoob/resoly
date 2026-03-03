@@ -31,7 +31,7 @@ serve(async (req) => {
     const user = data.user;
     if (!user?.email) throw new Error("User not authenticated");
 
-    const { pack, currency, locale } = await req.json();
+    const { pack, currency } = await req.json();
     const packInfo = PACKS[String(pack)];
     if (!packInfo) throw new Error("Invalid pack");
 
@@ -42,36 +42,33 @@ serve(async (req) => {
     });
 
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    let customerId: string | undefined;
+    let customerId: string;
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
+    } else {
+      const customer = await stripe.customers.create({ email: user.email });
+      customerId = customer.id;
     }
 
-    const session = await stripe.checkout.sessions.create({
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: packInfo.amount,
+      currency: currencyCode,
       customer: customerId,
-      customer_email: customerId ? undefined : user.email,
-      locale: locale || 'auto',
-      line_items: [
-        {
-          price_data: {
-            currency: currencyCode,
-            product_data: { name: `${packInfo.label} coins` },
-            unit_amount: packInfo.amount,
-          },
-          quantity: 1,
-        },
-      ],
-      mode: "payment",
+      description: `${packInfo.label} coins`,
       metadata: {
         type: "coin_purchase",
         coins: String(packInfo.coins),
         user_id: user.id,
       },
-      success_url: `${req.headers.get("origin")}/payment-success?session_id={CHECKOUT_SESSION_ID}&type=coins`,
-      cancel_url: `${req.headers.get("origin")}/dashboard`,
+      automatic_payment_methods: {
+        enabled: true,
+      },
     });
 
-    return new Response(JSON.stringify({ url: session.url }), {
+    return new Response(JSON.stringify({ 
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

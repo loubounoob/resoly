@@ -26,44 +26,34 @@ serve(async (req) => {
   try {
     const body = await req.json();
 
-    // Detect if this is a Stripe webhook call (has "type" and "data" fields)
+    // Detect if this is a Stripe webhook call
     const isWebhook = body.type && body.data?.object;
 
-    let session: any;
+    let paymentIntent: any;
     let userId: string;
     let challengeId: string | null = null;
     let socialChallengeId: string | null = null;
     let memberId: string | null = null;
 
     if (isWebhook) {
-      // --- STRIPE WEBHOOK PATH ---
       console.log("Webhook event received:", body.type);
 
-      if (body.type !== "checkout.session.completed") {
+      if (body.type !== "payment_intent.succeeded") {
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
         });
       }
 
-      session = body.data.object;
-
-      if (session.payment_status !== "paid") {
-        return new Response(JSON.stringify({ received: true, status: session.payment_status }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
-        });
-      }
-
-      // Extract info from session metadata
-      const meta = session.metadata || {};
+      paymentIntent = body.data.object;
+      const meta = paymentIntent.metadata || {};
       userId = meta.user_id;
       challengeId = meta.challenge_id || null;
       socialChallengeId = meta.social_challenge_id || null;
       memberId = meta.member_id || null;
 
       if (!userId) {
-        console.error("No user_id in session metadata");
+        console.error("No user_id in payment intent metadata");
         return new Response(JSON.stringify({ received: true, error: "No user_id in metadata" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
@@ -103,28 +93,41 @@ serve(async (req) => {
       if (!user) throw new Error("User not authenticated");
       userId = user.id;
 
-      const { sessionId } = body;
+      // Support both old sessionId and new paymentIntentId
+      const { paymentIntentId, sessionId } = body;
       challengeId = body.challengeId || null;
       socialChallengeId = body.socialChallengeId || null;
       memberId = body.memberId || null;
-
-      if (!sessionId) throw new Error("Missing sessionId");
 
       const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
         apiVersion: "2025-08-27.basil",
       });
 
-      session = await stripe.checkout.sessions.retrieve(sessionId);
-
-      if (session.payment_status !== "paid") {
-        return new Response(JSON.stringify({ success: false, status: session.payment_status }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
-        });
+      if (paymentIntentId) {
+        paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        if (paymentIntent.status !== "succeeded") {
+          return new Response(JSON.stringify({ success: false, status: paymentIntent.status }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+      } else if (sessionId) {
+        // Backward compatibility with old checkout sessions
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        if (session.payment_status !== "paid") {
+          return new Response(JSON.stringify({ success: false, status: session.payment_status }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+        paymentIntent = { id: session.payment_intent, metadata: session.metadata };
+      } else {
+        throw new Error("Missing paymentIntentId or sessionId");
       }
     }
 
-    // --- SHARED LOGIC: process the paid session ---
+    // --- SHARED LOGIC: process the paid payment ---
+    const paymentIntentId = typeof paymentIntent.id === 'string' ? paymentIntent.id : (paymentIntent.payment_intent as string);
 
     // Handle regular challenge
     if (challengeId) {
@@ -132,7 +135,7 @@ serve(async (req) => {
         .from("challenges")
         .update({
           payment_status: "paid",
-          stripe_payment_intent_id: (session.payment_intent as string) || null,
+          stripe_payment_intent_id: paymentIntentId || null,
         })
         .eq("id", challengeId)
         .eq("user_id", userId);
@@ -151,7 +154,6 @@ serve(async (req) => {
           .eq("user_id", userId)
           .single();
 
-        // Get user email
         const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
         const userEmail = authUser?.user?.email || "";
 
@@ -197,8 +199,8 @@ serve(async (req) => {
               status: "active",
               created_at: challenge.created_at,
               estimated_end_date: endDate.toISOString(),
-              stripe_payment_intent_id: session.payment_intent,
-              promo_code: "",
+              stripe_payment_intent_id: paymentIntentId,
+              promo_code: challenge.promo_code || "",
             }),
           });
         }
@@ -269,7 +271,7 @@ serve(async (req) => {
         .from("social_challenge_members")
         .update({
           payment_status: "paid",
-          stripe_payment_intent_id: (session.payment_intent as string) || null,
+          stripe_payment_intent_id: paymentIntentId || null,
         })
         .eq("id", memberId)
         .eq("user_id", userId);
@@ -394,7 +396,6 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("Error:", error);
-    // For webhooks, always return 200 to prevent retries on known errors
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,

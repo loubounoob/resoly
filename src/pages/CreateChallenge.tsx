@@ -13,6 +13,7 @@ import { getDay } from "date-fns";
 import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/contexts/LocaleContext";
+import StripePaymentSheet from "@/components/StripePaymentSheet";
 import {
   Dialog,
   DialogContent,
@@ -68,6 +69,12 @@ const CreateChallenge = () => {
   // Promo countdown
   const [promoExpiresAt, setPromoExpiresAt] = useState<number | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
+
+  // Stripe PaymentSheet state
+  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
+  const [clientSecret, setClientSecret] = useState("");
+  const [paymentIntentId, setPaymentIntentId] = useState("");
+  const [pendingChallengeId, setPendingChallengeId] = useState<string | null>(null);
 
   const createChallenge = useCreateChallenge();
 
@@ -191,14 +198,41 @@ const CreateChallenge = () => {
       });
 
       if (error) throw error;
-      if (data?.url) {
-        window.location.href = data.url;
+      if (data?.clientSecret && data?.paymentIntentId) {
+        setPendingChallengeId(challenge.id);
+        setClientSecret(data.clientSecret);
+        setPaymentIntentId(data.paymentIntentId);
+        setPaymentSheetOpen(true);
+        setIsProcessing(false);
       } else {
-        throw new Error("No checkout URL returned");
+        throw new Error("No payment data returned");
       }
     } catch (error) {
       console.error(error);
       toast.error(t('createChallenge.paymentError'));
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePaymentSuccess = async (piId: string) => {
+    setPaymentSheetOpen(false);
+    setIsProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-payment", {
+        body: {
+          paymentIntentId: piId,
+          challengeId: pendingChallengeId,
+        },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        navigate("/payment-success?type=challenge&verified=true");
+      } else {
+        toast.error(t('createChallenge.paymentError'));
+      }
+    } catch {
+      toast.error(t('createChallenge.paymentError'));
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -440,6 +474,17 @@ const CreateChallenge = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <StripePaymentSheet
+        open={paymentSheetOpen}
+        onOpenChange={setPaymentSheetOpen}
+        clientSecret={clientSecret}
+        paymentIntentId={paymentIntentId}
+        amount={betAmount}
+        description={t('createChallenge.betDescription', { amount: formatCurrency(betAmount), sessions: sessionsPerWeek, duration })}
+        onSuccess={handlePaymentSuccess}
+        showPromoCode={true}
+        promoEndpoint="apply-promo-code"
+      />
       </>
       )}
     </div>
