@@ -26,7 +26,7 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
   const [loadingPack, setLoadingPack] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
-  const { t, formatCurrency, currencySymbol, locale, currency } = useLocale();
+  const { t, formatCurrency, currencySymbol, locale, currency, country } = useLocale();
   const navigate = useNavigate();
 
   // Stripe PaymentSheet state
@@ -168,6 +168,8 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
         amount={selectedPackAmount}
         description={t('buyCoins.title')}
         onSuccess={handlePaymentSuccess}
+        stripeLocale={locale}
+        userCountry={country}
       />
     </>
   );

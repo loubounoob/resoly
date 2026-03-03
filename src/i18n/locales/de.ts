@@ -22,6 +22,7 @@ const de: TranslationKeys = {
     bonus: "Bonus",
     go: "Los",
     next: "Weiter",
+    free: "Kostenlos",
   },
   landing: {
     heroTitle1: "Setze auf",

@@ -20,6 +20,7 @@ const fr = {
     bonus: "bonus",
     go: "Go",
     next: "Suivant",
+    free: "Gratuit",
   },
   landing: {
     heroTitle1: "Mise sur",

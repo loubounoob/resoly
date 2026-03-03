@@ -21,7 +21,7 @@ const SESSIONS_OPTIONS = [2, 3, 4, 5, 6];
 
 const CreateSocialChallenge = () => {
   const navigate = useNavigate();
-  const { t, formatCurrency, currency, locale } = useLocale();
+  const { t, formatCurrency, currency, locale, country } = useLocale();
   const [step, setStep] = useState<"motivation1" | "motivation2" | "motivation3" | "motivation4" | "motivation5" | "params" | "target" | "confirm">("motivation1");
   const [betAmount, setBetAmount] = useState(100);
   const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
@@ -339,6 +339,8 @@ const CreateSocialChallenge = () => {
         amount={betAmount}
         description={t('createSocial.betDescription', { amount: formatCurrency(betAmount), sessions: sessionsPerWeek, duration })}
         onSuccess={handlePaymentSuccess}
+        stripeLocale={locale}
+        userCountry={country}
       />
     </div>
   );

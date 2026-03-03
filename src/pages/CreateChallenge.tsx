@@ -51,7 +51,7 @@ function formatCountdown(seconds: number): string {
 
 const CreateChallenge = () => {
   const navigate = useNavigate();
-  const { t, formatCurrency, currency, locale } = useLocale();
+  const { t, formatCurrency, currency, locale, country } = useLocale();
   const { data: activeChallenge, isLoading: loadingActive } = useActiveChallenge();
   const [mode] = useState<ChallengeMode>("solo");
   const [betAmount, setBetAmount] = useState(100);
@@ -484,6 +484,8 @@ const CreateChallenge = () => {
         onSuccess={handlePaymentSuccess}
         showPromoCode={true}
         promoEndpoint="apply-promo-code"
+        stripeLocale={locale}
+        userCountry={country}
       />
       </>
       )}
