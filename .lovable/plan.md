@@ -1,75 +1,38 @@
 
 
-## Migration Stripe Checkout → Stripe Payment Sheet : Analyse complète
+## Problemes identifiés
 
-### Scope de la migration
+1. **Code promo LOUBOUNOOBLEGOAT crash** : L'edge function `apply-promo-code` tente de mettre le PaymentIntent à 50 cents USD, mais le compte Stripe est en EUR. 50 cents USD = ~0.43€, en dessous du minimum Stripe (0.50€). Solution : au lieu de modifier le montant Stripe, **bypasser le paiement entierement** coté frontend quand ce code est appliqué.
 
-Après audit complet, voici tous les points d'impact :
+2. **Stripe Elements en francais / pays France pour un americain** : `loadStripe()` n'est pas appelé avec la locale utilisateur, et le `PaymentElement` n'a pas de `defaultValues` pour le pays.
 
-**Edge Functions à modifier (4) :**
-1. `create-challenge-payment` — remplacer `checkout.sessions.create()` par `paymentIntents.create()` + retourner `clientSecret` au lieu d'une URL
-2. `buy-coins` — même transformation
-3. `verify-payment` — adapter le path frontend (plus de `sessionId`, utiliser `paymentIntentId`) ; le path webhook passe de `checkout.session.completed` à `payment_intent.succeeded`
-4. `verify-coin-purchase` — même adaptation
+## Plan
 
-**Edge Functions inchangées (2) :**
-- `complete-challenge` — utilise déjà `stripe.refunds.create({ payment_intent })`, pas de changement
-- `fail-challenge` — pas de logique Stripe
+### 1. Fix code promo LOUBOUNOOBLEGOAT — bypass total du paiement
 
-**Pages frontend à modifier (4) :**
-1. `CreateChallenge.tsx` — remplacer `window.location.href = data.url` par un composant Stripe Elements intégré (PaymentSheet-like)
-2. `CreateSocialChallenge.tsx` — idem
-3. `BuyCoinsDrawer.tsx` — idem
-4. `PaymentSuccess.tsx` — adapter la vérification (plus de `session_id` dans l'URL, confirmer via `paymentIntentId`)
+Au lieu de réduire le montant Stripe (probleme de minimum par devise), changer l'approche :
 
-**Nouveau composant à créer (1) :**
-- `StripePaymentSheet.tsx` — drawer/modal avec Stripe Elements (`PaymentElement`) qui gère la confirmation du paiement in-app sans redirection
+- **Edge function `apply-promo-code`** : Pour `LOUBOUNOOBLEGOAT`, ne pas toucher au PaymentIntent. Retourner `{ valid: true, type: "free", newAmount: 0 }`.
+- **Frontend `StripePaymentSheet`** : Quand `discountedAmount === 0`, afficher un bouton "Confirmer — Gratuit" qui appelle directement `onSuccess` sans passer par Stripe `confirmPayment`. Le PaymentIntent est annulé (ou ignoré).
+- **Frontend `PaymentForm`** : Cacher le `PaymentElement` quand le montant est 0, montrer juste le bouton de confirmation gratuit.
 
-**Nouveau package npm (1) :**
-- `@stripe/react-stripe-js` + `@stripe/stripe-js` pour Stripe Elements côté frontend
+### 2. Stripe Elements locale + pays pré-rempli
 
-### Point critique : les codes promo
+- **`src/lib/stripe.ts`** : Modifier `getStripe()` pour accepter une locale et la passer à `loadStripe(key, { locale })`. Invalider le cache si la locale change.
+- **`StripePaymentSheet.tsx`** : Ajouter props `locale` et `country`. Passer au `PaymentElement` : `defaultValues: { billingDetails: { address: { country } } }`. Passer la locale à `getStripe(locale)`.
+- **`CreateChallenge.tsx`, `CreateSocialChallenge.tsx`, `BuyCoinsDrawer.tsx`** : Passer `locale` et `country` depuis `useLocale()` au `StripePaymentSheet`.
 
-Stripe Checkout gère nativement `allow_promotion_codes: true`. Avec PaymentIntent, il faut :
-- Soit ajouter un champ promo côté frontend + valider via l'API Stripe `promotionCodes.list()` côté edge function et appliquer la réduction manuellement sur le `amount`
-- Soit utiliser des Coupons Stripe appliqués avant la création du PaymentIntent
+### 3. Enrichir le customer Stripe avec le profil utilisateur
 
-Actuellement `create-challenge-payment` utilise `allow_promotion_codes: true` — cette logique devra être reconstruite.
+- **`create-challenge-payment` et `buy-coins`** : Après création/récupération du customer Stripe, update avec `name`, `address.country` depuis le profil Supabase. Cela permettra a Stripe de pré-remplir automatiquement les informations connues.
 
-### Plan d'implémentation
-
-**Étape 1 : Installer les dépendances Stripe Elements**
-- Ajouter `@stripe/react-stripe-js` et `@stripe/stripe-js`
-
-**Étape 2 : Créer le composant `StripePaymentSheet`**
-- Un drawer/modal qui charge `<Elements>` avec le `clientSecret`
-- Affiche un `<PaymentElement>` (formulaire carte intégré, identique au PaymentSheet natif)
-- Bouton "Payer" qui appelle `stripe.confirmPayment()`
-- Gère le retour `succeeded` / `failed` directement dans l'app
-
-**Étape 3 : Modifier les 2 edge functions de création de paiement**
-- `create-challenge-payment` : créer un `PaymentIntent` au lieu d'une `CheckoutSession`, retourner `{ clientSecret, paymentIntentId }` 
-- `buy-coins` : idem
-- Stocker les metadata (`user_id`, `challenge_id`, etc.) sur le PaymentIntent
-
-**Étape 4 : Modifier les pages frontend**
-- `CreateChallenge.tsx` et `CreateSocialChallenge.tsx` : au lieu de rediriger, ouvrir le `StripePaymentSheet` avec le `clientSecret`
-- `BuyCoinsDrawer.tsx` : idem
-- Sur confirmation réussie, appeler `verify-payment` / `verify-coin-purchase` directement
-
-**Étape 5 : Adapter les fonctions de vérification**
-- `verify-payment` : accepter `paymentIntentId` au lieu de `sessionId`, utiliser `stripe.paymentIntents.retrieve()` au lieu de `checkout.sessions.retrieve()`
-- `verify-coin-purchase` : idem
-- Adapter le webhook pour écouter `payment_intent.succeeded` au lieu de `checkout.session.completed`
-
-**Étape 6 : Gérer les codes promo**
-- Ajouter un champ texte promo dans le `StripePaymentSheet`
-- Valider côté edge function via l'API Stripe Promotion Codes
-- Appliquer la réduction sur le montant du PaymentIntent
-
-### Verdict
-
-C'est faisable en une fois. Le chantier touche ~10 fichiers (4 edge functions + 4 pages + 1 nouveau composant + 1 package). Le risque principal est la gestion des codes promo qui nécessite une reconstruction manuelle. Le reste est une transformation mécanique bien définie.
-
-Voulez-vous que je procède ?
+### Fichiers modifiés
+- `supabase/functions/apply-promo-code/index.ts` — retourner `type: "free"` sans toucher au PI
+- `src/components/StripePaymentSheet.tsx` — bypass paiement si montant 0, props locale/country, defaultValues
+- `src/lib/stripe.ts` — locale-aware `getStripe(locale)`
+- `supabase/functions/create-challenge-payment/index.ts` — enrichir customer Stripe
+- `supabase/functions/buy-coins/index.ts` — enrichir customer Stripe
+- `src/pages/CreateChallenge.tsx` — passer locale/country
+- `src/pages/CreateSocialChallenge.tsx` — passer locale/country
+- `src/components/BuyCoinsDrawer.tsx` — passer locale/country
 
