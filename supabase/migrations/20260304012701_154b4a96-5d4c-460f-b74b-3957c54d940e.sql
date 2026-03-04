@@ -1,0 +1,1 @@
+UPDATE challenges SET first_week_sessions = 1, sessions_per_week = 1 WHERE id = '9c6b9d13-8edd-4ca3-aef7-ea1bc4565a2e';
