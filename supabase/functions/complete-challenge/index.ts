@@ -45,7 +45,7 @@ serve(async (req) => {
     const { challengeId } = await req.json();
     if (!challengeId) throw new Error("Missing challengeId");
 
-    // Fetch challenge
+    // Fetch challenge data (needed for coin calculation, but NOT as a status guard)
     const { data: challenge, error: chErr } = await supabaseAdmin
       .from("challenges")
       .select("*")
@@ -53,7 +53,6 @@ serve(async (req) => {
       .eq("user_id", userId)
       .single();
     if (chErr || !challenge) throw new Error("Challenge not found");
-    if (challenge.status !== "active") throw new Error("Challenge is not active");
 
     // Verify all sessions completed
     const { count } = await supabaseAdmin
@@ -65,7 +64,7 @@ serve(async (req) => {
       throw new Error("Not all sessions completed");
     }
 
-    // Fetch profile first (needed for currency multiplier and coin update)
+    // Fetch profile (needed for currency multiplier)
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("coins, country")
@@ -89,21 +88,42 @@ serve(async (req) => {
     const monthFactor = 0.3 + 0.6 * Math.pow(M, 1.5);
     const sessionFactor = Math.pow(S / 3, 1.1);
 
-    // Currency multiplier based on user's country
     const countryToCurrencyMult: Record<string, number> = {
       AU: 0.65, CA: 0.65, US: 0.85,
     };
     const userCountry = (profile?.country || 'FR').toUpperCase();
     const currencyMult = countryToCurrencyMult[userCountry] ?? 1.0;
-    // Promo code multiplier
     const VALID_PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027"];
     const promoMult = challenge.promo_code && VALID_PROMO_CODES.includes(challenge.promo_code.toUpperCase()) ? 1.5 : 1.0;
     const coinsToEarn = Math.round(I * CI * monthFactor * sessionFactor * currencyMult * promoMult);
 
-    const userLocale = countryToLocale(profile?.country);
+    // === ATOMIC UPDATE: mark completed WHERE status = 'active' ===
+    // This is the critical idempotency guard — only one concurrent request can win
+    const { data: updated, error: updateErr } = await supabaseAdmin
+      .from("challenges")
+      .update({ status: "completed", coins_awarded: coinsToEarn })
+      .eq("id", challengeId)
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .select("id");
 
-    // Stripe refund
+    if (updateErr) throw updateErr;
+    if (!updated || updated.length === 0) {
+      // Already completed or failed by another concurrent request
+      return new Response(
+        JSON.stringify({ success: true, already_completed: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    // === CREDIT COINS via atomic SQL function ===
+    await supabaseAdmin.rpc('increment_coins', { _user_id: userId, _amount: coinsToEarn });
+
+    // === STRIPE REFUND (after atomic update to prevent double refund) ===
     let refunded = false;
+    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+      apiVersion: "2025-08-27.basil",
+    });
 
     if (challenge.social_challenge_id) {
       const { data: sc } = await supabaseAdmin
@@ -121,43 +141,32 @@ serve(async (req) => {
           .single();
 
         if (creatorMember?.stripe_payment_intent_id) {
-          const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-            apiVersion: "2025-08-27.basil",
-          });
-          await stripe.refunds.create({
-            payment_intent: creatorMember.stripe_payment_intent_id,
-          });
+          await stripe.refunds.create(
+            { payment_intent: creatorMember.stripe_payment_intent_id },
+            { idempotencyKey: `refund-${challengeId}` }
+          );
           refunded = true;
         }
       }
     } else if (challenge.stripe_payment_intent_id) {
-      const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-        apiVersion: "2025-08-27.basil",
-      });
-      await stripe.refunds.create({
-        payment_intent: challenge.stripe_payment_intent_id,
-      });
+      await stripe.refunds.create(
+        { payment_intent: challenge.stripe_payment_intent_id },
+        { idempotencyKey: `refund-${challengeId}` }
+      );
       refunded = true;
     }
 
-    await supabaseAdmin
-      .from("profiles")
-      .update({ coins: (profile?.coins ?? 0) + coinsToEarn })
-      .eq("user_id", userId);
-
-    // Mark challenge completed
-    await supabaseAdmin
-      .from("challenges")
-      .update({ status: "completed", coins_awarded: coinsToEarn })
-      .eq("id", challengeId);
+    const userLocale = countryToLocale(profile?.country);
 
     // Sync status update to Google Sheets
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     try {
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-challenge-sheet`, {
+      await fetch(`${supabaseUrl}/functions/v1/sync-challenge-sheet`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          Authorization: `Bearer ${serviceKey}`,
         },
         body: JSON.stringify({
           challenge_id: challengeId,
@@ -170,8 +179,6 @@ serve(async (req) => {
     }
 
     const isBoosted = !!challenge.social_challenge_id;
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     // Send victory notification
     try {
@@ -189,7 +196,6 @@ serve(async (req) => {
           }),
         });
 
-        // Notify the boost creator
         const { data: sc } = await supabaseAdmin
           .from("social_challenges")
           .select("created_by")

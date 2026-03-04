@@ -36,21 +36,16 @@ serve(async (req) => {
     const qty = quantity || 1;
     const coinsNeeded = Math.ceil(parseFloat(priceAmount) * COINS_PER_EURO) * qty;
 
-    // Get user coins
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("coins")
-      .eq("user_id", user.id)
-      .single();
-    if (profileError || !profile) throw new Error("Profile not found");
-    if (profile.coins < coinsNeeded) throw new Error("Not enough coins");
+    // === ATOMIC coin deduction ===
+    const { data: newBalance, error: deductError } = await supabaseAdmin
+      .rpc('decrement_coins', { _user_id: user.id, _amount: coinsNeeded });
 
-    // Deduct coins
-    const { error: updateError } = await supabaseAdmin
-      .from("profiles")
-      .update({ coins: profile.coins - coinsNeeded })
-      .eq("user_id", user.id);
-    if (updateError) throw new Error("Failed to deduct coins");
+    if (deductError) {
+      if (deductError.message?.includes('Insufficient coin balance')) {
+        throw new Error("Not enough coins");
+      }
+      throw new Error("Failed to deduct coins");
+    }
 
     // Save shipping info to profile for future pre-fill
     if (shipping) {
@@ -130,7 +125,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         coinsSpent: coinsNeeded,
-        remainingCoins: profile.coins - coinsNeeded,
+        remainingCoins: newBalance,
         productTitle,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }

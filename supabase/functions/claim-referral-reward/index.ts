@@ -63,6 +63,7 @@ serve(async (req) => {
       claimed_at: new Date().toISOString(),
     };
 
+    // Atomic claim: update notification to claimed, check rows affected
     const { data: claimRow, error: claimError } = await supabaseAdmin
       .from("notifications")
       .update({ data: claimedData, read: true } as any)
@@ -81,20 +82,8 @@ serve(async (req) => {
       });
     }
 
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("coins")
-      .eq("user_id", user.id)
-      .single();
-
-    if (profileError || !profile) throw new Error("Profile not found");
-
-    const { error: updateCoinsError } = await supabaseAdmin
-      .from("profiles")
-      .update({ coins: (profile.coins ?? 0) + rewardCoins })
-      .eq("user_id", user.id);
-
-    if (updateCoinsError) throw updateCoinsError;
+    // === ATOMIC coin increment ===
+    await supabaseAdmin.rpc('increment_coins', { _user_id: user.id, _amount: rewardCoins });
 
     return new Response(JSON.stringify({ success: true, alreadyClaimed: false, coinsAwarded: rewardCoins }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

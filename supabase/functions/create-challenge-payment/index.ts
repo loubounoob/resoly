@@ -63,6 +63,33 @@ serve(async (req) => {
 
     const currencyCode = (currency || 'EUR').toLowerCase();
 
+    // === ANTI-SPAM: Reuse existing pending PaymentIntent for the same challenge ===
+    if (challengeId) {
+      const { data: existingChallenge } = await supabaseClient
+        .from("challenges")
+        .select("stripe_payment_intent_id, payment_status")
+        .eq("id", challengeId)
+        .eq("user_id", user.id)
+        .single();
+
+      if (existingChallenge?.stripe_payment_intent_id && existingChallenge.payment_status === "pending") {
+        try {
+          const existingPI = await stripe.paymentIntents.retrieve(existingChallenge.stripe_payment_intent_id);
+          if (existingPI.status === "requires_payment_method" || existingPI.status === "requires_confirmation") {
+            return new Response(JSON.stringify({
+              clientSecret: existingPI.client_secret,
+              paymentIntentId: existingPI.id,
+            }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 200,
+            });
+          }
+        } catch {
+          // PI not found or expired, create new one
+        }
+      }
+    }
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
       currency: currencyCode,

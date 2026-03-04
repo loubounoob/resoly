@@ -37,16 +37,18 @@ serve(async (req) => {
 
     let meta: any;
     let isPaid = false;
+    let piId: string;
 
     if (paymentIntentId) {
       const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
       isPaid = pi.status === "succeeded";
       meta = pi.metadata;
+      piId = pi.id;
     } else if (sessionId) {
-      // Backward compatibility
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       isPaid = session.payment_status === "paid";
       meta = session.metadata;
+      piId = session.payment_intent as string;
     } else {
       throw new Error("Missing paymentIntentId or sessionId");
     }
@@ -58,7 +60,6 @@ serve(async (req) => {
       });
     }
 
-    // Verify metadata
     if (meta?.type !== "coin_purchase" || meta?.user_id !== user.id) {
       throw new Error("Invalid metadata");
     }
@@ -66,25 +67,45 @@ serve(async (req) => {
     const coinsToAdd = parseInt(meta.coins, 10);
     if (!coinsToAdd || coinsToAdd <= 0) throw new Error("Invalid coin amount");
 
-    const { data: existing } = await supabaseAdmin
+    // === DEDUPLICATION: prevent double credit ===
+    const { error: dedupError } = await supabaseAdmin
+      .from("processed_coin_payments")
+      .insert({ payment_intent_id: piId, user_id: user.id, coins: coinsToAdd });
+
+    if (dedupError) {
+      // Unique constraint violation = already processed
+      if (dedupError.code === "23505") {
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("coins")
+          .eq("user_id", user.id)
+          .single();
+        return new Response(JSON.stringify({
+          success: true,
+          alreadyProcessed: true,
+          coinsAdded: 0,
+          newBalance: profile?.coins ?? 0,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      throw dedupError;
+    }
+
+    // === ATOMIC coin increment ===
+    await supabaseAdmin.rpc('increment_coins', { _user_id: user.id, _amount: coinsToAdd });
+
+    const { data: updatedProfile } = await supabaseAdmin
       .from("profiles")
       .select("coins")
       .eq("user_id", user.id)
       .single();
 
-    if (!existing) throw new Error("Profile not found");
-
-    const { error: updateError } = await supabaseAdmin
-      .from("profiles")
-      .update({ coins: existing.coins + coinsToAdd })
-      .eq("user_id", user.id);
-
-    if (updateError) throw updateError;
-
     return new Response(JSON.stringify({ 
       success: true, 
       coinsAdded: coinsToAdd,
-      newBalance: existing.coins + coinsToAdd 
+      newBalance: updatedProfile?.coins ?? 0,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,

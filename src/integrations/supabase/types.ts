@@ -335,6 +335,27 @@ export type Database = {
         }
         Relationships: []
       }
+      processed_coin_payments: {
+        Row: {
+          coins: number
+          created_at: string
+          payment_intent_id: string
+          user_id: string
+        }
+        Insert: {
+          coins: number
+          created_at?: string
+          payment_intent_id: string
+          user_id: string
+        }
+        Update: {
+          coins?: number
+          created_at?: string
+          payment_intent_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           address1: string | null
@@ -705,6 +726,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      decrement_coins: {
+        Args: { _amount: number; _user_id: string }
+        Returns: number
+      }
+      increment_coins: {
+        Args: { _amount: number; _user_id: string }
+        Returns: undefined
+      }
       is_group_member: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
