@@ -1,71 +1,94 @@
 
 
-## Plan : App Store Ready — Sécurité, Conformité & Automatisation
+## Plan de correction : Sécurité financière critique
 
-### 1. Suppression de compte + endpoint RGPD
+### 1. Migration SQL — Fonctions atomiques `increment_coins` et `decrement_coins`
 
-**Edge Function `delete-account`** : supprime toutes les données utilisateur (check_ins, challenges, rewards, notifications, push_tokens, friendships, social_challenge_members, coin_orders, shop_orders, profiles) puis appelle `supabase.auth.admin.deleteUser(userId)`. Authentifié via `getClaims()`.
+Créer deux fonctions SQL :
+- `increment_coins(uid uuid, amount int)` — `UPDATE profiles SET coins = coins + amount WHERE user_id = uid`
+- `decrement_coins(uid uuid, amount int)` — `UPDATE profiles SET coins = coins - amount WHERE user_id = uid AND coins >= amount`, retourne le nouveau solde (ou erreur si insuffisant)
 
-**Frontend `Settings.tsx`** : ajouter un bouton "Supprimer mon compte" avec AlertDialog de confirmation. Appelle `supabase.functions.invoke('delete-account')`, puis sign out et redirect vers `/`.
+### 2. `complete-challenge` — Atomique + idempotent
 
-**i18n** : ajouter les clés `settings.deleteAccount`, `settings.deleteAccountConfirm`, `settings.deleteAccountDescription` dans fr/en/de.
+Refactorisation complète de la logique :
 
-### 2. Privacy Policy
+1. **UPDATE atomique** : Remplacer le `SELECT * + guard status !== active` par un `UPDATE challenges SET status = 'completed', coins_awarded = coinsToEarn WHERE id = challengeId AND user_id = userId AND status = 'active'`. Vérifier que `count > 0` sinon return `{ already_completed: true }`.
+2. **Coins via RPC** : Remplacer `update({ coins: profile.coins + coinsToEarn })` par `supabaseAdmin.rpc('increment_coins', { uid: userId, amount: coinsToEarn })`.
+3. **Refund APRÈS l'UPDATE** : Déplacer le bloc Stripe refund après le UPDATE atomique réussi.
+4. **Idempotency key** : Ajouter `{ idempotencyKey: challengeId }` sur `stripe.refunds.create()`.
 
-**Page `src/pages/PrivacyPolicy.tsx`** : page publique accessible sans auth, contenant la politique de confidentialité (données collectées, Stripe, géolocalisation, photos, durée de rétention, contact RGPD).
+Le calcul des coins nécessite toujours un SELECT du challenge et du profil pour le country/promo, mais le guard de statut est dans l'UPDATE atomique.
 
-**Route** : ajouter `/privacy` dans App.tsx (non protégée).
+### 3. Webhook Stripe (`verify-payment`) — Idempotent pour les coins
 
-**Lien dans Settings** : ajouter un lien vers `/privacy`.
+Dans le path `coin_purchase` (lignes 91-112) :
+1. Avant de créditer, vérifier si le `paymentIntent.id` a déjà été traité en cherchant dans les challenges ou en ajoutant un check : `SELECT 1 FROM profiles WHERE user_id = uid` n'est pas suffisant. Solution : utiliser un INSERT idempotent dans une table de tracking ou simplement stocker le PI id.
+2. **Solution retenue** : Ajouter une colonne `stripe_pi_id` à une vérification inline — avant de créditer, faire un `SELECT` sur `coin_orders` ou utiliser un mécanisme simple : tenter un `INSERT` dans une table `processed_coin_payments(payment_intent_id text PRIMARY KEY, user_id uuid, coins int, created_at timestamptz)`. Si le INSERT échoue (conflit PK), skip.
+3. Remplacer le read-then-write par `supabaseAdmin.rpc('increment_coins', ...)`.
 
-**Lien dans Landing** : ajouter un lien en footer.
+### 4. `verify-coin-purchase` — Même fix
 
-### 3. Sécuriser le webhook Stripe
+Remplacer le read-then-write coins par `supabaseAdmin.rpc('increment_coins', ...)`. Ajouter la même déduplication via `processed_coin_payments`.
 
-**`verify-payment/index.ts`** : dans le path webhook (`isWebhook`), utiliser `stripe.webhooks.constructEvent(rawBody, sig, webhookSecret)` au lieu de parser directement le JSON. Lire le body en `req.text()`, valider la signature via le header `stripe-signature`, puis parser l'event.
+### 5. `fail-challenge` — Race condition fix
 
-**Secret** : demander à l'utilisateur d'ajouter `STRIPE_WEBHOOK_SECRET` via l'outil `add_secret`.
+Ligne 91-94 : Ajouter `.eq("status", "active")` au UPDATE et vérifier le résultat :
+```ts
+const { data: updated, error } = await supabase
+  .from("challenges")
+  .update({ status: "failed" })
+  .eq("id", challenge.id)
+  .eq("status", "active")
+  .select("id");
+if (!updated?.length) continue; // déjà changé par complete-challenge
+```
 
-### 4. Remboursement automatique (déjà en place)
+### 6. `create-challenge-payment` — Anti-spam PI
 
-`complete-challenge/index.ts` appelle déjà `stripe.refunds.create()` pour les défis réussis. `fail-challenge/index.ts` ne rembourse pas. **Aucun changement nécessaire** — la logique est correcte.
+Avant de créer un nouveau PaymentIntent, vérifier qu'il n'en existe pas déjà un pending pour ce challenge :
+```ts
+if (challengeId) {
+  const { data: existing } = await supabaseClient
+    .from("challenges")
+    .select("stripe_payment_intent_id, payment_status")
+    .eq("id", challengeId)
+    .eq("user_id", user.id)
+    .single();
+  if (existing?.stripe_payment_intent_id && existing.payment_status === "pending") {
+    // Retrieve existing PI, return its clientSecret if still valid
+    const existingPI = await stripe.paymentIntents.retrieve(existing.stripe_payment_intent_id);
+    if (existingPI.status === "requires_payment_method" || existingPI.status === "requires_confirmation") {
+      return Response({ clientSecret: existingPI.client_secret, paymentIntentId: existingPI.id });
+    }
+  }
+}
+```
 
-### 5. Planifier les crons
+### 7. Autres fonctions — Coin atomique
 
-Exécuter deux `cron.schedule` via l'outil insert SQL (pas migration) :
+Remplacer le read-then-write dans :
+- `purchase-product/index.ts` → `rpc('decrement_coins', ...)`
+- `purchase-with-coins/index.ts` → `rpc('decrement_coins', ...)`
+- `claim-referral-reward/index.ts` → `rpc('increment_coins', ...)`
 
-- `check-challenge-peril` : tous les jours à 10h00 UTC
-- `fail-challenge` : tous les jours à 23h00 UTC
+### Fichiers impactés
 
-Les deux appellent les Edge Functions existantes via `net.http_post`.
-
-### 6. `verify_jwt` sur les Edge Functions
-
-**Note importante** : le projet utilise le système signing-keys. `verify_jwt = true` ne fonctionne pas avec signing-keys. La validation JWT se fait déjà en code via `getClaims()` dans les fonctions authentifiées. Les fonctions cron/webhook ont `verify_jwt = false` par nécessité. **Aucun changement à faire** — c'est déjà la bonne approche.
-
-### 7. APNs dans Firebase
-
-**Action manuelle requise (pas de code)** : l'utilisateur doit uploader la clé APNs (.p8) dans Firebase Console > Project Settings > Cloud Messaging > Apple app configuration. Lovable ne peut pas faire cette action. Je fournirai les instructions détaillées.
-
-### 8. Vérifier produits physiques uniquement
-
-Les coins sont échangeables uniquement contre des produits Shopify (physiques). L'achat de coins via Stripe (`buy-coins`) est un achat de monnaie virtuelle échangeable contre des biens physiques — c'est conforme aux guidelines Apple (pas d'IAP requis car les coins ne débloquent pas de contenu digital). **Aucun changement nécessaire**, mais j'ajouterai un commentaire documentant cette distinction.
-
----
-
-### Fichiers à créer/modifier
-
-| Fichier | Action |
+| Fichier | Modification |
 |---|---|
-| `supabase/functions/delete-account/index.ts` | Créer |
-| `supabase/config.toml` | Ajouter `[functions.delete-account]` |
-| `src/pages/Settings.tsx` | Ajouter bouton suppression + lien privacy |
-| `src/pages/PrivacyPolicy.tsx` | Créer |
-| `src/App.tsx` | Ajouter route `/privacy` |
-| `supabase/functions/verify-payment/index.ts` | Sécuriser webhook signature |
-| `src/i18n/locales/fr.ts` | Clés suppression + privacy |
-| `src/i18n/locales/en.ts` | Clés suppression + privacy |
-| `src/i18n/locales/de.ts` | Clés suppression + privacy |
-| SQL insert (crons) | 2 `cron.schedule` |
-| Secret `STRIPE_WEBHOOK_SECRET` | Demander à l'utilisateur |
+| Migration SQL | `increment_coins`, `decrement_coins`, table `processed_coin_payments` |
+| `complete-challenge/index.ts` | UPDATE atomique, refund après, idempotency key, rpc coins |
+| `verify-payment/index.ts` | Dedup coin_purchase, rpc coins |
+| `verify-coin-purchase/index.ts` | Dedup, rpc coins |
+| `fail-challenge/index.ts` | `.eq("status","active")` sur UPDATE + check rows |
+| `create-challenge-payment/index.ts` | Réutiliser PI existant |
+| `purchase-product/index.ts` | rpc decrement_coins |
+| `purchase-with-coins/index.ts` | rpc decrement_coins |
+| `claim-referral-reward/index.ts` | rpc increment_coins |
+
+### Garanties après correction
+
+- **Double refund impossible** : UPDATE atomique `WHERE status = 'active'` + idempotencyKey Stripe
+- **Double crédit coins impossible** : `increment_coins` SQL atomique + table `processed_coin_payments` pour les webhooks
+- **Race condition fail vs complete** : Les deux utilisent `WHERE status = 'active'` sur l'UPDATE, un seul gagne
+- **Spam PI** : Réutilisation du PI existant pour le même challenge
 
