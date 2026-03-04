@@ -88,13 +88,22 @@ Deno.serve(async (req) => {
       const sessionsRemaining = weeklyGoal - weeklyDone;
 
       if (sessionsRemaining > 0 && sessionsRemaining > daysLeftInWeek) {
-        const { error: updateErr } = await supabase
+        // === ATOMIC UPDATE with status guard to prevent race condition with complete-challenge ===
+        const { data: updated, error: updateErr } = await supabase
           .from("challenges")
           .update({ status: "failed" })
-          .eq("id", challenge.id);
+          .eq("id", challenge.id)
+          .eq("status", "active")
+          .select("id");
 
         if (updateErr) {
           console.error(`Failed to update challenge ${challenge.id}:`, updateErr);
+          continue;
+        }
+
+        // If no rows updated, challenge was already completed/failed by another process
+        if (!updated || updated.length === 0) {
+          console.log(`Challenge ${challenge.id} already changed status, skipping`);
           continue;
         }
 

@@ -43,22 +43,16 @@ serve(async (req) => {
     // Check stock
     if (product.stock !== -1 && product.stock <= 0) throw new Error("Product out of stock");
 
-    // Get user coins
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("coins")
-      .eq("user_id", user.id)
-      .single();
-    if (profileError || !profile) throw new Error("Profile not found");
+    // === ATOMIC coin deduction ===
+    const { data: newBalance, error: deductError } = await supabaseAdmin
+      .rpc('decrement_coins', { _user_id: user.id, _amount: product.price_coins });
 
-    if (profile.coins < product.price_coins) throw new Error("Not enough coins");
-
-    // Deduct coins
-    const { error: updateError } = await supabaseAdmin
-      .from("profiles")
-      .update({ coins: profile.coins - product.price_coins })
-      .eq("user_id", user.id);
-    if (updateError) throw new Error("Failed to deduct coins");
+    if (deductError) {
+      if (deductError.message?.includes('Insufficient coin balance')) {
+        throw new Error("Not enough coins");
+      }
+      throw new Error("Failed to deduct coins");
+    }
 
     // Create order
     const { data: order, error: orderError } = await supabaseAdmin

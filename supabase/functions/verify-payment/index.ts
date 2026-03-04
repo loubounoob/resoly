@@ -91,19 +91,24 @@ serve(async (req) => {
       if (meta.type === "coin_purchase") {
         const coinsToAdd = parseInt(meta.coins, 10);
         if (coinsToAdd && coinsToAdd > 0) {
-          const { data: existing } = await supabaseAdmin
-            .from("profiles")
-            .select("coins")
-            .eq("user_id", userId)
-            .single();
+          // === DEDUPLICATION: prevent double credit on webhook retry ===
+          const { error: dedupError } = await supabaseAdmin
+            .from("processed_coin_payments")
+            .insert({ payment_intent_id: paymentIntent.id, user_id: userId, coins: coinsToAdd });
 
-          if (existing) {
-            await supabaseAdmin
-              .from("profiles")
-              .update({ coins: existing.coins + coinsToAdd })
-              .eq("user_id", userId);
-            console.log(`Webhook: credited ${coinsToAdd} coins to user ${userId}`);
+          if (dedupError && dedupError.code === "23505") {
+            // Already processed this payment intent
+            console.log(`Webhook: payment ${paymentIntent.id} already processed, skipping`);
+            return new Response(JSON.stringify({ received: true, alreadyProcessed: true }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 200,
+            });
           }
+          if (dedupError) throw dedupError;
+
+          // === ATOMIC coin increment ===
+          await supabaseAdmin.rpc('increment_coins', { _user_id: userId, _amount: coinsToAdd });
+          console.log(`Webhook: credited ${coinsToAdd} coins to user ${userId}`);
         }
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
