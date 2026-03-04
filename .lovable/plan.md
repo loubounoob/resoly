@@ -1,38 +1,71 @@
 
 
-## Problemes identifiés
+## Plan : App Store Ready — Sécurité, Conformité & Automatisation
 
-1. **Code promo LOUBOUNOOBLEGOAT crash** : L'edge function `apply-promo-code` tente de mettre le PaymentIntent à 50 cents USD, mais le compte Stripe est en EUR. 50 cents USD = ~0.43€, en dessous du minimum Stripe (0.50€). Solution : au lieu de modifier le montant Stripe, **bypasser le paiement entierement** coté frontend quand ce code est appliqué.
+### 1. Suppression de compte + endpoint RGPD
 
-2. **Stripe Elements en francais / pays France pour un americain** : `loadStripe()` n'est pas appelé avec la locale utilisateur, et le `PaymentElement` n'a pas de `defaultValues` pour le pays.
+**Edge Function `delete-account`** : supprime toutes les données utilisateur (check_ins, challenges, rewards, notifications, push_tokens, friendships, social_challenge_members, coin_orders, shop_orders, profiles) puis appelle `supabase.auth.admin.deleteUser(userId)`. Authentifié via `getClaims()`.
 
-## Plan
+**Frontend `Settings.tsx`** : ajouter un bouton "Supprimer mon compte" avec AlertDialog de confirmation. Appelle `supabase.functions.invoke('delete-account')`, puis sign out et redirect vers `/`.
 
-### 1. Fix code promo LOUBOUNOOBLEGOAT — bypass total du paiement
+**i18n** : ajouter les clés `settings.deleteAccount`, `settings.deleteAccountConfirm`, `settings.deleteAccountDescription` dans fr/en/de.
 
-Au lieu de réduire le montant Stripe (probleme de minimum par devise), changer l'approche :
+### 2. Privacy Policy
 
-- **Edge function `apply-promo-code`** : Pour `LOUBOUNOOBLEGOAT`, ne pas toucher au PaymentIntent. Retourner `{ valid: true, type: "free", newAmount: 0 }`.
-- **Frontend `StripePaymentSheet`** : Quand `discountedAmount === 0`, afficher un bouton "Confirmer — Gratuit" qui appelle directement `onSuccess` sans passer par Stripe `confirmPayment`. Le PaymentIntent est annulé (ou ignoré).
-- **Frontend `PaymentForm`** : Cacher le `PaymentElement` quand le montant est 0, montrer juste le bouton de confirmation gratuit.
+**Page `src/pages/PrivacyPolicy.tsx`** : page publique accessible sans auth, contenant la politique de confidentialité (données collectées, Stripe, géolocalisation, photos, durée de rétention, contact RGPD).
 
-### 2. Stripe Elements locale + pays pré-rempli
+**Route** : ajouter `/privacy` dans App.tsx (non protégée).
 
-- **`src/lib/stripe.ts`** : Modifier `getStripe()` pour accepter une locale et la passer à `loadStripe(key, { locale })`. Invalider le cache si la locale change.
-- **`StripePaymentSheet.tsx`** : Ajouter props `locale` et `country`. Passer au `PaymentElement` : `defaultValues: { billingDetails: { address: { country } } }`. Passer la locale à `getStripe(locale)`.
-- **`CreateChallenge.tsx`, `CreateSocialChallenge.tsx`, `BuyCoinsDrawer.tsx`** : Passer `locale` et `country` depuis `useLocale()` au `StripePaymentSheet`.
+**Lien dans Settings** : ajouter un lien vers `/privacy`.
 
-### 3. Enrichir le customer Stripe avec le profil utilisateur
+**Lien dans Landing** : ajouter un lien en footer.
 
-- **`create-challenge-payment` et `buy-coins`** : Après création/récupération du customer Stripe, update avec `name`, `address.country` depuis le profil Supabase. Cela permettra a Stripe de pré-remplir automatiquement les informations connues.
+### 3. Sécuriser le webhook Stripe
 
-### Fichiers modifiés
-- `supabase/functions/apply-promo-code/index.ts` — retourner `type: "free"` sans toucher au PI
-- `src/components/StripePaymentSheet.tsx` — bypass paiement si montant 0, props locale/country, defaultValues
-- `src/lib/stripe.ts` — locale-aware `getStripe(locale)`
-- `supabase/functions/create-challenge-payment/index.ts` — enrichir customer Stripe
-- `supabase/functions/buy-coins/index.ts` — enrichir customer Stripe
-- `src/pages/CreateChallenge.tsx` — passer locale/country
-- `src/pages/CreateSocialChallenge.tsx` — passer locale/country
-- `src/components/BuyCoinsDrawer.tsx` — passer locale/country
+**`verify-payment/index.ts`** : dans le path webhook (`isWebhook`), utiliser `stripe.webhooks.constructEvent(rawBody, sig, webhookSecret)` au lieu de parser directement le JSON. Lire le body en `req.text()`, valider la signature via le header `stripe-signature`, puis parser l'event.
+
+**Secret** : demander à l'utilisateur d'ajouter `STRIPE_WEBHOOK_SECRET` via l'outil `add_secret`.
+
+### 4. Remboursement automatique (déjà en place)
+
+`complete-challenge/index.ts` appelle déjà `stripe.refunds.create()` pour les défis réussis. `fail-challenge/index.ts` ne rembourse pas. **Aucun changement nécessaire** — la logique est correcte.
+
+### 5. Planifier les crons
+
+Exécuter deux `cron.schedule` via l'outil insert SQL (pas migration) :
+
+- `check-challenge-peril` : tous les jours à 10h00 UTC
+- `fail-challenge` : tous les jours à 23h00 UTC
+
+Les deux appellent les Edge Functions existantes via `net.http_post`.
+
+### 6. `verify_jwt` sur les Edge Functions
+
+**Note importante** : le projet utilise le système signing-keys. `verify_jwt = true` ne fonctionne pas avec signing-keys. La validation JWT se fait déjà en code via `getClaims()` dans les fonctions authentifiées. Les fonctions cron/webhook ont `verify_jwt = false` par nécessité. **Aucun changement à faire** — c'est déjà la bonne approche.
+
+### 7. APNs dans Firebase
+
+**Action manuelle requise (pas de code)** : l'utilisateur doit uploader la clé APNs (.p8) dans Firebase Console > Project Settings > Cloud Messaging > Apple app configuration. Lovable ne peut pas faire cette action. Je fournirai les instructions détaillées.
+
+### 8. Vérifier produits physiques uniquement
+
+Les coins sont échangeables uniquement contre des produits Shopify (physiques). L'achat de coins via Stripe (`buy-coins`) est un achat de monnaie virtuelle échangeable contre des biens physiques — c'est conforme aux guidelines Apple (pas d'IAP requis car les coins ne débloquent pas de contenu digital). **Aucun changement nécessaire**, mais j'ajouterai un commentaire documentant cette distinction.
+
+---
+
+### Fichiers à créer/modifier
+
+| Fichier | Action |
+|---|---|
+| `supabase/functions/delete-account/index.ts` | Créer |
+| `supabase/config.toml` | Ajouter `[functions.delete-account]` |
+| `src/pages/Settings.tsx` | Ajouter bouton suppression + lien privacy |
+| `src/pages/PrivacyPolicy.tsx` | Créer |
+| `src/App.tsx` | Ajouter route `/privacy` |
+| `supabase/functions/verify-payment/index.ts` | Sécuriser webhook signature |
+| `src/i18n/locales/fr.ts` | Clés suppression + privacy |
+| `src/i18n/locales/en.ts` | Clés suppression + privacy |
+| `src/i18n/locales/de.ts` | Clés suppression + privacy |
+| SQL insert (crons) | 2 `cron.schedule` |
+| Secret `STRIPE_WEBHOOK_SECRET` | Demander à l'utilisateur |
 
