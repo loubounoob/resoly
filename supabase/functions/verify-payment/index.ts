@@ -24,10 +24,12 @@ serve(async (req) => {
   );
 
   try {
-    const body = await req.json();
+    const rawBody = await req.text();
+    let body: any;
 
-    // Detect if this is a Stripe webhook call
-    const isWebhook = body.type && body.data?.object;
+    // Detect webhook by stripe-signature header
+    const stripeSignature = req.headers.get("stripe-signature");
+    const isWebhook = !!stripeSignature;
 
     let paymentIntent: any;
     let userId: string;
@@ -36,16 +38,41 @@ serve(async (req) => {
     let memberId: string | null = null;
 
     if (isWebhook) {
-      console.log("Webhook event received:", body.type);
+      // Verify Stripe webhook signature
+      const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+        apiVersion: "2025-08-27.basil",
+      });
+      const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+      if (!webhookSecret) {
+        console.error("STRIPE_WEBHOOK_SECRET not configured");
+        return new Response(JSON.stringify({ error: "Webhook secret not configured" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500,
+        });
+      }
 
-      if (body.type !== "payment_intent.succeeded") {
+      let event: any;
+      try {
+        event = await stripe.webhooks.constructEventAsync(rawBody, stripeSignature!, webhookSecret);
+      } catch (err) {
+        console.error("Webhook signature verification failed:", err.message);
+        return new Response(JSON.stringify({ error: "Invalid signature" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        });
+      }
+
+      console.log("Webhook event verified:", event.type);
+
+      if (event.type !== "payment_intent.succeeded") {
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
         });
       }
 
-      paymentIntent = body.data.object;
+      body = event;
+      paymentIntent = event.data.object;
       const meta = paymentIntent.metadata || {};
       userId = meta.user_id;
       challengeId = meta.challenge_id || null;
@@ -85,6 +112,7 @@ serve(async (req) => {
       }
     } else {
       // --- FRONTEND CALL PATH ---
+      body = JSON.parse(rawBody);
       const authHeader = req.headers.get("Authorization");
       if (!authHeader) throw new Error("Missing Authorization header");
       const token = authHeader.replace("Bearer ", "");

@@ -407,6 +407,12 @@ const en: TranslationKeys = {
     languageCountry: "Language and country",
     selectCountry: "Change country",
     countrySaved: "Country updated!",
+    deleteAccount: "Delete my account",
+    deleteAccountConfirm: "Delete permanently",
+    deleteAccountDescription: "This action is irreversible. All your data, challenges, coins and history will be deleted.",
+    deleteAccountSuccess: "Account deleted successfully",
+    deleteAccountError: "Error deleting account",
+    privacyPolicy: "Privacy Policy",
   },
 };
 

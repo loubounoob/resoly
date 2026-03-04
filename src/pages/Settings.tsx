@@ -1,8 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, LogOut, Globe } from "lucide-react";
+import { ArrowLeft, LogOut, Globe, Trash2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import BottomNav from "@/components/BottomNav";
 import GymLocationPicker from "@/components/GymLocationPicker";
 import { useMyProfile } from "@/hooks/useFriends";
@@ -19,6 +23,7 @@ const Settings = () => {
   const { user } = useAuth();
   const { t, locale, country, setCountry } = useLocale();
   const queryClient = useQueryClient();
+  const [deleting, setDeleting] = useState(false);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -33,6 +38,23 @@ const Settings = () => {
       queryClient.invalidateQueries({ queryKey: ["my-profile"] });
     }
     toast.success(t('settings.countrySaved'));
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { error } = await supabase.functions.invoke("delete-account");
+      if (error) throw error;
+      toast.success(t('settings.deleteAccountSuccess'));
+      await supabase.auth.signOut();
+      queryClient.clear();
+      navigate("/");
+    } catch (err) {
+      console.error(err);
+      toast.error(t('settings.deleteAccountError'));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -79,10 +101,44 @@ const Settings = () => {
         <section className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">{t('settings.account')}</h2>
           <p className="text-sm">{user?.email}</p>
+
+          <button
+            onClick={() => navigate("/privacy")}
+            className="flex items-center gap-2 text-sm text-primary hover:underline"
+          >
+            <Shield className="w-4 h-4" />
+            {t('settings.privacyPolicy')}
+          </button>
+
           <Button variant="destructive" onClick={handleLogout} className="w-full rounded-xl">
             <LogOut className="w-4 h-4 mr-2" />
             {t('settings.logout')}
           </Button>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="w-full rounded-xl border-destructive text-destructive hover:bg-destructive/10">
+                <Trash2 className="w-4 h-4 mr-2" />
+                {t('settings.deleteAccount')}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('settings.deleteAccount')}</AlertDialogTitle>
+                <AlertDialogDescription>{t('settings.deleteAccountDescription')}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteAccount}
+                  disabled={deleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleting ? t('common.loading') : t('settings.deleteAccountConfirm')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </section>
       </div>
 
