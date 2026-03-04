@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, LogOut, Globe, Trash2, Shield } from "lucide-react";
+import { ArrowLeft, LogOut, Trash2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -14,14 +13,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { COUNTRY_CODES, COUNTRY_MAP, type CountryCode } from "@/i18n/currencies";
 import { toast } from "sonner";
 
 const Settings = () => {
   const navigate = useNavigate();
   const { data: myProfile } = useMyProfile();
   const { user } = useAuth();
-  const { t, locale, country, setCountry } = useLocale();
+  const { t } = useLocale();
   const queryClient = useQueryClient();
   const [deleting, setDeleting] = useState(false);
 
@@ -29,15 +27,6 @@ const Settings = () => {
     await supabase.auth.signOut();
     queryClient.clear();
     navigate("/");
-  };
-
-  const handleCountryChange = async (value: string) => {
-    setCountry(value as CountryCode);
-    if (user) {
-      await supabase.from("profiles").update({ country: value } as any).eq("user_id", user.id);
-      queryClient.invalidateQueries({ queryKey: ["my-profile"] });
-    }
-    toast.success(t('settings.countrySaved'));
   };
 
   const handleDeleteAccount = async () => {
@@ -67,26 +56,6 @@ const Settings = () => {
       </div>
 
       <div className="space-y-8">
-        {/* Language and country */}
-        <section className="bg-gradient-card rounded-2xl border border-border p-5 shadow-card space-y-3">
-          <div className="flex items-center gap-2 mb-2">
-            <Globe className="w-5 h-5 text-primary" />
-            <h2 className="text-sm font-medium">{t('settings.languageCountry')}</h2>
-          </div>
-          <Select value={country} onValueChange={handleCountryChange}>
-            <SelectTrigger className="h-12 bg-secondary border-border rounded-xl">
-              <SelectValue placeholder={t('settings.selectCountry')} />
-            </SelectTrigger>
-            <SelectContent>
-              {COUNTRY_CODES.map((code) => (
-                <SelectItem key={code} value={code}>
-                  {COUNTRY_MAP[code].label[locale]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </section>
-
         {/* Gym location */}
         <section className="bg-gradient-card rounded-2xl border border-border p-5 shadow-card">
           <GymLocationPicker
