@@ -3,7 +3,7 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import BottomNav from "@/components/BottomNav";
 import AvatarUpload from "@/components/AvatarUpload";
-import { useActiveChallenge, useCheckIns, useCreateCheckIn } from "@/hooks/useChallenge";
+import { useActiveChallenge, useCheckIns, useCreateCheckIn, useUserCoins } from "@/hooks/useChallenge";
 import { useMyProfile } from "@/hooks/useFriends";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -14,8 +14,10 @@ import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
+import ChallengeVictoryOverlay from "@/components/ChallengeVictoryOverlay";
+import { calculateCoins, getPromoMultiplier } from "@/lib/coins";
 
-type SessionPhase = "idle" | "loading" | "ai-result" | "congrats" | "avatar-prompt";
+type SessionPhase = "idle" | "loading" | "ai-result" | "congrats" | "avatar-prompt" | "victory";
 
 const PhotoVerify = () => {
   const [phase, setPhase] = useState<SessionPhase>("idle");
@@ -24,7 +26,7 @@ const PhotoVerify = () => {
   const [reason, setReason] = useState<string>("");
   const didValidateThisSession = useRef(false);
   const { user } = useAuth();
-  const { t, locale } = useLocale();
+  const { t, locale, formatCurrency, currency } = useLocale();
 
   const { data: challenge } = useActiveChallenge();
   const { data: checkIns } = useCheckIns(challenge?.id);
@@ -32,7 +34,8 @@ const PhotoVerify = () => {
   const createCheckIn = useCreateCheckIn();
   const navigate = useNavigate();
 
-  const isFirstSession = checkIns ? checkIns.filter(ci => ci.verified).length === 0 : true;
+  const verifiedCount = checkIns ? checkIns.filter(ci => ci.verified).length : 0;
+  const isFirstSession = verifiedCount === 0;
   const hasNoAvatar = !myProfile?.avatar_url;
   const hasNoGymLocation = !myProfile?.gym_latitude || !myProfile?.gym_longitude;
 
@@ -154,6 +157,16 @@ const PhotoVerify = () => {
   };
 
   const handleContinueAfterSuccess = () => {
+    // Check if this was the last session needed to complete the challenge
+    // verifiedCount was calculated before this check-in, so +1 for the one we just created
+    const newVerifiedCount = verifiedCount + 1;
+    const totalSessions = challenge?.total_sessions ?? 0;
+    
+    if (totalSessions > 0 && newVerifiedCount >= totalSessions) {
+      setPhase("victory");
+      return;
+    }
+    
     if (isFirstSession && hasNoAvatar) {
       setPhase("avatar-prompt");
     } else {
@@ -230,6 +243,22 @@ const PhotoVerify = () => {
         </div>
         <BottomNav />
       </div>
+    );
+  }
+
+  if (phase === "victory" && challenge) {
+    const totalBet = challenge.bet_per_month;
+    const promoMult = getPromoMultiplier(challenge.promo_code ?? undefined);
+    const coinsToEarn = Math.round(calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week, currency) * promoMult);
+    
+    return (
+      <ChallengeVictoryOverlay
+        betAmount={totalBet}
+        coinsEarned={coinsToEarn}
+        challengeId={challenge.id}
+        isBoosted={!!challenge.social_challenge_id}
+        onClose={() => navigate("/dashboard")}
+      />
     );
   }
 
