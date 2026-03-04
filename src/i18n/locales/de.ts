@@ -407,6 +407,12 @@ const de: TranslationKeys = {
     languageCountry: "Sprache und Land",
     selectCountry: "Land ändern",
     countrySaved: "Land aktualisiert!",
+    deleteAccount: "Mein Konto löschen",
+    deleteAccountConfirm: "Endgültig löschen",
+    deleteAccountDescription: "Diese Aktion ist unwiderruflich. Alle deine Daten, Challenges, Münzen und Verlauf werden gelöscht.",
+    deleteAccountSuccess: "Konto erfolgreich gelöscht",
+    deleteAccountError: "Fehler beim Löschen des Kontos",
+    privacyPolicy: "Datenschutzrichtlinie",
   },
 };
 

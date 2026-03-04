@@ -405,6 +405,12 @@ const fr = {
     languageCountry: "Langue et pays",
     selectCountry: "Changer de pays",
     countrySaved: "Pays mis à jour !",
+    deleteAccount: "Supprimer mon compte",
+    deleteAccountConfirm: "Supprimer définitivement",
+    deleteAccountDescription: "Cette action est irréversible. Toutes tes données, défis, pièces et historique seront supprimés.",
+    deleteAccountSuccess: "Compte supprimé avec succès",
+    deleteAccountError: "Erreur lors de la suppression",
+    privacyPolicy: "Politique de confidentialité",
   },
 };
 

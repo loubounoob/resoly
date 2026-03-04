@@ -53,6 +53,12 @@ const Landing = () => {
           >
             {t('landing.login')}
           </Button>
+          <button
+            onClick={() => navigate("/privacy")}
+            className="w-full text-xs text-muted-foreground hover:underline text-center pt-2"
+          >
+            Privacy Policy
+          </button>
         </div>
       </div>
     </div>
