@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS push_tokens_user_token_idx ON public.push_tokens(user_id, token);
