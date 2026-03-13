@@ -75,6 +75,8 @@ const CreateChallenge = () => {
   const [clientSecret, setClientSecret] = useState("");
   const [paymentIntentId, setPaymentIntentId] = useState("");
   const [pendingChallengeId, setPendingChallengeId] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState("");
+  const [ephemeralKeySecret, setEphemeralKeySecret] = useState("");
 
   const createChallenge = useCreateChallenge();
 
