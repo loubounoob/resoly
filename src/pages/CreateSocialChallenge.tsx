@@ -37,6 +37,8 @@ const CreateSocialChallenge = () => {
   const [paymentIntentId, setPaymentIntentId] = useState("");
   const [pendingSocialChallengeId, setPendingSocialChallengeId] = useState<string | null>(null);
   const [pendingMemberId, setPendingMemberId] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState("");
+  const [ephemeralKeySecret, setEphemeralKeySecret] = useState("");
 
   const createSocial = useCreateSocialChallenge();
   const { data: friends } = useFriendsList();
