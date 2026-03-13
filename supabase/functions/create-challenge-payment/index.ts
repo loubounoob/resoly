@@ -4,7 +4,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 serve(async (req) => {
@@ -12,10 +13,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabaseClient = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? ""
-  );
+  const supabaseClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "");
 
   try {
     const authHeader = req.headers.get("Authorization")!;
@@ -49,9 +47,10 @@ serve(async (req) => {
     }
 
     // Enrich Stripe customer with profile data
-    const customerName = profile?.first_name && profile?.last_name
-      ? `${profile.first_name} ${profile.last_name}`
-      : profile?.display_name || undefined;
+    const customerName =
+      profile?.first_name && profile?.last_name
+        ? `${profile.first_name} ${profile.last_name}`
+        : profile?.display_name || undefined;
     const customerCountry = profile?.country || undefined;
 
     if (customerName || customerCountry) {
@@ -61,7 +60,7 @@ serve(async (req) => {
       });
     }
 
-    const currencyCode = (currency || 'EUR').toLowerCase();
+    const currencyCode = (currency || "EUR").toLowerCase();
 
     // === ANTI-SPAM: Reuse existing pending PaymentIntent for the same challenge ===
     if (challengeId) {
@@ -76,13 +75,22 @@ serve(async (req) => {
         try {
           const existingPI = await stripe.paymentIntents.retrieve(existingChallenge.stripe_payment_intent_id);
           if (existingPI.status === "requires_payment_method" || existingPI.status === "requires_confirmation") {
-            return new Response(JSON.stringify({
-              clientSecret: existingPI.client_secret,
-              paymentIntentId: existingPI.id,
-            }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 200,
-            });
+            const ephemeralKeyExisting = await stripe.ephemeralKeys.create(
+              { customer: customerId },
+              { apiVersion: "2025-08-27.basil" },
+            );
+            return new Response(
+              JSON.stringify({
+                clientSecret: existingPI.client_secret,
+                paymentIntentId: existingPI.id,
+                customerId,
+                ephemeralKeySecret: ephemeralKeyExisting.secret,
+              }),
+              {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 200,
+              },
+            );
           }
         } catch {
           // PI not found or expired, create new one
@@ -92,7 +100,7 @@ serve(async (req) => {
 
     const ephemeralKey = await stripe.ephemeralKeys.create(
       { customer: customerId },
-      { apiVersion: "2025-08-27.basil" }
+      { apiVersion: "2025-08-27.basil" },
     );
 
     const paymentIntent = await stripe.paymentIntents.create({
@@ -111,15 +119,18 @@ serve(async (req) => {
       },
     });
 
-    return new Response(JSON.stringify({ 
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
-      customerId,
-      ephemeralKeySecret: ephemeralKey.secret,
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({
+        clientSecret: paymentIntent.client_secret,
+        paymentIntentId: paymentIntent.id,
+        customerId,
+        ephemeralKeySecret: ephemeralKey.secret,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      },
+    );
   } catch (error) {
     console.error("Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
