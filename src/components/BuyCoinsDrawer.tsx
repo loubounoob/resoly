@@ -174,6 +174,8 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
         onSuccess={handlePaymentSuccess}
         stripeLocale={locale}
         userCountry={country}
+        customerId={customerId}
+        customerEphemeralKeySecret={ephemeralKeySecret}
       />
     </>
   );

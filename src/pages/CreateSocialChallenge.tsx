@@ -348,6 +348,8 @@ const CreateSocialChallenge = () => {
         promoEndpoint="apply-promo-code"
         stripeLocale={locale}
         userCountry={country}
+        customerId={customerId}
+        customerEphemeralKeySecret={ephemeralKeySecret}
       />
     </div>
   );
