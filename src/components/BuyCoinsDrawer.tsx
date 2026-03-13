@@ -34,6 +34,8 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
   const [clientSecret, setClientSecret] = useState("");
   const [paymentIntentId, setPaymentIntentId] = useState("");
   const [selectedPackAmount, setSelectedPackAmount] = useState(0);
+  const [customerId, setCustomerId] = useState("");
+  const [ephemeralKeySecret, setEphemeralKeySecret] = useState("");
 
   const handleBuy = async (amount: number) => {
     setLoadingPack(amount);
