@@ -26,6 +26,10 @@ interface StripePaymentSheetProps {
   stripeLocale?: string;
   /** User country code for pre-filling billing (e.g. 'US', 'FR') */
   userCountry?: string;
+  /** Stripe customer ID for Apple Pay / native payment sheet */
+  customerId?: string;
+  /** Ephemeral key secret for Apple Pay / native payment sheet */
+  customerEphemeralKeySecret?: string;
 }
 
 function PaymentForm({
@@ -232,6 +236,8 @@ const StripePaymentSheet = ({
   promoBody,
   stripeLocale,
   userCountry,
+  customerId,
+  customerEphemeralKeySecret,
 }: StripePaymentSheetProps) => {
   const [stripeInstance, setStripeInstance] = useState<Stripe | null>(null);
   const { t } = useLocale();
