@@ -48,6 +48,8 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
         setSelectedPackAmount(amount);
         setClientSecret(data.clientSecret);
         setPaymentIntentId(data.paymentIntentId);
+        setCustomerId(data.customerId || "");
+        setEphemeralKeySecret(data.ephemeralKeySecret || "");
         onOpenChange(false); // Close coins drawer
         setTimeout(() => setPaymentSheetOpen(true), 300); // Open payment sheet
       } else {
