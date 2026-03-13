@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@14.21.0";
+import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
@@ -26,7 +26,6 @@ serve(async (req) => {
     if (!amount) throw new Error("Missing amount");
     if (!challengeId && !socialChallengeId) throw new Error("Missing challengeId or socialChallengeId");
 
-    // Fetch user profile for Stripe customer enrichment
     const { data: profile } = await supabaseClient
       .from("profiles")
       .select("display_name, first_name, last_name, country")
@@ -34,7 +33,7 @@ serve(async (req) => {
       .single();
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-      apiVersion: "2024-06-20",
+      apiVersion: "2025-08-27.basil",
     });
 
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
@@ -46,7 +45,6 @@ serve(async (req) => {
       customerId = customer.id;
     }
 
-    // Enrich Stripe customer with profile data
     const customerName =
       profile?.first_name && profile?.last_name
         ? `${profile.first_name} ${profile.last_name}`
@@ -62,7 +60,6 @@ serve(async (req) => {
 
     const currencyCode = (currency || "EUR").toLowerCase();
 
-    // === ANTI-SPAM: Reuse existing pending PaymentIntent for the same challenge ===
     if (challengeId) {
       const { data: existingChallenge } = await supabaseClient
         .from("challenges")
@@ -75,16 +72,11 @@ serve(async (req) => {
         try {
           const existingPI = await stripe.paymentIntents.retrieve(existingChallenge.stripe_payment_intent_id);
           if (existingPI.status === "requires_payment_method" || existingPI.status === "requires_confirmation") {
-            const ephemeralKeyExisting = await stripe.ephemeralKeys.create(
-              { customer: customerId },
-              { apiVersion: "2024-06-20" },
-            );
             return new Response(
               JSON.stringify({
                 clientSecret: existingPI.client_secret,
                 paymentIntentId: existingPI.id,
                 customerId,
-                ephemeralKeySecret: ephemeralKeyExisting.secret,
               }),
               {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -97,8 +89,6 @@ serve(async (req) => {
         }
       }
     }
-
-    const ephemeralKey = await stripe.ephemeralKeys.create({ customer: customerId }, { apiVersion: "2024-06-20" });
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
@@ -121,7 +111,6 @@ serve(async (req) => {
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
         customerId,
-        ephemeralKeySecret: ephemeralKey.secret,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
