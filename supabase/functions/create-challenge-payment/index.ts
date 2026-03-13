@@ -90,6 +90,11 @@ serve(async (req) => {
       }
     }
 
+    const ephemeralKey = await stripe.ephemeralKeys.create(
+      { customer: customerId },
+      { apiVersion: "2025-08-27.basil" }
+    );
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
       currency: currencyCode,
