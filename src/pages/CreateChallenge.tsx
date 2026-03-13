@@ -204,6 +204,8 @@ const CreateChallenge = () => {
         setPendingChallengeId(challenge.id);
         setClientSecret(data.clientSecret);
         setPaymentIntentId(data.paymentIntentId);
+        setCustomerId(data.customerId || "");
+        setEphemeralKeySecret(data.ephemeralKeySecret || "");
         setPaymentSheetOpen(true);
         setIsProcessing(false);
       } else {
