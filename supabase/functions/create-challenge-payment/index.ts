@@ -109,6 +109,8 @@ serve(async (req) => {
     return new Response(JSON.stringify({ 
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
+      customerId,
+      ephemeralKeySecret: ephemeralKey.secret,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
