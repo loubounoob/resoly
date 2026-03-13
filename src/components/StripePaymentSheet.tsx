@@ -236,6 +236,8 @@ const StripePaymentSheet = ({
   promoBody,
   stripeLocale,
   userCountry,
+  customerId,
+  customerEphemeralKeySecret,
 }: StripePaymentSheetProps) => {
   const [stripeInstance, setStripeInstance] = useState<Stripe | null>(null);
   const { t } = useLocale();
