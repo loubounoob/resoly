@@ -77,7 +77,7 @@ serve(async (req) => {
           if (existingPI.status === "requires_payment_method" || existingPI.status === "requires_confirmation") {
             const ephemeralKeyExisting = await stripe.ephemeralKeys.create(
               { customer: customerId },
-              { apiVersion: "2025-08-27.basil" },
+              { apiVersion: "2024-06-20" },
             );
             return new Response(
               JSON.stringify({
@@ -98,10 +98,7 @@ serve(async (req) => {
       }
     }
 
-    const ephemeralKey = await stripe.ephemeralKeys.create(
-      { customer: customerId },
-      { apiVersion: "2025-08-27.basil" },
-    );
+    const ephemeralKey = await stripe.ephemeralKeys.create({ customer: customerId }, { apiVersion: "2024-06-20" });
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
