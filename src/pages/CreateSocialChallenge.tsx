@@ -84,6 +84,8 @@ const CreateSocialChallenge = () => {
         setPendingMemberId(result.member.id);
         setClientSecret(data.clientSecret);
         setPaymentIntentId(data.paymentIntentId);
+        setCustomerId(data.customerId || "");
+        setEphemeralKeySecret(data.ephemeralKeySecret || "");
         setPaymentSheetOpen(true);
         setIsProcessing(false);
       } else {
