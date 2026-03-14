@@ -126,98 +126,101 @@ function PaymentForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {description && (
-        <p className="text-sm text-muted-foreground text-center">{description}</p>
-      )}
+    <form onSubmit={handleSubmit} className="flex flex-col h-full max-h-[calc(90vh-5rem)] overflow-hidden">
+      <div className="flex-1 overflow-y-auto space-y-4 px-4 pb-2">
+        {description && (
+          <p className="text-sm text-muted-foreground text-center">{description}</p>
+        )}
 
-      <div className="text-center">
-        <span className="text-3xl font-display font-bold text-gradient-primary">
-          {isFree ? t('common.free') || "Free" : formatCurrency(displayAmount)}
-        </span>
-        {discountedAmount != null && discountedAmount < amount && (
-          <span className="text-sm text-muted-foreground line-through ml-2">{formatCurrency(amount)}</span>
+        <div className="text-center">
+          <span className="text-3xl font-display font-bold text-gradient-primary">
+            {isFree ? t('common.free') || "Free" : formatCurrency(displayAmount)}
+          </span>
+          {discountedAmount != null && discountedAmount < amount && (
+            <span className="text-sm text-muted-foreground line-through ml-2">{formatCurrency(amount)}</span>
+          )}
+        </div>
+
+        {showPromoCode && !promoApplied && (
+          <div className="flex gap-2">
+            <Input
+              value={promoInput}
+              onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+              placeholder={t('createChallenge.promoPlaceholder')}
+              className="flex-1 font-mono tracking-wider uppercase"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleApplyPromo}
+              disabled={!promoInput.trim() || promoLoading}
+              size="sm"
+            >
+              {promoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
+            </Button>
+          </div>
+        )}
+
+        {promoApplied && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-sm">
+            <CheckCircle2 className="w-4 h-4" />
+            <span className="font-mono font-bold">{promoApplied}</span>
+            <button
+              type="button"
+              onClick={() => { setPromoApplied(null); setDiscountedAmount(null); setIsFree(false); }}
+              className="ml-auto"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {!isFree && (
+          <div className="rounded-xl border border-border p-4 bg-secondary/50">
+            <PaymentElement
+              options={{
+                layout: "tabs",
+                wallets: {
+                  applePay: "auto" as const,
+                  googlePay: "auto" as const,
+                },
+                defaultValues: {
+                  billingDetails: {
+                    address: {
+                      country: userCountry || undefined,
+                    },
+                  },
+                },
+              }}
+            />
+          </div>
         )}
       </div>
 
-      {showPromoCode && !promoApplied && (
-        <div className="flex gap-2">
-          <Input
-            value={promoInput}
-            onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
-            placeholder={t('createChallenge.promoPlaceholder')}
-            className="flex-1 font-mono tracking-wider uppercase"
-          />
+      <div className="sticky bottom-0 px-4 pt-3 pb-4 bg-background border-t border-border">
+        {isFree ? (
           <Button
-            type="button"
-            variant="outline"
-            onClick={handleApplyPromo}
-            disabled={!promoInput.trim() || promoLoading}
-            size="sm"
+            type="submit"
+            className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
-            {promoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
+            <Gift className="w-5 h-5 mr-2" />
+            {t('common.confirm')} — {t('common.free') || "Free"}
           </Button>
-        </div>
-      )}
-
-      {promoApplied && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-sm">
-          <CheckCircle2 className="w-4 h-4" />
-          <span className="font-mono font-bold">{promoApplied}</span>
-          <button
-            type="button"
-            onClick={() => { setPromoApplied(null); setDiscountedAmount(null); setIsFree(false); }}
-            className="ml-auto"
+        ) : (
+          <Button
+            type="submit"
+            disabled={isProcessing || !stripe || !elements}
+            className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Hide PaymentElement when payment is free */}
-      {!isFree && (
-        <div className="rounded-xl border border-border p-4 bg-secondary/50">
-          <PaymentElement
-            options={{
-              layout: "tabs",
-              wallets: {
-                applePay: "auto" as const,
-                googlePay: "auto" as const,
-              },
-              defaultValues: {
-                billingDetails: {
-                  address: {
-                    country: userCountry || undefined,
-                  },
-                },
-              },
-            }}
-          />
-        </div>
-      )}
-
-      {isFree ? (
-        <Button
-          type="submit"
-          className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
-        >
-          <Gift className="w-5 h-5 mr-2" />
-          {t('common.confirm')} — {t('common.free') || "Free"}
-        </Button>
-      ) : (
-        <Button
-          type="submit"
-          disabled={isProcessing || !stripe || !elements}
-          className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
-        >
-          {isProcessing ? (
-            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-          ) : (
-            <CreditCard className="w-5 h-5 mr-2" />
-          )}
-          {isProcessing ? t('common.loading') : `${t('common.confirm')} — ${formatCurrency(displayAmount)}`}
-        </Button>
-      )}
+            {isProcessing ? (
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+            ) : (
+              <CreditCard className="w-5 h-5 mr-2" />
+            )}
+            {isProcessing ? t('common.loading') : `${t('common.confirm')} — ${formatCurrency(displayAmount)}`}
+          </Button>
+        )}
+      </div>
     </form>
   );
 }
