@@ -412,6 +412,33 @@ const fr = {
     deleteAccountError: "Erreur lors de la suppression",
     privacyPolicy: "Politique de confidentialité",
   },
+  permissions: {
+    later: "Plus tard",
+    notifications: {
+      title: "Ne rate jamais une victoire 🏆",
+      description: "Sois alerté quand ton défi est en péril, quand un ami te lance un défi, et quand tu gagnes des récompenses.",
+      bullet1: "Alerte quand ton défi est en danger — réagis avant qu'il soit trop tard",
+      bullet2: "Notification instantanée quand un ami te défie — relève le challenge",
+      bullet3: "Sois le premier informé quand tu débloques des récompenses 🎁",
+      cta: "Activer les notifications",
+    },
+    camera: {
+      title: "Prouve que t'y étais 💪",
+      description: "Un selfie à la salle et l'IA valide ta séance en 2 secondes. Simple, rapide, efficace.",
+      bullet1: "Prends un selfie à la salle — l'IA fait le reste",
+      bullet2: "Validation instantanée, pas besoin de QR code ni de badge",
+      bullet3: "Chaque photo validée te rapproche de ta victoire 🏅",
+      cta: "Activer la caméra",
+    },
+    location: {
+      title: "Ta salle, ton terrain de jeu 📍",
+      description: "On détecte quand tu arrives à la salle pour te rappeler de valider ta séance. Zéro effort.",
+      bullet1: "Rappel automatique dès que tu arrives à la salle",
+      bullet2: "Plus jamais d'oubli de validation après ta séance",
+      bullet3: "Fonctionne en arrière-plan — tu ne fais rien de plus 🚀",
+      cta: "Activer la localisation",
+    },
+  },
 };
 
 export default fr;
