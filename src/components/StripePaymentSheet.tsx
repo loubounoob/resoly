@@ -263,14 +263,14 @@ const StripePaymentSheet = ({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[90vh]">
-        <DrawerHeader>
+      <DrawerContent className="max-h-[90vh] flex flex-col">
+        <DrawerHeader className="flex-shrink-0">
           <DrawerTitle className="flex items-center gap-2 justify-center font-display">
             <CreditCard className="w-5 h-5 text-primary" />
             {t('common.confirm')}
           </DrawerTitle>
         </DrawerHeader>
-        <div className="px-4 pb-6">
+        <div className="flex-1 overflow-hidden">
           <Elements
             stripe={stripeInstance}
             options={{
