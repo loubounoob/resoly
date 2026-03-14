@@ -36,12 +36,52 @@ const LocaleContext = createContext<LocaleContextType>({
 
 export const useLocale = () => useContext(LocaleContext);
 
+const GEOCODE_COUNTRY_MAP: Record<string, CountryCode> = {
+  FR: 'FR', US: 'US', DE: 'DE', IE: 'IE', GB: 'GB', AU: 'AU', CH: 'CH', CA: 'CA',
+};
+
+async function detectCountryFromGeolocation(): Promise<CountryCode | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&zoom=3`,
+            { headers: { 'Accept-Language': 'en' } }
+          );
+          const data = await res.json();
+          const code = data?.address?.country_code?.toUpperCase();
+          resolve(code && GEOCODE_COUNTRY_MAP[code] ? GEOCODE_COUNTRY_MAP[code] : null);
+        } catch {
+          resolve(null);
+        }
+      },
+      () => resolve(null),
+      { timeout: 8000, maximumAge: 300000 }
+    );
+  });
+}
+
 export const LocaleProvider = ({ children }: { children: ReactNode }) => {
   const [country, setCountryState] = useState<CountryCode>(() => {
     const stored = localStorage.getItem('resoly_country') as CountryCode | null;
     if (stored && COUNTRY_MAP[stored]) return stored;
     return detectCountryFromBrowser();
   });
+
+  // On first visit (no stored country), request geolocation to refine country
+  useEffect(() => {
+    const stored = localStorage.getItem('resoly_country') as CountryCode | null;
+    if (stored && COUNTRY_MAP[stored]) return; // Already set by user
+
+    detectCountryFromGeolocation().then((detected) => {
+      if (detected) {
+        setCountryState(detected);
+        localStorage.setItem('resoly_country', detected);
+      }
+    });
+  }, []);
 
   const config = COUNTRY_MAP[country] || COUNTRY_MAP['FR'];
   const locale = config.locale;
@@ -59,7 +99,6 @@ export const LocaleProvider = ({ children }: { children: ReactNode }) => {
   const t = useCallback((key: string, params?: Record<string, string | number>): any => {
     let value = getNestedValue(translations[locale], key);
     if (value === undefined || value === null) {
-      // Fallback to French
       value = getNestedValue(translations['fr'], key);
     }
     if (Array.isArray(value)) return value;
@@ -69,7 +108,6 @@ export const LocaleProvider = ({ children }: { children: ReactNode }) => {
         value = value.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
       });
     }
-    // Handle {s} conditional plural: show 's' when count > 1, remove otherwise
     if (params && 'count' in params) {
       const count = Number(params.count);
       value = value.replace(/\{s\}/g, count > 1 ? 's' : '');
@@ -89,14 +127,6 @@ export const LocaleProvider = ({ children }: { children: ReactNode }) => {
   const setCountry = useCallback((c: CountryCode) => {
     setCountryState(c);
     localStorage.setItem('resoly_country', c);
-  }, []);
-
-  // Sync from profile when available
-  useEffect(() => {
-    const stored = localStorage.getItem('resoly_country') as CountryCode | null;
-    if (stored && COUNTRY_MAP[stored]) {
-      setCountryState(stored);
-    }
   }, []);
 
   return (
