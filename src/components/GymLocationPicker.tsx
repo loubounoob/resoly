@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { MapPin, Loader2, Check } from "lucide-react";
 import { useLocale } from "@/contexts/LocaleContext";
-
+import PrePermissionDialog from "@/components/PrePermissionDialog";
 
 interface GymLocationPickerProps {
   currentGymName?: string | null;
@@ -25,8 +25,9 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
   const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lon: number } | null>(
     currentLat && currentLon ? { lat: currentLat, lon: currentLon } : null
   );
+  const [showLocationPermission, setShowLocationPermission] = useState(false);
 
-  const handleUseCurrentLocation = async () => {
+  const doGetLocation = async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -48,6 +49,28 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUseCurrentLocation = async () => {
+    if (Capacitor.isNativePlatform()) {
+      const locationPermShown = localStorage.getItem("location_pre_permission_shown");
+      if (!locationPermShown) {
+        setShowLocationPermission(true);
+        return;
+      }
+    }
+    doGetLocation();
+  };
+
+  const handleLocationPermissionAccept = () => {
+    localStorage.setItem("location_pre_permission_shown", "true");
+    setShowLocationPermission(false);
+    doGetLocation();
+  };
+
+  const handleLocationPermissionDismiss = () => {
+    localStorage.setItem("location_pre_permission_shown", "true");
+    setShowLocationPermission(false);
   };
 
   const handleSave = async () => {
@@ -73,7 +96,6 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
       toast.success(t('gym.saved'));
       onSaved?.();
 
-      // Send push notification in user's language
       const { data: profile } = await supabase
         .from("profiles")
         .select("country")
@@ -147,6 +169,13 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
           t('gym.saveGym')
         )}
       </Button>
+
+      <PrePermissionDialog
+        type="location"
+        open={showLocationPermission}
+        onAccept={handleLocationPermissionAccept}
+        onDismiss={handleLocationPermissionDismiss}
+      />
     </div>
   );
 };

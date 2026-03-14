@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import ChallengeVictoryOverlay from "@/components/ChallengeVictoryOverlay";
 import { calculateCoins, getPromoMultiplier } from "@/lib/coins";
+import PrePermissionDialog from "@/components/PrePermissionDialog";
 
 type SessionPhase = "idle" | "loading" | "ai-result" | "congrats" | "avatar-prompt" | "victory";
 
@@ -24,7 +25,9 @@ const PhotoVerify = () => {
   const [aiStatus, setAiStatus] = useState<"success" | "error" | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [reason, setReason] = useState<string>("");
+  const [showCameraPermission, setShowCameraPermission] = useState(false);
   const didValidateThisSession = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const { t, locale, formatCurrency, currency } = useLocale();
 
@@ -72,6 +75,31 @@ const PhotoVerify = () => {
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
+  };
+
+  const handleCameraClick = () => {
+    // On native, check camera permission first
+    if (Capacitor.isNativePlatform()) {
+      // Show pre-permission dialog for camera
+      const cameraPermShown = localStorage.getItem("camera_pre_permission_shown");
+      if (!cameraPermShown) {
+        setShowCameraPermission(true);
+        return;
+      }
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleCameraPermissionAccept = () => {
+    localStorage.setItem("camera_pre_permission_shown", "true");
+    setShowCameraPermission(false);
+    fileInputRef.current?.click();
+  };
+
+  const handleCameraPermissionDismiss = () => {
+    localStorage.setItem("camera_pre_permission_shown", "true");
+    setShowCameraPermission(false);
+    fileInputRef.current?.click();
   };
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,8 +185,6 @@ const PhotoVerify = () => {
   };
 
   const handleContinueAfterSuccess = () => {
-    // Check if this was the last session needed to complete the challenge
-    // verifiedCount was calculated before this check-in, so +1 for the one we just created
     const newVerifiedCount = verifiedCount + 1;
     const totalSessions = challenge?.total_sessions ?? 0;
     
@@ -271,7 +297,10 @@ const PhotoVerify = () => {
 
       <div className="flex-1 flex flex-col items-center justify-center">
         {phase === "idle" && !preview && (
-          <label className="w-full aspect-square max-w-xs rounded-2xl border-2 border-dashed border-border bg-secondary/50 flex flex-col items-center justify-center gap-4 cursor-pointer hover:border-primary/50 transition-colors">
+          <div
+            onClick={handleCameraClick}
+            className="w-full aspect-square max-w-xs rounded-2xl border-2 border-dashed border-border bg-secondary/50 flex flex-col items-center justify-center gap-4 cursor-pointer hover:border-primary/50 transition-colors"
+          >
             <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
               <Camera className="w-10 h-10 text-primary" />
             </div>
@@ -280,13 +309,14 @@ const PhotoVerify = () => {
               <p className="text-xs text-muted-foreground mt-1">{t('photoVerify.aiVerify')}</p>
             </div>
             <input
+              ref={fileInputRef}
               type="file"
               accept="image/*"
               capture="environment"
               onChange={handleCapture}
               className="hidden"
             />
-          </label>
+          </div>
         )}
 
         {preview && (phase === "loading" || phase === "ai-result") && (
@@ -333,6 +363,13 @@ const PhotoVerify = () => {
           </div>
         )}
       </div>
+
+      <PrePermissionDialog
+        type="camera"
+        open={showCameraPermission}
+        onAccept={handleCameraPermissionAccept}
+        onDismiss={handleCameraPermissionDismiss}
+      />
 
       <BottomNav />
     </div>
