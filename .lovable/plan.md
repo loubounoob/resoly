@@ -1,36 +1,94 @@
 
 
-## Plan : Notifications push i18n + Confirmation d'enregistrement salle
+## Plan de correction : Sécurité financière critique
 
-### Etat actuel
+### 1. Migration SQL — Fonctions atomiques `increment_coins` et `decrement_coins`
 
-**Push notifications (FCM)** : Le systeme est deja en place — `send-notification` Edge Function envoie via FCM v1, les tokens sont stockes dans `push_tokens`, le secret `FCM_SERVICE_ACCOUNT_JSON` est configure. Toutes les notifications existantes (friend request, challenge completed, challenge peril, etc.) utilisent deja le systeme i18n via `notif-i18n.ts` en 3 langues (fr, en, de).
+Créer deux fonctions SQL :
+- `increment_coins(uid uuid, amount int)` — `UPDATE profiles SET coins = coins + amount WHERE user_id = uid`
+- `decrement_coins(uid uuid, amount int)` — `UPDATE profiles SET coins = coins - amount WHERE user_id = uid AND coins >= amount`, retourne le nouveau solde (ou erreur si insuffisant)
 
-**Enregistrement salle** : `GymLocationPicker` sauvegarde correctement `gym_latitude`, `gym_longitude`, `gym_name` dans `profiles`. Mais aucune notification push n'est envoyee apres l'enregistrement.
+### 2. `complete-challenge` — Atomique + idempotent
 
-### Ce qui manque
+Refactorisation complète de la logique :
 
-1. **Notification push "salle enregistree"** — Quand l'utilisateur enregistre sa salle, il faut envoyer une notification push (FCM) dans sa langue pour confirmer.
+1. **UPDATE atomique** : Remplacer le `SELECT * + guard status !== active` par un `UPDATE challenges SET status = 'completed', coins_awarded = coinsToEarn WHERE id = challengeId AND user_id = userId AND status = 'active'`. Vérifier que `count > 0` sinon return `{ already_completed: true }`.
+2. **Coins via RPC** : Remplacer `update({ coins: profile.coins + coinsToEarn })` par `supabaseAdmin.rpc('increment_coins', { uid: userId, amount: coinsToEarn })`.
+3. **Refund APRÈS l'UPDATE** : Déplacer le bloc Stripe refund après le UPDATE atomique réussi.
+4. **Idempotency key** : Ajouter `{ idempotencyKey: challengeId }` sur `stripe.refunds.create()`.
 
-2. **Textes i18n pour cette notification** — Ajouter un type `gym_saved` dans `notif-i18n.ts` en 3 langues.
+Le calcul des coins nécessite toujours un SELECT du challenge et du profil pour le country/promo, mais le guard de statut est dans l'UPDATE atomique.
 
-### Changements prevus
+### 3. Webhook Stripe (`verify-payment`) — Idempotent pour les coins
 
-**1. `supabase/functions/_shared/notif-i18n.ts`**
-- Ajouter le type `gym_saved` avec textes en fr/en/de :
-  - FR: "Salle enregistree ! 📍" / "Ta salle a ete enregistree. Tu recevras un rappel a chaque visite."
-  - EN: "Gym saved! 📍" / "Your gym has been saved. You'll get a reminder on each visit."
-  - DE: "Gym gespeichert! 📍" / "Dein Gym wurde gespeichert. Du erhaltst bei jedem Besuch eine Erinnerung."
+Dans le path `coin_purchase` (lignes 91-112) :
+1. Avant de créditer, vérifier si le `paymentIntent.id` a déjà été traité en cherchant dans les challenges ou en ajoutant un check : `SELECT 1 FROM profiles WHERE user_id = uid` n'est pas suffisant. Solution : utiliser un INSERT idempotent dans une table de tracking ou simplement stocker le PI id.
+2. **Solution retenue** : Ajouter une colonne `stripe_pi_id` à une vérification inline — avant de créditer, faire un `SELECT` sur `coin_orders` ou utiliser un mécanisme simple : tenter un `INSERT` dans une table `processed_coin_payments(payment_intent_id text PRIMARY KEY, user_id uuid, coins int, created_at timestamptz)`. Si le INSERT échoue (conflit PK), skip.
+3. Remplacer le read-then-write par `supabaseAdmin.rpc('increment_coins', ...)`.
 
-**2. `src/components/GymLocationPicker.tsx`**
-- Apres la sauvegarde reussie dans `handleSave`, appeler `send-notification` avec le `user_id` et le type `gym_saved`
-- Recuperer le `country` du profil pour determiner la locale et generer les textes localises cote client (via la meme logique `countryToLocale`)
+### 4. `verify-coin-purchase` — Même fix
 
-**3. Verification du flux complet**
-- L'update `profiles` sauvegarde bien les coordonnees (deja fonctionnel)
-- L'appel `send-notification` insere la notification in-app ET envoie le push FCM natif dans la langue de l'utilisateur
-- Le hook `usePushNotifications` enregistre le token FCM au login (deja fonctionnel)
+Remplacer le read-then-write coins par `supabaseAdmin.rpc('increment_coins', ...)`. Ajouter la même déduplication via `processed_coin_payments`.
 
-### Pas de changement cote base de donnees
-Toutes les tables necessaires existent deja (`profiles`, `push_tokens`, `notifications`).
+### 5. `fail-challenge` — Race condition fix
+
+Ligne 91-94 : Ajouter `.eq("status", "active")` au UPDATE et vérifier le résultat :
+```ts
+const { data: updated, error } = await supabase
+  .from("challenges")
+  .update({ status: "failed" })
+  .eq("id", challenge.id)
+  .eq("status", "active")
+  .select("id");
+if (!updated?.length) continue; // déjà changé par complete-challenge
+```
+
+### 6. `create-challenge-payment` — Anti-spam PI
+
+Avant de créer un nouveau PaymentIntent, vérifier qu'il n'en existe pas déjà un pending pour ce challenge :
+```ts
+if (challengeId) {
+  const { data: existing } = await supabaseClient
+    .from("challenges")
+    .select("stripe_payment_intent_id, payment_status")
+    .eq("id", challengeId)
+    .eq("user_id", user.id)
+    .single();
+  if (existing?.stripe_payment_intent_id && existing.payment_status === "pending") {
+    // Retrieve existing PI, return its clientSecret if still valid
+    const existingPI = await stripe.paymentIntents.retrieve(existing.stripe_payment_intent_id);
+    if (existingPI.status === "requires_payment_method" || existingPI.status === "requires_confirmation") {
+      return Response({ clientSecret: existingPI.client_secret, paymentIntentId: existingPI.id });
+    }
+  }
+}
+```
+
+### 7. Autres fonctions — Coin atomique
+
+Remplacer le read-then-write dans :
+- `purchase-product/index.ts` → `rpc('decrement_coins', ...)`
+- `purchase-with-coins/index.ts` → `rpc('decrement_coins', ...)`
+- `claim-referral-reward/index.ts` → `rpc('increment_coins', ...)`
+
+### Fichiers impactés
+
+| Fichier | Modification |
+|---|---|
+| Migration SQL | `increment_coins`, `decrement_coins`, table `processed_coin_payments` |
+| `complete-challenge/index.ts` | UPDATE atomique, refund après, idempotency key, rpc coins |
+| `verify-payment/index.ts` | Dedup coin_purchase, rpc coins |
+| `verify-coin-purchase/index.ts` | Dedup, rpc coins |
+| `fail-challenge/index.ts` | `.eq("status","active")` sur UPDATE + check rows |
+| `create-challenge-payment/index.ts` | Réutiliser PI existant |
+| `purchase-product/index.ts` | rpc decrement_coins |
+| `purchase-with-coins/index.ts` | rpc decrement_coins |
+| `claim-referral-reward/index.ts` | rpc increment_coins |
+
+### Garanties après correction
+
+- **Double refund impossible** : UPDATE atomique `WHERE status = 'active'` + idempotencyKey Stripe
+- **Double crédit coins impossible** : `increment_coins` SQL atomique + table `processed_coin_payments` pour les webhooks
+- **Race condition fail vs complete** : Les deux utilisent `WHERE status = 'active'` sur l'UPDATE, un seul gagne
+- **Spam PI** : Réutilisation du PI existant pour le même challenge
 

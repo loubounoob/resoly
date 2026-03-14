@@ -57,12 +57,13 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
     }
     setLoading(true);
     try {
+      const finalGymName = gymName.trim() || t('gym.myGym');
       const { error } = await supabase
         .from("profiles")
         .update({
           gym_latitude: selectedCoords.lat,
           gym_longitude: selectedCoords.lon,
-          gym_name: gymName.trim() || t('gym.myGym'),
+          gym_name: finalGymName,
         } as any)
         .eq("user_id", user.id);
 
@@ -71,6 +72,28 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
       setSaved(true);
       toast.success(t('gym.saved'));
       onSaved?.();
+
+      // Send push notification in user's language
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("country")
+        .eq("user_id", user.id)
+        .single();
+
+      const country = (profile as any)?.country || "FR";
+      const c = country.toUpperCase();
+      const locale = c === "FR" ? "fr" : c === "DE" || c === "CH" ? "de" : "en";
+
+      const texts: Record<string, { title: string; body: string }> = {
+        fr: { title: "Salle enregistrée ! 📍", body: `Ta salle "${finalGymName}" a été enregistrée. Tu recevras un rappel à chaque visite.` },
+        en: { title: "Gym saved! 📍", body: `Your gym "${finalGymName}" has been saved. You'll get a reminder on each visit.` },
+        de: { title: "Gym gespeichert! 📍", body: `Dein Gym "${finalGymName}" wurde gespeichert. Du erhältst bei jedem Besuch eine Erinnerung.` },
+      };
+      const notif = texts[locale];
+
+      supabase.functions.invoke("send-notification", {
+        body: { user_id: user.id, type: "gym_saved", title: notif.title, body: notif.body, data: { gym_name: finalGymName } },
+      }).catch((err) => console.error("Push notification error:", err));
     } catch (err: any) {
       console.error(err);
       toast.error(t('gym.saveError'));
