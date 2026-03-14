@@ -84,7 +84,10 @@ export const CartDrawer = () => {
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
                   <ShoppingCart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">{t('cart.empty')}</p>
+                  <p className="text-muted-foreground mb-6">{t('cart.empty')}</p>
+                  <Button variant="outline" onClick={() => setIsOpen(false)}>
+                    {t('common.close') || 'Fermer'}
+                  </Button>
                 </div>
               </div>
             ) : (
