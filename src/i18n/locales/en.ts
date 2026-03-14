@@ -414,6 +414,33 @@ const en: TranslationKeys = {
     deleteAccountError: "Error deleting account",
     privacyPolicy: "Privacy Policy",
   },
+  permissions: {
+    later: "Maybe later",
+    notifications: {
+      title: "Never miss a win 🏆",
+      description: "Get alerted when your challenge is at risk, when a friend challenges you, and when you earn rewards.",
+      bullet1: "Alert when your challenge is in danger — react before it's too late",
+      bullet2: "Instant notification when a friend challenges you — step up",
+      bullet3: "Be the first to know when you unlock rewards 🎁",
+      cta: "Enable notifications",
+    },
+    camera: {
+      title: "Prove you showed up 💪",
+      description: "A selfie at the gym and AI validates your session in 2 seconds. Simple, fast, effective.",
+      bullet1: "Take a selfie at the gym — AI does the rest",
+      bullet2: "Instant validation, no QR code or badge needed",
+      bullet3: "Every validated photo brings you closer to victory 🏅",
+      cta: "Enable camera",
+    },
+    location: {
+      title: "Your gym, your playground 📍",
+      description: "We detect when you arrive at the gym to remind you to check in. Zero effort.",
+      bullet1: "Automatic reminder as soon as you arrive at the gym",
+      bullet2: "Never forget to validate after your session again",
+      bullet3: "Works in the background — you do nothing extra 🚀",
+      cta: "Enable location",
+    },
+  },
 };
 
 export default en;

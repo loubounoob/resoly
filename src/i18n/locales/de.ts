@@ -414,6 +414,33 @@ const de: TranslationKeys = {
     deleteAccountError: "Fehler beim Löschen des Kontos",
     privacyPolicy: "Datenschutzrichtlinie",
   },
+  permissions: {
+    later: "Vielleicht später",
+    notifications: {
+      title: "Verpasse nie einen Sieg 🏆",
+      description: "Werde benachrichtigt wenn deine Challenge in Gefahr ist, ein Freund dich herausfordert und du Belohnungen verdienst.",
+      bullet1: "Alarm wenn deine Challenge in Gefahr ist — reagiere rechtzeitig",
+      bullet2: "Sofortige Benachrichtigung wenn ein Freund dich herausfordert — nimm an",
+      bullet3: "Erfahre als Erster wenn du Belohnungen freischaltest 🎁",
+      cta: "Benachrichtigungen aktivieren",
+    },
+    camera: {
+      title: "Beweis, dass du da warst 💪",
+      description: "Ein Selfie im Gym und die KI bestätigt dein Training in 2 Sekunden. Einfach, schnell, effektiv.",
+      bullet1: "Mach ein Selfie im Gym — die KI erledigt den Rest",
+      bullet2: "Sofortige Bestätigung, kein QR-Code oder Ausweis nötig",
+      bullet3: "Jedes bestätigte Foto bringt dich deinem Sieg näher 🏅",
+      cta: "Kamera aktivieren",
+    },
+    location: {
+      title: "Dein Gym, dein Spielfeld 📍",
+      description: "Wir erkennen, wann du im Gym ankommst und erinnern dich ans Einchecken. Null Aufwand.",
+      bullet1: "Automatische Erinnerung sobald du im Gym ankommst",
+      bullet2: "Vergiss nie wieder die Bestätigung nach dem Training",
+      bullet3: "Läuft im Hintergrund — du machst nichts extra 🚀",
+      cta: "Standort aktivieren",
+    },
+  },
 };
 
 export default de;

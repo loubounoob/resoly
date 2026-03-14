@@ -1,55 +1,94 @@
 
 
-## Écrans pré-permission motivants (FR / EN / DE)
+## Plan de correction : Sécurité financière critique
 
-Avant chaque demande d'autorisation système (notifications, caméra, localisation), on affiche un écran custom traduit qui explique le bénéfice concret pour l'utilisateur, avec un visuel motivant. Cela augmente le taux d'acceptation et donne du contexte.
+### 1. Migration SQL — Fonctions atomiques `increment_coins` et `decrement_coins`
 
-### 1. Composant `PrePermissionDialog`
+Créer deux fonctions SQL :
+- `increment_coins(uid uuid, amount int)` — `UPDATE profiles SET coins = coins + amount WHERE user_id = uid`
+- `decrement_coins(uid uuid, amount int)` — `UPDATE profiles SET coins = coins - amount WHERE user_id = uid AND coins >= amount`, retourne le nouveau solde (ou erreur si insuffisant)
 
-Créer `src/components/PrePermissionDialog.tsx` — un Dialog/Drawer plein écran avec :
-- Une icône animée (Bell, Camera, MapPin)
-- Un titre motivant
-- 2-3 bullet points expliquant les bénéfices
-- Bouton principal "Activer" → déclenche la vraie permission système
-- Lien discret "Plus tard" pour skip
+### 2. `complete-challenge` — Atomique + idempotent
 
-### 2. Textes i18n (3 langues)
+Refactorisation complète de la logique :
 
-Ajouter une section `permissions` dans chaque fichier locale :
+1. **UPDATE atomique** : Remplacer le `SELECT * + guard status !== active` par un `UPDATE challenges SET status = 'completed', coins_awarded = coinsToEarn WHERE id = challengeId AND user_id = userId AND status = 'active'`. Vérifier que `count > 0` sinon return `{ already_completed: true }`.
+2. **Coins via RPC** : Remplacer `update({ coins: profile.coins + coinsToEarn })` par `supabaseAdmin.rpc('increment_coins', { uid: userId, amount: coinsToEarn })`.
+3. **Refund APRÈS l'UPDATE** : Déplacer le bloc Stripe refund après le UPDATE atomique réussi.
+4. **Idempotency key** : Ajouter `{ idempotencyKey: challengeId }` sur `stripe.refunds.create()`.
 
-**Notifications** — Ton motivant, l'utilisateur se projette dans ses victoires :
-- FR : "Ne rate jamais une victoire" / "Sois alerté quand ton défi est en péril, quand un ami te lance un défi, et quand tu gagnes des récompenses."
-- EN : "Never miss a win" / "Get alerted when your challenge is at risk, when a friend challenges you, and when you earn rewards."
-- DE : "Verpasse nie einen Sieg" / "Werde benachrichtigt wenn deine Challenge in Gefahr ist, ein Freund dich herausfordert und du Belohnungen verdienst."
+Le calcul des coins nécessite toujours un SELECT du challenge et du profil pour le country/promo, mais le guard de statut est dans l'UPDATE atomique.
 
-**Caméra** — L'utilisateur se voit valider ses séances :
-- FR : "Prouve que t'y étais" / "Un selfie à la salle et l'IA valide ta séance en 2 secondes. Simple, rapide, efficace."
-- EN : "Prove you showed up" / "A selfie at the gym and AI validates your session in 2 seconds. Simple, fast, effective."
-- DE : "Beweis, dass du da warst" / "Ein Selfie im Gym und die KI bestätigt dein Training in 2 Sekunden. Einfach, schnell, effektiv."
+### 3. Webhook Stripe (`verify-payment`) — Idempotent pour les coins
 
-**Localisation** — L'utilisateur comprend la valeur :
-- FR : "Ta salle, ton terrain de jeu" / "On détecte quand tu arrives à la salle pour te rappeler de valider ta séance. Zéro effort."
-- EN : "Your gym, your playground" / "We detect when you arrive at the gym to remind you to check in. Zero effort."
-- DE : "Dein Gym, dein Spielfeld" / "Wir erkennen, wann du im Gym ankommst und erinnern dich ans Einchecken. Null Aufwand."
+Dans le path `coin_purchase` (lignes 91-112) :
+1. Avant de créditer, vérifier si le `paymentIntent.id` a déjà été traité en cherchant dans les challenges ou en ajoutant un check : `SELECT 1 FROM profiles WHERE user_id = uid` n'est pas suffisant. Solution : utiliser un INSERT idempotent dans une table de tracking ou simplement stocker le PI id.
+2. **Solution retenue** : Ajouter une colonne `stripe_pi_id` à une vérification inline — avant de créditer, faire un `SELECT` sur `coin_orders` ou utiliser un mécanisme simple : tenter un `INSERT` dans une table `processed_coin_payments(payment_intent_id text PRIMARY KEY, user_id uuid, coins int, created_at timestamptz)`. Si le INSERT échoue (conflit PK), skip.
+3. Remplacer le read-then-write par `supabaseAdmin.rpc('increment_coins', ...)`.
 
-### 3. Intégration aux flux existants
+### 4. `verify-coin-purchase` — Même fix
 
-| Permission | Où s'insère le dialog | Fichier modifié |
-|---|---|---|
-| **Notifications** | Avant `PushNotifications.requestPermissions()` | `src/hooks/usePushNotifications.ts` → extraire dans un hook qui affiche le dialog d'abord |
-| **Caméra** | Avant l'ouverture du file input sur PhotoVerify | `src/pages/PhotoVerify.tsx` |
-| **Localisation** | Avant `Geolocation.requestPermissions()` dans GymLocationPicker et useGymProximity | `src/components/GymLocationPicker.tsx`, `src/hooks/useGymProximity.ts` |
+Remplacer le read-then-write coins par `supabaseAdmin.rpc('increment_coins', ...)`. Ajouter la même déduplication via `processed_coin_payments`.
 
-Chaque intégration : vérifier si la permission est déjà accordée → si oui, skip le dialog. Sinon, afficher le `PrePermissionDialog`, et au clic sur "Activer", déclencher la vraie permission système.
+### 5. `fail-challenge` — Race condition fix
 
-### Fichiers créés / modifiés
+Ligne 91-94 : Ajouter `.eq("status", "active")` au UPDATE et vérifier le résultat :
+```ts
+const { data: updated, error } = await supabase
+  .from("challenges")
+  .update({ status: "failed" })
+  .eq("id", challenge.id)
+  .eq("status", "active")
+  .select("id");
+if (!updated?.length) continue; // déjà changé par complete-challenge
+```
 
-1. **Créer** `src/components/PrePermissionDialog.tsx`
-2. **Modifier** `src/i18n/locales/fr.ts` — ajouter section `permissions`
-3. **Modifier** `src/i18n/locales/en.ts` — idem
-4. **Modifier** `src/i18n/locales/de.ts` — idem
-5. **Modifier** `src/hooks/usePushNotifications.ts` — afficher pre-permission avant requestPermissions
-6. **Modifier** `src/pages/PhotoVerify.tsx` — afficher pre-permission caméra
-7. **Modifier** `src/components/GymLocationPicker.tsx` — afficher pre-permission localisation
-8. **Modifier** `src/hooks/useGymProximity.ts` — afficher pre-permission localisation
+### 6. `create-challenge-payment` — Anti-spam PI
+
+Avant de créer un nouveau PaymentIntent, vérifier qu'il n'en existe pas déjà un pending pour ce challenge :
+```ts
+if (challengeId) {
+  const { data: existing } = await supabaseClient
+    .from("challenges")
+    .select("stripe_payment_intent_id, payment_status")
+    .eq("id", challengeId)
+    .eq("user_id", user.id)
+    .single();
+  if (existing?.stripe_payment_intent_id && existing.payment_status === "pending") {
+    // Retrieve existing PI, return its clientSecret if still valid
+    const existingPI = await stripe.paymentIntents.retrieve(existing.stripe_payment_intent_id);
+    if (existingPI.status === "requires_payment_method" || existingPI.status === "requires_confirmation") {
+      return Response({ clientSecret: existingPI.client_secret, paymentIntentId: existingPI.id });
+    }
+  }
+}
+```
+
+### 7. Autres fonctions — Coin atomique
+
+Remplacer le read-then-write dans :
+- `purchase-product/index.ts` → `rpc('decrement_coins', ...)`
+- `purchase-with-coins/index.ts` → `rpc('decrement_coins', ...)`
+- `claim-referral-reward/index.ts` → `rpc('increment_coins', ...)`
+
+### Fichiers impactés
+
+| Fichier | Modification |
+|---|---|
+| Migration SQL | `increment_coins`, `decrement_coins`, table `processed_coin_payments` |
+| `complete-challenge/index.ts` | UPDATE atomique, refund après, idempotency key, rpc coins |
+| `verify-payment/index.ts` | Dedup coin_purchase, rpc coins |
+| `verify-coin-purchase/index.ts` | Dedup, rpc coins |
+| `fail-challenge/index.ts` | `.eq("status","active")` sur UPDATE + check rows |
+| `create-challenge-payment/index.ts` | Réutiliser PI existant |
+| `purchase-product/index.ts` | rpc decrement_coins |
+| `purchase-with-coins/index.ts` | rpc decrement_coins |
+| `claim-referral-reward/index.ts` | rpc increment_coins |
+
+### Garanties après correction
+
+- **Double refund impossible** : UPDATE atomique `WHERE status = 'active'` + idempotencyKey Stripe
+- **Double crédit coins impossible** : `increment_coins` SQL atomique + table `processed_coin_payments` pour les webhooks
+- **Race condition fail vs complete** : Les deux utilisent `WHERE status = 'active'` sur l'UPDATE, un seul gagne
+- **Spam PI** : Réutilisation du PI existant pour le même challenge
 

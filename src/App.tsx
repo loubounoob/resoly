@@ -26,6 +26,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import PrePermissionDialog from "@/components/PrePermissionDialog";
 
 const queryClient = new QueryClient();
 
@@ -46,7 +47,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const AppRoutes = () => {
   const { user, loading } = useAuth();
-  usePushNotifications();
+  const { showPrePermission, acceptPushPermission, dismissPushPermission } = usePushNotifications();
 
   if (loading) {
     return (
@@ -57,7 +58,14 @@ const AppRoutes = () => {
   }
 
   return (
-    <Routes>
+    <>
+      <PrePermissionDialog
+        type="notifications"
+        open={showPrePermission}
+        onAccept={acceptPushPermission}
+        onDismiss={dismissPushPermission}
+      />
+      <Routes>
       <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
       <Route path="/auth" element={user ? <Navigate to="/dashboard" replace /> : <Auth />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -76,6 +84,7 @@ const AppRoutes = () => {
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </>
   );
 };
 
