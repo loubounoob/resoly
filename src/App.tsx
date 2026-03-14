@@ -26,6 +26,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import PrePermissionDialog from "@/components/PrePermissionDialog";
 
 const queryClient = new QueryClient();
 
