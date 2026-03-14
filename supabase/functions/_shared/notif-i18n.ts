@@ -89,6 +89,11 @@ const texts: Record<string, Record<string, { title: string; body: string | ((...
     en: { title: "New referral! 🎉", body: (name: string) => `@${name} signed up thanks to you. Claim your 50 coins!` },
     de: { title: "Neue Empfehlung! 🎉", body: (name: string) => `@${name} hat sich dank dir angemeldet. Hol dir deine 50 Münzen!` },
   },
+  gym_saved: {
+    fr: { title: "Salle enregistrée ! 📍", body: (name: string) => `Ta salle "${name}" a été enregistrée. Tu recevras un rappel à chaque visite.` },
+    en: { title: "Gym saved! 📍", body: (name: string) => `Your gym "${name}" has been saved. You'll get a reminder on each visit.` },
+    de: { title: "Gym gespeichert! 📍", body: (name: string) => `Dein Gym "${name}" wurde gespeichert. Du erhältst bei jedem Besuch eine Erinnerung.` },
+  },
 };
 
 export function getNotifText(locale: 'fr' | 'en' | 'de', type: string, ...args: any[]): NotifTexts {
