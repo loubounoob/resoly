@@ -338,7 +338,7 @@ const OnboardingChallenge = () => {
       </div>
 
       {slide.type !== "final" && (
-        <div className="px-8 pb-8">
+        <div className="px-8" style={{ paddingBottom: 'calc(max(env(safe-area-inset-bottom, 0px), 1rem) + 1rem)' }}>
           <Button
             onClick={handleNext}
             disabled={!canContinue}
