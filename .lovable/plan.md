@@ -1,31 +1,45 @@
 
 
-## Diagnostic : Erreur de paiement Stripe
+## Pourquoi Apple Pay ne marche pas dans Capacitor/Xcode
 
-### Cause identifiee
+### Le probleme
 
-Les logs de la fonction `create-challenge-payment` montrent cette erreur :
+Sur le **web** (Safari), Apple Pay fonctionne automatiquement via Stripe Elements car Safari gere nativement le Payment Request API et ton domaine est verifie par Stripe.
 
-```text
-StripePermissionError: The provided key 'rk_live_...' does not have 
-the required permissions for this endpoint. Having the 
-'rak_ephemeral_key_write' permission would allow this request to continue.
-```
+Dans **Capacitor** (WKWebView), c'est different :
+- La WebView n'est **pas** Safari — elle ne supporte pas le Payment Request API de la meme maniere
+- Apple Pay dans une WebView necessite que le **Merchant ID** soit configure dans Xcode (capability Apple Pay) et que le domaine soit enregistre dans Stripe
+- Stripe Elements detecte qu'il est dans une WebView non-Safari et **masque** le bouton Apple Pay
 
-La cle Stripe configuree est une **restricted key** (`rk_live_...`) au lieu d'une **secret key** complete (`sk_live_...`). Les restricted keys ont des permissions limitees et celle-ci ne peut pas creer de cles ephemeres ni potentiellement certaines operations de paiement.
+### Ce qu'il faut changer
 
-### Solution
+**Cote code (ce que je peux faire) :**
 
-Le probleme n'est pas dans le code mais dans la configuration du secret `STRIPE_SECRET_KEY`. Il y a deux options :
+1. **`PaymentElement` options** — Ajouter `wallets: { applePay: 'auto' }` dans les options du `PaymentElement` pour s'assurer que Stripe tente de l'afficher quand le contexte le permet
 
-**Option A (recommandee)** : Remplacer le secret `STRIPE_SECRET_KEY` par la cle secrete complete de ton compte Stripe (`sk_live_...` ou `sk_test_...`), disponible dans le dashboard Stripe sous Developers > API Keys.
+2. **`Elements` options** — Ajouter `paymentMethodCreation: 'manual'` n'est pas necessaire ici, mais on peut ajouter le `payment_method_types` cote serveur
 
-**Option B** : Si tu veux garder une restricted key, ajouter les permissions suivantes dans le dashboard Stripe :
-- `rak_ephemeral_key_write`
-- `rak_customer_write` / `rak_customer_read`
-- `rak_payment_intent_write`
+3. **Edge Functions** (`create-challenge-payment` et `buy-coins`) — Aucun changement necessaire, `automatic_payment_methods: { enabled: true }` inclut deja Apple Pay
 
-### Implementation
+**Cote Xcode (ce que tu dois faire manuellement) :**
 
-Aucun changement de code necessaire. Il suffit de mettre a jour la valeur du secret `STRIPE_SECRET_KEY` avec la bonne cle via l'outil de gestion des secrets.
+1. **Ajouter la capability Apple Pay** dans Xcode :
+   - Target > Signing & Capabilities > + Capability > Apple Pay
+   - Cocher ton Merchant ID (`merchant.com.resoly.app`)
+
+2. **Enregistrer le Merchant ID** dans le Apple Developer Portal si ce n'est pas deja fait
+
+3. **Enregistrer ton domaine** dans le Stripe Dashboard :
+   - Settings > Payment Methods > Apple Pay > Add domain
+   - Ajouter le domaine de ton app web ET verifier le fichier `apple-developer-merchantid-domain-association`
+
+4. **Important** : Dans Capacitor, la WebView charge ton preview URL (`lovableproject.com`). Pour la production, tu devras pointer vers ton propre domaine ou utiliser le build local (`webDir: 'dist'`) et enregistrer ce domaine dans Stripe.
+
+### Changement de code minimal
+
+Modifier `StripePaymentSheet.tsx` pour ajouter `wallets` config au `PaymentElement` et s'assurer que le `applePay` wallet est explicitement autorise. Cela ne suffira pas seul — les etapes Xcode ci-dessus sont obligatoires.
+
+### Resume
+
+Le code actuel n'a pas de bug — c'est un probleme d'environnement. Apple Pay dans une WebView Capacitor necessite la capability Xcode + Merchant ID + enregistrement domaine Stripe. Je peux ajouter la config `wallets` dans le code pour etre explicite, mais les etapes Xcode sont indispensables.
 
