@@ -34,8 +34,6 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
   const [clientSecret, setClientSecret] = useState("");
   const [paymentIntentId, setPaymentIntentId] = useState("");
   const [selectedPackAmount, setSelectedPackAmount] = useState(0);
-  const [customerId, setCustomerId] = useState("");
-  const [ephemeralKeySecret, setEphemeralKeySecret] = useState("");
 
   const handleBuy = async (amount: number) => {
     setLoadingPack(amount);
@@ -48,8 +46,6 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
         setSelectedPackAmount(amount);
         setClientSecret(data.clientSecret);
         setPaymentIntentId(data.paymentIntentId);
-        setCustomerId(data.customerId || "");
-        setEphemeralKeySecret(data.ephemeralKeySecret || "");
         onOpenChange(false); // Close coins drawer
         setTimeout(() => setPaymentSheetOpen(true), 300); // Open payment sheet
       } else {
@@ -174,8 +170,6 @@ const BuyCoinsDrawer = ({ open, onOpenChange, inviteCode }: BuyCoinsDrawerProps)
         onSuccess={handlePaymentSuccess}
         stripeLocale={locale}
         userCountry={country}
-        customerId={customerId}
-        customerEphemeralKeySecret={ephemeralKeySecret}
       />
     </>
   );

@@ -70,11 +70,6 @@ serve(async (req) => {
       });
     }
 
-    const ephemeralKey = await stripe.ephemeralKeys.create(
-      { customer: customerId },
-      { apiVersion: "2025-08-27.basil" }
-    );
-
     const paymentIntent = await stripe.paymentIntents.create({
       amount: packInfo.amount,
       currency: currencyCode,
@@ -93,8 +88,6 @@ serve(async (req) => {
     return new Response(JSON.stringify({ 
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
-      customerId,
-      ephemeralKeySecret: ephemeralKey.secret,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,

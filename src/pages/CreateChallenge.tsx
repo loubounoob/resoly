@@ -75,8 +75,6 @@ const CreateChallenge = () => {
   const [clientSecret, setClientSecret] = useState("");
   const [paymentIntentId, setPaymentIntentId] = useState("");
   const [pendingChallengeId, setPendingChallengeId] = useState<string | null>(null);
-  const [customerId, setCustomerId] = useState("");
-  const [ephemeralKeySecret, setEphemeralKeySecret] = useState("");
 
   const createChallenge = useCreateChallenge();
 
@@ -204,8 +202,6 @@ const CreateChallenge = () => {
         setPendingChallengeId(challenge.id);
         setClientSecret(data.clientSecret);
         setPaymentIntentId(data.paymentIntentId);
-        setCustomerId(data.customerId || "");
-        setEphemeralKeySecret(data.ephemeralKeySecret || "");
         setPaymentSheetOpen(true);
         setIsProcessing(false);
       } else {
@@ -491,8 +487,6 @@ const CreateChallenge = () => {
         promoEndpoint="apply-promo-code"
         stripeLocale={locale}
         userCountry={country}
-        customerId={customerId}
-        customerEphemeralKeySecret={ephemeralKeySecret}
       />
       </>
       )}

@@ -37,8 +37,6 @@ const CreateSocialChallenge = () => {
   const [paymentIntentId, setPaymentIntentId] = useState("");
   const [pendingSocialChallengeId, setPendingSocialChallengeId] = useState<string | null>(null);
   const [pendingMemberId, setPendingMemberId] = useState<string | null>(null);
-  const [customerId, setCustomerId] = useState("");
-  const [ephemeralKeySecret, setEphemeralKeySecret] = useState("");
 
   const createSocial = useCreateSocialChallenge();
   const { data: friends } = useFriendsList();
@@ -84,8 +82,6 @@ const CreateSocialChallenge = () => {
         setPendingMemberId(result.member.id);
         setClientSecret(data.clientSecret);
         setPaymentIntentId(data.paymentIntentId);
-        setCustomerId(data.customerId || "");
-        setEphemeralKeySecret(data.ephemeralKeySecret || "");
         setPaymentSheetOpen(true);
         setIsProcessing(false);
       } else {
@@ -348,8 +344,6 @@ const CreateSocialChallenge = () => {
         promoEndpoint="apply-promo-code"
         stripeLocale={locale}
         userCountry={country}
-        customerId={customerId}
-        customerEphemeralKeySecret={ephemeralKeySecret}
       />
     </div>
   );
