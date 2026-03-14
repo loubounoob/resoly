@@ -58,7 +58,14 @@ const AppRoutes = () => {
   }
 
   return (
-    <Routes>
+    <>
+      <PrePermissionDialog
+        type="notifications"
+        open={showPrePermission}
+        onAccept={acceptPushPermission}
+        onDismiss={dismissPushPermission}
+      />
+      <Routes>
       <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
       <Route path="/auth" element={user ? <Navigate to="/dashboard" replace /> : <Auth />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
