@@ -47,7 +47,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const AppRoutes = () => {
   const { user, loading } = useAuth();
-  usePushNotifications();
+  const { showPrePermission, acceptPushPermission, dismissPushPermission } = usePushNotifications();
 
   if (loading) {
     return (
