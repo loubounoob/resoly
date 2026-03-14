@@ -180,6 +180,10 @@ function PaymentForm({
           <PaymentElement
             options={{
               layout: "tabs",
+              wallets: {
+                applePay: "auto" as const,
+                googlePay: "auto" as const,
+              },
               defaultValues: {
                 billingDetails: {
                   address: {
