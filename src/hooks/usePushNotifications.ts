@@ -13,14 +13,12 @@ export const usePushNotifications = () => {
     if (!user || !Capacitor.isNativePlatform()) return;
     if (registeredRef.current) return;
 
-    // Check if permission already granted
     const checkPermission = async () => {
       try {
         const result = await PushNotifications.checkPermissions();
         if (result.receive === "granted") {
           doRegister();
         } else if (result.receive !== "denied") {
-          // Show pre-permission dialog
           setShowPrePermission(true);
         }
       } catch {
@@ -40,10 +38,9 @@ export const usePushNotifications = () => {
 
     await PushNotifications.addListener("registration", async (token) => {
       console.log("[Push] ✅ Token received:", token.value);
-      const { error } = await supabase.from("push_tokens").upsert(
-        { user_id: userId, token: token.value, platform },
-        { onConflict: "user_id,token" }
-      );
+      const { error } = await supabase
+        .from("push_tokens")
+        .upsert({ user_id: userId, token: token.value, platform }, { onConflict: "user_id,token" });
       if (error) {
         console.error("[Push] ❌ Failed to save token:", error.message);
       } else {
@@ -74,6 +71,25 @@ export const usePushNotifications = () => {
     console.log("[Push] ✅ Permission granted, calling register()...");
     await PushNotifications.register();
     console.log("[Push] register() called");
+
+    if (platform === "ios") {
+      window.addEventListener(
+        "fcmTokenReceived",
+        async (event: any) => {
+          const token = event.detail;
+          console.log("[Push] ✅ FCM Token from Firebase:", token);
+          const { error } = await supabase
+            .from("push_tokens")
+            .upsert({ user_id: userId, token, platform }, { onConflict: "user_id,token" });
+          if (error) {
+            console.error("[Push] ❌ Failed to save FCM token:", error.message);
+          } else {
+            console.log("[Push] ✅ FCM token saved");
+          }
+        },
+        { once: true },
+      );
+    }
   }, [user]);
 
   const acceptPushPermission = useCallback(() => {
