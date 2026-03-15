@@ -2,13 +2,34 @@ import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
 import { LocalNotifications } from "@capacitor/local-notifications";
-import { getStoredLocale } from "@/contexts/LocaleContext";
 
 const PROXIMITY_THRESHOLD_METERS = 50;
 const STORAGE_KEY = "gym_proximity_last_notified";
 
+const GYM_NOTIF_TEXTS = {
+  fr: {
+    title: "Tu es à la salle ! 💪",
+    body: "N'oublie pas de prendre ta photo pour valider ta séance",
+  },
+  en: {
+    title: "You're at the gym! 💪",
+    body: "Don't forget to take your photo to validate your session",
+  },
+  de: {
+    title: "Du bist im Gym! 💪",
+    body: "Vergiss nicht, dein Foto zu machen, um dein Training zu bestätigen",
+  },
+} as const;
+
+function getNotifLocale(): "fr" | "en" | "de" {
+  const country = localStorage.getItem("resoly_country") || "FR";
+  if (country === "FR") return "fr";
+  if (country === "DE" || country === "CH") return "de";
+  return "en";
+}
+
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371e3; // Earth radius in meters
+  const R = 6371e3;
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
@@ -47,7 +68,6 @@ export const useGymProximity = ({ gymLatitude, gymLongitude, hasActiveChallenge 
       try {
         const perm = await Geolocation.requestPermissions();
         if (perm.location !== "granted") return;
-
         await LocalNotifications.requestPermissions();
 
         const id = await Geolocation.watchPosition({ enableHighAccuracy: true }, (position) => {
@@ -61,12 +81,13 @@ export const useGymProximity = ({ gymLatitude, gymLongitude, hasActiveChallenge 
 
           if (dist < PROXIMITY_THRESHOLD_METERS && !alreadyNotifiedToday()) {
             markNotifiedToday();
+            const texts = GYM_NOTIF_TEXTS[getNotifLocale()];
             LocalNotifications.schedule({
               notifications: [
                 {
                   id: 9001,
-                  title: "Tu es à la salle ! 💪",
-                  body: "N'oublie pas de prendre ta photo pour valider ta séance",
+                  title: texts.title,
+                  body: texts.body,
                   actionTypeId: "GYM_CHECKIN",
                   extra: { route: "/verify" },
                 },
