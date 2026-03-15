@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { getStoredLocale } from "@/contexts/LocaleContext";
 
 const PROXIMITY_THRESHOLD_METERS = 50;
 const STORAGE_KEY = "gym_proximity_last_notified";
@@ -11,9 +12,7 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -34,11 +33,7 @@ interface UseGymProximityOptions {
   hasActiveChallenge: boolean;
 }
 
-export const useGymProximity = ({
-  gymLatitude,
-  gymLongitude,
-  hasActiveChallenge,
-}: UseGymProximityOptions) => {
+export const useGymProximity = ({ gymLatitude, gymLongitude, hasActiveChallenge }: UseGymProximityOptions) => {
   const watchIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -55,33 +50,30 @@ export const useGymProximity = ({
 
         await LocalNotifications.requestPermissions();
 
-        const id = await Geolocation.watchPosition(
-          { enableHighAccuracy: true },
-          (position) => {
-            if (cancelled || !position) return;
-            const dist = haversineDistance(
-              position.coords.latitude,
-              position.coords.longitude,
-              gymLatitude,
-              gymLongitude
-            );
+        const id = await Geolocation.watchPosition({ enableHighAccuracy: true }, (position) => {
+          if (cancelled || !position) return;
+          const dist = haversineDistance(
+            position.coords.latitude,
+            position.coords.longitude,
+            gymLatitude,
+            gymLongitude,
+          );
 
-            if (dist < PROXIMITY_THRESHOLD_METERS && !alreadyNotifiedToday()) {
-              markNotifiedToday();
-              LocalNotifications.schedule({
-                notifications: [
-                  {
-                    id: 9001,
-                    title: "Tu es à la salle ! 💪",
-                    body: "N'oublie pas de prendre ta photo pour valider ta séance",
-                    actionTypeId: "GYM_CHECKIN",
-                    extra: { route: "/verify" },
-                  },
-                ],
-              });
-            }
+          if (dist < PROXIMITY_THRESHOLD_METERS && !alreadyNotifiedToday()) {
+            markNotifiedToday();
+            LocalNotifications.schedule({
+              notifications: [
+                {
+                  id: 9001,
+                  title: "Tu es à la salle ! 💪",
+                  body: "N'oublie pas de prendre ta photo pour valider ta séance",
+                  actionTypeId: "GYM_CHECKIN",
+                  extra: { route: "/verify" },
+                },
+              ],
+            });
           }
-        );
+        });
         watchIdRef.current = id;
       } catch (err) {
         console.error("Gym proximity error:", err);
