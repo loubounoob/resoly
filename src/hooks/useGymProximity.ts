@@ -70,7 +70,7 @@ export const useGymProximity = ({ gymLatitude, gymLongitude, hasActiveChallenge 
         if (perm.location !== "granted") return;
         await LocalNotifications.requestPermissions();
 
-        const id = await Geolocation.watchPosition({ enableHighAccuracy: true }, (position) => {
+        const id = await Geolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 10000 }, (position) => {
           if (cancelled || !position) return;
           const dist = haversineDistance(
             position.coords.latitude,
@@ -78,7 +78,6 @@ export const useGymProximity = ({ gymLatitude, gymLongitude, hasActiveChallenge 
             gymLatitude,
             gymLongitude,
           );
-
           if (dist < PROXIMITY_THRESHOLD_METERS && !alreadyNotifiedToday()) {
             markNotifiedToday();
             const texts = GYM_NOTIF_TEXTS[getNotifLocale()];
