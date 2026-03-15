@@ -33,11 +33,14 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
     binaryKey,
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["sign"],
   );
 
   const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", cryptoKey, new TextEncoder().encode(unsignedToken));
-  const sig = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  const sig = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
   const jwt = `${unsignedToken}.${sig}`;
 
   // Exchange JWT for access token
@@ -87,10 +90,7 @@ Deno.serve(async (req) => {
         const serviceAccount = JSON.parse(fcmJson);
         const accessToken = await getAccessToken(serviceAccount);
 
-        const { data: tokens } = await supabase
-          .from("push_tokens")
-          .select("token, platform")
-          .eq("user_id", user_id);
+        const { data: tokens } = await supabase.from("push_tokens").select("token, platform").eq("user_id", user_id);
 
         if (tokens && tokens.length > 0) {
           const projectId = serviceAccount.project_id;
@@ -110,11 +110,13 @@ Deno.serve(async (req) => {
                     notification: { title, body },
                     data: data ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])) : {},
                     ...(t.platform === "android" ? { android: { priority: "high" } } : {}),
-                    ...(t.platform === "ios" ? { apns: { payload: { aps: { sound: "default", badge: 1 } } } } : {}),
+                    ...(t.platform === "ios"
+                      ? { apns: { payload: { aps: { sound: "default", "content-available": 1 } } } }
+                      : {}),
                   },
                 }),
-              }).then((r) => r.json())
-            )
+              }).then((r) => r.json()),
+            ),
           );
           console.log("FCM results:", JSON.stringify(pushResults));
         }
