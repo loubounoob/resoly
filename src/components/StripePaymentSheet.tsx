@@ -10,9 +10,34 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useLocale } from "@/contexts/LocaleContext";
 import { Capacitor } from "@capacitor/core";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { Stripe as CapStripe, ApplePayEventsEnum } from "@capacitor-community/stripe";
+
+// Inline types — évite le static import de @capacitor-community/stripe
+// qui fait planter le build Lovable (résolution TypeScript web-only)
+interface ICapacitorStripe {
+  initialize(opts: { publishableKey: string }): Promise<void>;
+  isApplePayAvailable(): Promise<{ isAvailable: boolean }>;
+  createApplePay(opts: {
+    paymentIntentClientSecret: string;
+    paymentSummaryItems: Array<{ label: string; amount: number }>;
+    merchantIdentifier: string;
+    countryCode: string;
+    currency: string;
+  }): Promise<void>;
+  presentApplePay(): Promise<{ paymentResult: string }>;
+}
+
+// new Function() contourne l'analyse statique de TypeScript —
+// le module n'est résolu qu'au runtime sur iOS, jamais au build
+const loadCapStripe = async (): Promise<ICapacitorStripe | null> => {
+  if (!Capacitor.isNativePlatform()) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const mod = await new Function("m", "return import(m)")("@capacitor-community/stripe");
+    return ((mod.Stripe ?? mod.default?.Stripe) as ICapacitorStripe) ?? null;
+  } catch {
+    return null;
+  }
+};
 
 interface StripePaymentSheetProps {
   open: boolean;
@@ -59,11 +84,14 @@ function PaymentForm({
   const { t, formatCurrency } = useLocale();
   const displayAmount = discountedAmount ?? amount;
 
+  // Check Apple Pay availability via native Capacitor plugin
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-    CapStripe.initialize({ publishableKey: key })
-      .then(() => CapStripe.isApplePayAvailable())
+    loadCapStripe()
+      .then((plugin) => plugin?.initialize({ publishableKey: key }))
+      .then(() => loadCapStripe())
+      .then((plugin) => plugin?.isApplePayAvailable())
       .then(() => setApplePayAvailable(true))
       .catch(() => setApplePayAvailable(false));
   }, []);
@@ -72,17 +100,19 @@ function PaymentForm({
     if (!clientSecret) return;
     setIsProcessing(true);
     try {
-      await CapStripe.createApplePay({
+      const plugin = await loadCapStripe();
+      if (!plugin) return;
+      await plugin.createApplePay({
         paymentIntentClientSecret: clientSecret,
         paymentSummaryItems: [{ label: description || "Resoly", amount: displayAmount }],
         merchantIdentifier: "merchant.com.resoly.app.pay",
         countryCode: userCountry || "FR",
         currency: currency || "EUR",
       });
-      const result = await CapStripe.presentApplePay();
-      if (result.paymentResult === ApplePayEventsEnum.Completed) {
+      const result = await plugin.presentApplePay();
+      if (result.paymentResult === "completed") {
         onSuccess(paymentIntentId);
-      } else if (result.paymentResult !== ApplePayEventsEnum.Canceled) {
+      } else if (result.paymentResult !== "Canceled" && result.paymentResult !== "canceled") {
         toast({ title: "Apple Pay failed", variant: "destructive" });
       }
     } catch (err: unknown) {
