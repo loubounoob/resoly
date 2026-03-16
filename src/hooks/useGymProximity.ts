@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { Preferences } from "@capacitor/preferences";
 
 const PROXIMITY_THRESHOLD_METERS = 50;
 const STORAGE_KEY = "gym_proximity_last_notified";
@@ -40,8 +41,7 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 function alreadyNotifiedToday(): boolean {
   const last = localStorage.getItem(STORAGE_KEY);
   if (!last) return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return last === today;
+  return last === new Date().toISOString().slice(0, 10);
 }
 
 function markNotifiedToday() {
@@ -57,6 +57,18 @@ interface UseGymProximityOptions {
 export const useGymProximity = ({ gymLatitude, gymLongitude, hasActiveChallenge }: UseGymProximityOptions) => {
   const watchIdRef = useRef<string | null>(null);
 
+  // Sauvegarde les coordonnées pour le geofencing natif (AppDelegate)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (gymLatitude == null || gymLongitude == null) return;
+
+    const country = localStorage.getItem("resoly_country") || "FR";
+    Preferences.set({ key: "gym_latitude", value: String(gymLatitude) });
+    Preferences.set({ key: "gym_longitude", value: String(gymLongitude) });
+    Preferences.set({ key: "resoly_country", value: country });
+  }, [gymLatitude, gymLongitude]);
+
+  // watchPosition pour quand l'app est au premier plan
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     if (!hasActiveChallenge) return;
