@@ -1,115 +1,228 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { LocaleProvider } from "@/contexts/LocaleContext";
-
-import Landing from "./pages/Landing";
-import Auth from "./pages/Auth";
-import UsernameGuard from "./components/UsernameGuard";
-import Dashboard from "./pages/Dashboard";
-import CreateChallenge from "./pages/CreateChallenge";
-import OnboardingChallenge from "./pages/OnboardingChallenge";
-import PhotoVerify from "./pages/PhotoVerify";
-import PaymentSuccess from "./pages/PaymentSuccess";
-import Shop from "./pages/Shop";
-import ShopifyProductDetail from "./pages/ShopifyProductDetail";
-import Orders from "./pages/Orders";
-import Friends from "./pages/Friends";
-import CreateSocialChallenge from "./pages/CreateSocialChallenge";
-import CreateGroup from "./pages/CreateGroup";
-import Notifications from "./pages/Notifications";
-import Settings from "./pages/Settings";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import NotFound from "./pages/NotFound";
-import { Loader2 } from "lucide-react";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useState, useRef, useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { MapPin, Loader2, Check } from "lucide-react";
+import { useLocale } from "@/contexts/LocaleContext";
 import PrePermissionDialog from "@/components/PrePermissionDialog";
 
-const queryClient = new QueryClient();
+interface GymLocationPickerProps {
+  currentGymName?: string | null;
+  currentLat?: number | null;
+  currentLon?: number | null;
+  onSaved?: () => void;
+}
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
+const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: GymLocationPickerProps) => {
+  const { user } = useAuth();
+  const { t } = useLocale();
+  const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [gymName] = useState(currentGymName || "");
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
+  // Never pre-populate from props — requires fresh GPS to save
+  const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const hasExisting = !!(currentLat && currentLon);
+
+  const [showLocationPermission, setShowLocationPermission] = useState(false);
+
+  // React-level safety timer — guarantees loading is always reset no matter what
+  const safetyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (safetyTimer.current) clearTimeout(safetyTimer.current);
+    };
+  }, []);
+
+  const stopLoading = () => {
+    if (safetyTimer.current) {
+      clearTimeout(safetyTimer.current);
+      safetyTimer.current = null;
+    }
+    setLoading(false);
+  };
+
+  const doGetLocation = () => {
+    if (!user) return;
+    setLoading(true);
+    setSaved(false);
+
+    // Absolute safety net: force-stop loading after 9s regardless of geolocation state
+    if (safetyTimer.current) clearTimeout(safetyTimer.current);
+    safetyTimer.current = setTimeout(() => {
+      setLoading(false);
+      toast.error(t("gym.gpsTimeout") || "Localisation trop lente, réessaie");
+    }, 9000);
+
+    // Callback-based API — avoids async/await promise hanging on iOS WebView
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        stopLoading();
+        const { latitude, longitude } = position.coords;
+        setSelectedCoords({ lat: latitude, lon: longitude });
+        toast.success(t("gym.gpsRetrieved"));
+      },
+      (err) => {
+        stopLoading();
+        if (err.code === 1) {
+          toast.error(t("gym.gpsDenied"));
+        } else if (err.code === 3) {
+          toast.error(t("gym.gpsTimeout") || "Localisation trop lente, réessaie");
+        } else {
+          toast.error(t("gym.gpsError"));
+        }
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 },
     );
-  }
+  };
 
-  if (!user) return <Navigate to="/auth" replace />;
-  return <UsernameGuard>{children}</UsernameGuard>;
-};
+  const handleUseCurrentLocation = () => {
+    if (Capacitor.isNativePlatform()) {
+      const shown = localStorage.getItem("location_pre_permission_shown");
+      if (!shown) {
+        setShowLocationPermission(true);
+        return;
+      }
+    }
+    doGetLocation();
+  };
 
-const AppRoutes = () => {
-  const { user, loading } = useAuth();
-  const { showPrePermission, acceptPushPermission, dismissPushPermission } = usePushNotifications();
+  const handleLocationPermissionAccept = () => {
+    localStorage.setItem("location_pre_permission_shown", "true");
+    setShowLocationPermission(false);
+    doGetLocation();
+  };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
-    );
-  }
+  const handleLocationPermissionDismiss = () => {
+    localStorage.setItem("location_pre_permission_shown", "true");
+    setShowLocationPermission(false);
+  };
+
+  const handleSave = async () => {
+    if (!user || !selectedCoords) {
+      toast.error(t("gym.selectLocation"));
+      return;
+    }
+    setLoading(true);
+    try {
+      const finalGymName = gymName.trim() || t("gym.myGym");
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          gym_latitude: selectedCoords.lat,
+          gym_longitude: selectedCoords.lon,
+          gym_name: finalGymName,
+        } as any)
+        .eq("user_id", user.id);
+      if (error) throw error;
+
+      setSaved(true);
+      toast.success(t("gym.saved"));
+      onSaved?.();
+
+      const { data: profile } = await supabase.from("profiles").select("country").eq("user_id", user.id).single();
+
+      const country = ((profile as any)?.country || "FR").toUpperCase();
+      const locale = country === "FR" ? "fr" : country === "DE" || country === "CH" ? "de" : "en";
+
+      const texts: Record<string, { title: string; body: string }> = {
+        fr: {
+          title: "Salle enregistrée ! 📍",
+          body: `Ta salle "${finalGymName}" a été enregistrée. Tu recevras un rappel à chaque visite.`,
+        },
+        en: {
+          title: "Gym saved! 📍",
+          body: `Your gym "${finalGymName}" has been saved. You'll get a reminder on each visit.`,
+        },
+        de: {
+          title: "Gym gespeichert! 📍",
+          body: `Dein Gym "${finalGymName}" wurde gespeichert. Du erhältst bei jedem Besuch eine Erinnerung.`,
+        },
+      };
+
+      supabase.functions
+        .invoke("send-notification", {
+          body: {
+            user_id: user.id,
+            type: "gym_saved",
+            title: texts[locale].title,
+            body: texts[locale].body,
+            data: { gym_name: finalGymName },
+          },
+        })
+        .catch((err) => console.error("Push notification error:", err));
+    } catch (err: any) {
+      console.error(err);
+      toast.error(t("gym.saveError"));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <>
+    <div className="space-y-3">
+      <label className="text-sm font-medium block">{t("gym.myGym")}</label>
+      <p className="text-xs text-muted-foreground">{t("gym.searchDesc")}</p>
+
+      {/* Show existing gym info if present and no new coords yet */}
+      {hasExisting && !selectedCoords && (
+        <div className="flex items-center gap-2 text-xs text-primary">
+          <Check className="w-3.5 h-3.5" />
+          <span>
+            {currentGymName || t("gym.myGym")} — {t("gym.positionSelected")}
+          </span>
+        </div>
+      )}
+
+      {/* Show new coords when GPS was obtained */}
+      {selectedCoords && (
+        <div className="flex items-center gap-2 text-xs text-green-500">
+          <Check className="w-3.5 h-3.5" />
+          <span>
+            {t("gym.positionSelected")} — {hasExisting ? "nouvelle position" : ""}
+          </span>
+        </div>
+      )}
+
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleUseCurrentLocation}
+        disabled={loading}
+        className="w-full"
+        size="sm"
+      >
+        {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MapPin className="w-4 h-4 mr-2" />}
+        {t("gym.useLocation")}
+      </Button>
+
+      <Button
+        type="button"
+        onClick={handleSave}
+        disabled={loading || saved || !selectedCoords}
+        className="w-full bg-gradient-primary text-primary-foreground hover:opacity-90"
+      >
+        {saved ? (
+          <>
+            <Check className="w-4 h-4 mr-2" />
+            {t("common.saved")}
+          </>
+        ) : (
+          t("gym.saveGym")
+        )}
+      </Button>
+
       <PrePermissionDialog
-        type="notifications"
-        open={showPrePermission}
-        onAccept={acceptPushPermission}
-        onDismiss={dismissPushPermission}
+        type="location"
+        open={showLocationPermission}
+        onAccept={handleLocationPermissionAccept}
+        onDismiss={handleLocationPermissionDismiss}
       />
-      <Routes>
-      <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
-      <Route path="/auth" element={user ? <Navigate to="/dashboard" replace /> : <Auth />} />
-      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/onboarding-challenge" element={<ProtectedRoute><OnboardingChallenge /></ProtectedRoute>} />
-      <Route path="/create" element={<ProtectedRoute><CreateChallenge /></ProtectedRoute>} />
-      <Route path="/verify" element={<ProtectedRoute><PhotoVerify /></ProtectedRoute>} />
-      <Route path="/shop" element={<ProtectedRoute><Shop /></ProtectedRoute>} />
-      <Route path="/shopify/:handle" element={<ProtectedRoute><ShopifyProductDetail /></ProtectedRoute>} />
-      <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
-      <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
-      <Route path="/friends/create-social" element={<ProtectedRoute><CreateSocialChallenge /></ProtectedRoute>} />
-      <Route path="/friends/create-group" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
-      <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-      <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-      <Route path="/privacy" element={<PrivacyPolicy />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-    </>
+    </div>
   );
 };
 
-
-const App = () => {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <LocaleProvider>
-            <AuthProvider>
-              <div className="fixed top-0 left-0 right-0 z-[100] bg-background" style={{ height: 'max(env(safe-area-inset-top, 0px), 1.5rem)' }} />
-              <div className="h-screen flex flex-col overflow-hidden bg-background max-w-md mx-auto relative" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 1.5rem)' }}>
-                <div className="flex-1 overflow-y-auto">
-                  <AppRoutes />
-                </div>
-              </div>
-            </AuthProvider>
-          </LocaleProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-};
-
-export default App;
+export default GymLocationPicker;
