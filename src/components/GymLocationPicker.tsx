@@ -23,7 +23,7 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
   const [saved, setSaved] = useState(false);
   const [gymName, setGymName] = useState(currentGymName || "");
   const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lon: number } | null>(
-    currentLat && currentLon ? { lat: currentLat, lon: currentLon } : null
+    currentLat && currentLon ? { lat: currentLat, lon: currentLon } : null,
   );
   const [showLocationPermission, setShowLocationPermission] = useState(false);
 
@@ -34,18 +34,28 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
       if (Capacitor.isNativePlatform()) {
         const perm = await Geolocation.requestPermissions();
         if (perm.location !== "granted") {
-          toast.error(t('gym.gpsDenied'));
+          toast.error(t("gym.gpsDenied"));
           setLoading(false);
           return;
         }
       }
-      const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      });
       const { latitude, longitude } = position.coords;
       setSelectedCoords({ lat: latitude, lon: longitude });
-      if (!gymName.trim()) setGymName(t('gym.myGym'));
-      toast.success(t('gym.gpsRetrieved'));
-    } catch {
-      toast.error(t('gym.gpsError'));
+      setSaved(false); // reset so user can save the new position
+      if (!gymName.trim()) setGymName(t("gym.myGym"));
+      toast.success(t("gym.gpsRetrieved"));
+    } catch (err: any) {
+      console.error("GPS error:", err);
+      if (err?.message?.includes("timeout") || err?.code === 3) {
+        toast.error(t("gym.gpsTimeout") || "GPS trop lent, réessaie en extérieur");
+      } else {
+        toast.error(t("gym.gpsError"));
+      }
     } finally {
       setLoading(false);
     }
@@ -75,12 +85,12 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
 
   const handleSave = async () => {
     if (!user || !selectedCoords) {
-      toast.error(t('gym.selectLocation'));
+      toast.error(t("gym.selectLocation"));
       return;
     }
     setLoading(true);
     try {
-      const finalGymName = gymName.trim() || t('gym.myGym');
+      const finalGymName = gymName.trim() || t("gym.myGym");
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -89,36 +99,48 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
           gym_name: finalGymName,
         } as any)
         .eq("user_id", user.id);
-
       if (error) throw error;
 
       setSaved(true);
-      toast.success(t('gym.saved'));
+      toast.success(t("gym.saved"));
       onSaved?.();
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("country")
-        .eq("user_id", user.id)
-        .single();
+      // Send confirmation push notification in user's language
+      const { data: profile } = await supabase.from("profiles").select("country").eq("user_id", user.id).single();
 
-      const country = (profile as any)?.country || "FR";
-      const c = country.toUpperCase();
-      const locale = c === "FR" ? "fr" : c === "DE" || c === "CH" ? "de" : "en";
+      const country = ((profile as any)?.country || "FR").toUpperCase();
+      const locale = country === "FR" ? "fr" : country === "DE" || country === "CH" ? "de" : "en";
 
       const texts: Record<string, { title: string; body: string }> = {
-        fr: { title: "Salle enregistrée ! 📍", body: `Ta salle "${finalGymName}" a été enregistrée. Tu recevras un rappel à chaque visite.` },
-        en: { title: "Gym saved! 📍", body: `Your gym "${finalGymName}" has been saved. You'll get a reminder on each visit.` },
-        de: { title: "Gym gespeichert! 📍", body: `Dein Gym "${finalGymName}" wurde gespeichert. Du erhältst bei jedem Besuch eine Erinnerung.` },
+        fr: {
+          title: "Salle enregistrée ! 📍",
+          body: `Ta salle "${finalGymName}" a été enregistrée. Tu recevras un rappel à chaque visite.`,
+        },
+        en: {
+          title: "Gym saved! 📍",
+          body: `Your gym "${finalGymName}" has been saved. You'll get a reminder on each visit.`,
+        },
+        de: {
+          title: "Gym gespeichert! 📍",
+          body: `Dein Gym "${finalGymName}" wurde gespeichert. Du erhältst bei jedem Besuch eine Erinnerung.`,
+        },
       };
-      const notif = texts[locale];
 
-      supabase.functions.invoke("send-notification", {
-        body: { user_id: user.id, type: "gym_saved", title: notif.title, body: notif.body, data: { gym_name: finalGymName } },
-      }).catch((err) => console.error("Push notification error:", err));
+      const notif = texts[locale];
+      supabase.functions
+        .invoke("send-notification", {
+          body: {
+            user_id: user.id,
+            type: "gym_saved",
+            title: notif.title,
+            body: notif.body,
+            data: { gym_name: finalGymName },
+          },
+        })
+        .catch((err) => console.error("Push notification error:", err));
     } catch (err: any) {
       console.error(err);
-      toast.error(t('gym.saveError'));
+      toast.error(t("gym.saveError"));
     } finally {
       setLoading(false);
     }
@@ -126,18 +148,14 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
 
   return (
     <div className="space-y-3">
-      <label className="text-sm font-medium block">{t('gym.myGym')}</label>
-      <p className="text-xs text-muted-foreground">
-        {t('gym.searchDesc')}
-      </p>
-
+      <label className="text-sm font-medium block">{t("gym.myGym")}</label>
+      <p className="text-xs text-muted-foreground">{t("gym.searchDesc")}</p>
       {selectedCoords && (
         <div className="flex items-center gap-2 text-xs text-primary">
           <Check className="w-3.5 h-3.5" />
-          <span>{t('gym.positionSelected')}</span>
+          <span>{t("gym.positionSelected")}</span>
         </div>
       )}
-
       <Button
         type="button"
         variant="outline"
@@ -146,14 +164,9 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
         className="w-full"
         size="sm"
       >
-        {loading ? (
-          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-        ) : (
-          <MapPin className="w-4 h-4 mr-2" />
-        )}
-        {t('gym.useLocation')}
+        {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MapPin className="w-4 h-4 mr-2" />}
+        {t("gym.useLocation")}
       </Button>
-
       <Button
         type="button"
         onClick={handleSave}
@@ -163,13 +176,12 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
         {saved ? (
           <>
             <Check className="w-4 h-4 mr-2" />
-            {t('common.saved')}
+            {t("common.saved")}
           </>
         ) : (
-          t('gym.saveGym')
+          t("gym.saveGym")
         )}
       </Button>
-
       <PrePermissionDialog
         type="location"
         open={showLocationPermission}
