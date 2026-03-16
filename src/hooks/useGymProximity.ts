@@ -2,24 +2,14 @@ import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
 import { LocalNotifications } from "@capacitor/local-notifications";
-import { Preferences } from "@capacitor/preferences";
 
 const PROXIMITY_THRESHOLD_METERS = 50;
 const STORAGE_KEY = "gym_proximity_last_notified";
 
 const GYM_NOTIF_TEXTS = {
-  fr: {
-    title: "Tu es à la salle ! 💪",
-    body: "N'oublie pas de prendre ta photo pour valider ta séance",
-  },
-  en: {
-    title: "You're at the gym! 💪",
-    body: "Don't forget to take your photo to validate your session",
-  },
-  de: {
-    title: "Du bist im Gym! 💪",
-    body: "Vergiss nicht, dein Foto zu machen, um dein Training zu bestätigen",
-  },
+  fr: { title: "Tu es à la salle ! 💪", body: "N'oublie pas de prendre ta photo pour valider ta séance" },
+  en: { title: "You're at the gym! 💪", body: "Don't forget to take your photo to validate your session" },
+  de: { title: "Du bist im Gym! 💪", body: "Vergiss nicht, dein Foto zu machen, um dein Training zu bestätigen" },
 } as const;
 
 function getNotifLocale(): "fr" | "en" | "de" {
@@ -57,15 +47,12 @@ interface UseGymProximityOptions {
 export const useGymProximity = ({ gymLatitude, gymLongitude, hasActiveChallenge }: UseGymProximityOptions) => {
   const watchIdRef = useRef<string | null>(null);
 
-  // Sauvegarde les coordonnées pour le geofencing natif (AppDelegate)
+  // Sauvegarde les coordonnées dans localStorage pour que AppDelegate puisse les lire
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     if (gymLatitude == null || gymLongitude == null) return;
-
-    const country = localStorage.getItem("resoly_country") || "FR";
-    Preferences.set({ key: "gym_latitude", value: String(gymLatitude) });
-    Preferences.set({ key: "gym_longitude", value: String(gymLongitude) });
-    Preferences.set({ key: "resoly_country", value: country });
+    localStorage.setItem("gym_latitude", String(gymLatitude));
+    localStorage.setItem("gym_longitude", String(gymLongitude));
   }, [gymLatitude, gymLongitude]);
 
   // watchPosition pour quand l'app est au premier plan
