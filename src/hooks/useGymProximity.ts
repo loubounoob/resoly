@@ -47,15 +47,16 @@ interface UseGymProximityOptions {
 export const useGymProximity = ({ gymLatitude, gymLongitude, hasActiveChallenge }: UseGymProximityOptions) => {
   const watchIdRef = useRef<string | null>(null);
 
-  // Sauvegarde les coordonnées dans localStorage pour que AppDelegate puisse les lire
+  // Sauvegarde coords + statut défi pour AppDelegate (geofencing app fermée)
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     if (gymLatitude == null || gymLongitude == null) return;
     localStorage.setItem("gym_latitude", String(gymLatitude));
     localStorage.setItem("gym_longitude", String(gymLongitude));
-  }, [gymLatitude, gymLongitude]);
+    localStorage.setItem("gym_has_challenge", hasActiveChallenge ? "1" : "0");
+  }, [gymLatitude, gymLongitude, hasActiveChallenge]);
 
-  // watchPosition pour quand l'app est au premier plan
+  // watchPosition pour quand l'app est au premier plan ou en arrière-plan
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     if (!hasActiveChallenge) return;
