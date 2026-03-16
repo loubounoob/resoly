@@ -32,11 +32,15 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
     setLoading(true);
     try {
       if (Capacitor.isNativePlatform()) {
-        const perm = await Geolocation.requestPermissions();
-        if (perm.location !== "granted") {
-          toast.error(t("gym.gpsDenied"));
-          setLoading(false);
-          return;
+        // Check first — only request if not already granted to avoid iOS hang
+        const current = await Geolocation.checkPermissions();
+        if (current.location !== "granted") {
+          const perm = await Geolocation.requestPermissions();
+          if (perm.location !== "granted") {
+            toast.error(t("gym.gpsDenied"));
+            setLoading(false);
+            return;
+          }
         }
       }
       const position = await Geolocation.getCurrentPosition({
@@ -46,7 +50,7 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
       });
       const { latitude, longitude } = position.coords;
       setSelectedCoords({ lat: latitude, lon: longitude });
-      setSaved(false); // reset so user can save the new position
+      setSaved(false);
       if (!gymName.trim()) setGymName(t("gym.myGym"));
       toast.success(t("gym.gpsRetrieved"));
     } catch (err: any) {
@@ -105,7 +109,6 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
       toast.success(t("gym.saved"));
       onSaved?.();
 
-      // Send confirmation push notification in user's language
       const { data: profile } = await supabase.from("profiles").select("country").eq("user_id", user.id).single();
 
       const country = ((profile as any)?.country || "FR").toUpperCase();
