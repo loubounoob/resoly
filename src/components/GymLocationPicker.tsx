@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { Geolocation } from "@capacitor/geolocation";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,15 +15,22 @@ interface GymLocationPickerProps {
   onSaved?: () => void;
 }
 
-// Manual timeout wrapper — Capacitor iOS doesn't reliably honor the timeout option
-const getPositionWithTimeout = (ms: number) =>
-  Promise.race([
-    Geolocation.getCurrentPosition({
-      enableHighAccuracy: false, // WiFi/cell — fast and works indoors
-      maximumAge: 0,
-    }),
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
-  ]);
+// Uses native browser geolocation — more reliable than Capacitor plugin on iOS
+const getNativePosition = (ms: number): Promise<GeolocationPosition> =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout")), ms);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        clearTimeout(timer);
+        resolve(pos);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+      { enableHighAccuracy: false, timeout: ms, maximumAge: 0 },
+    );
+  });
 
 const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: GymLocationPickerProps) => {
   const { user } = useAuth();
@@ -41,7 +47,7 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
     if (!user) return;
     setLoading(true);
     try {
-      const position = await getPositionWithTimeout(8000);
+      const position = await getNativePosition(8000);
       const { latitude, longitude } = position.coords;
       setSelectedCoords({ lat: latitude, lon: longitude });
       setSaved(false);
@@ -49,9 +55,11 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
       toast.success(t("gym.gpsRetrieved"));
     } catch (err: any) {
       console.error("GPS error:", err);
-      if (err?.code === 1 || err?.message?.toLowerCase().includes("denied")) {
+      if (err?.code === 1) {
+        // PERMISSION_DENIED
         toast.error(t("gym.gpsDenied"));
-      } else if (err?.message === "timeout" || err?.code === 3) {
+      } else if (err?.code === 3 || err?.message === "timeout") {
+        // TIMEOUT
         toast.error(t("gym.gpsTimeout") || "Localisation trop lente, réessaie");
       } else {
         toast.error(t("gym.gpsError"));
