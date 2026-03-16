@@ -16,6 +16,16 @@ interface GymLocationPickerProps {
   onSaved?: () => void;
 }
 
+// Manual timeout wrapper — Capacitor iOS doesn't reliably honor the timeout option
+const getPositionWithTimeout = (ms: number) =>
+  Promise.race([
+    Geolocation.getCurrentPosition({
+      enableHighAccuracy: false, // WiFi/cell — fast and works indoors
+      maximumAge: 0,
+    }),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
+
 const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: GymLocationPickerProps) => {
   const { user } = useAuth();
   const { t } = useLocale();
@@ -31,13 +41,7 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
     if (!user) return;
     setLoading(true);
     try {
-      // Let iOS handle permissions natively via getCurrentPosition
-      // No requestPermissions() call — it causes hangs on iOS
-      const position = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      });
+      const position = await getPositionWithTimeout(8000);
       const { latitude, longitude } = position.coords;
       setSelectedCoords({ lat: latitude, lon: longitude });
       setSaved(false);
@@ -47,8 +51,8 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
       console.error("GPS error:", err);
       if (err?.code === 1 || err?.message?.toLowerCase().includes("denied")) {
         toast.error(t("gym.gpsDenied"));
-      } else if (err?.code === 3 || err?.message?.toLowerCase().includes("timeout")) {
-        toast.error(t("gym.gpsTimeout") || "GPS trop lent, réessaie en extérieur");
+      } else if (err?.message === "timeout" || err?.code === 3) {
+        toast.error(t("gym.gpsTimeout") || "Localisation trop lente, réessaie");
       } else {
         toast.error(t("gym.gpsError"));
       }
