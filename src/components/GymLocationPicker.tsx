@@ -31,18 +31,8 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
     if (!user) return;
     setLoading(true);
     try {
-      if (Capacitor.isNativePlatform()) {
-        // Check first — only request if not already granted to avoid iOS hang
-        const current = await Geolocation.checkPermissions();
-        if (current.location !== "granted") {
-          const perm = await Geolocation.requestPermissions();
-          if (perm.location !== "granted") {
-            toast.error(t("gym.gpsDenied"));
-            setLoading(false);
-            return;
-          }
-        }
-      }
+      // Let iOS handle permissions natively via getCurrentPosition
+      // No requestPermissions() call — it causes hangs on iOS
       const position = await Geolocation.getCurrentPosition({
         enableHighAccuracy: true,
         timeout: 10000,
@@ -55,7 +45,9 @@ const GymLocationPicker = ({ currentGymName, currentLat, currentLon, onSaved }: 
       toast.success(t("gym.gpsRetrieved"));
     } catch (err: any) {
       console.error("GPS error:", err);
-      if (err?.message?.includes("timeout") || err?.code === 3) {
+      if (err?.code === 1 || err?.message?.toLowerCase().includes("denied")) {
+        toast.error(t("gym.gpsDenied"));
+      } else if (err?.code === 3 || err?.message?.toLowerCase().includes("timeout")) {
         toast.error(t("gym.gpsTimeout") || "GPS trop lent, réessaie en extérieur");
       } else {
         toast.error(t("gym.gpsError"));
