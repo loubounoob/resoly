@@ -74,14 +74,26 @@ function PaymentForm({
 
   // Check Apple Pay via native plugin (not Stripe.js — doesn't work in WKWebView)
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!Capacitor.isNativePlatform()) {
+      console.log("[ApplePay] Not native platform");
+      return;
+    }
     const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+    console.log("[ApplePay] Initializing with key:", key?.substring(0, 10) + "...");
     CapStripe.initialize({ publishableKey: key })
-      .then(() => CapStripe.isApplePayAvailable())
-      .then(() => setApplePayAvailable(true))
-      .catch(() => setApplePayAvailable(false));
+      .then(() => {
+        console.log("[ApplePay] Initialize OK, checking availability...");
+        return CapStripe.isApplePayAvailable();
+      })
+      .then(() => {
+        console.log("[ApplePay] Apple Pay IS available!");
+        setApplePayAvailable(true);
+      })
+      .catch((err) => {
+        console.error("[ApplePay] Error:", JSON.stringify(err), err?.message, err);
+        setApplePayAvailable(false);
+      });
   }, []);
-
   const handleApplePay = async () => {
     if (!clientSecret) return;
     setIsProcessing(true);
