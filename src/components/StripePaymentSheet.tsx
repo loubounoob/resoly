@@ -9,6 +9,23 @@ import { getStripe } from "@/lib/stripe";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useLocale } from "@/contexts/LocaleContext";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+
+// Accède au plugin natif CapacitorCommunityStripe installé dans Xcode
+// via registerPlugin — sans importer le package npm
+interface ICapacitorStripe {
+  initialize(opts: { publishableKey: string }): Promise<void>;
+  isApplePayAvailable(): Promise<{ isAvailable: boolean }>;
+  createApplePay(opts: {
+    paymentIntentClientSecret: string;
+    paymentSummaryItems: Array<{ label: string; amount: number }>;
+    merchantIdentifier: string;
+    countryCode: string;
+    currency: string;
+  }): Promise<void>;
+  presentApplePay(): Promise<{ paymentResult: string }>;
+}
+const CapStripe = registerPlugin<ICapacitorStripe>("Stripe");
 
 interface StripePaymentSheetProps {
   open: boolean;
@@ -16,6 +33,7 @@ interface StripePaymentSheetProps {
   clientSecret: string;
   paymentIntentId: string;
   amount: number;
+  currency?: string;
   description?: string;
   onSuccess: (paymentIntentId: string, isFreePromo?: boolean) => void;
   onError?: (error: string) => void;
@@ -25,18 +43,22 @@ interface StripePaymentSheetProps {
   stripeLocale?: string;
   userCountry?: string;
 }
-
+interface PaymentFormProps extends Omit<StripePaymentSheetProps, "open" | "onOpenChange" | "stripeLocale"> {
+  clientSecret: string;
+}
 function PaymentForm({
   amount,
   description,
   onSuccess,
   onError,
   paymentIntentId,
+  clientSecret,
+  currency,
   showPromoCode,
   promoEndpoint,
   promoBody,
   userCountry,
-}: Omit<StripePaymentSheetProps, "open" | "onOpenChange" | "clientSecret" | "stripeLocale">) {
+}: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -45,9 +67,47 @@ function PaymentForm({
   const [promoLoading, setPromoLoading] = useState(false);
   const [discountedAmount, setDiscountedAmount] = useState<number | null>(null);
   const [isFree, setIsFree] = useState(false);
+  const [applePayAvailable, setApplePayAvailable] = useState(false);
   const { toast } = useToast();
   const { t, formatCurrency } = useLocale();
   const displayAmount = discountedAmount ?? amount;
+
+  // Check Apple Pay via native plugin (not Stripe.js — doesn't work in WKWebView)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const key = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+    CapStripe.initialize({ publishableKey: key })
+      .then(() => CapStripe.isApplePayAvailable())
+      .then(() => setApplePayAvailable(true))
+      .catch(() => setApplePayAvailable(false));
+  }, []);
+
+  const handleApplePay = async () => {
+    if (!clientSecret) return;
+    setIsProcessing(true);
+    try {
+      await CapStripe.createApplePay({
+        paymentIntentClientSecret: clientSecret,
+        paymentSummaryItems: [{ label: description || "Resoly", amount: displayAmount }],
+        merchantIdentifier: "merchant.com.resoly.app.pay",
+        countryCode: userCountry || "FR",
+        currency: currency || "EUR",
+      });
+      const result = await CapStripe.presentApplePay();
+      if (result.paymentResult === "completed") {
+        onSuccess(paymentIntentId);
+      } else if (result.paymentResult !== "Canceled" && result.paymentResult !== "canceled") {
+        toast({ title: "Apple Pay failed", variant: "destructive" });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      if (!msg.toLowerCase().includes("cancel")) {
+        toast({ title: msg || "Apple Pay failed", variant: "destructive" });
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleApplyPromo = async () => {
     if (!promoInput.trim() || !promoEndpoint) return;
@@ -165,22 +225,49 @@ function PaymentForm({
           </div>
         )}
         {!isFree && (
-          <div className="rounded-xl border border-border p-4 bg-secondary/50">
-            <PaymentElement
-              options={{
-                layout: "tabs",
-                wallets: {
-                  applePay: "auto" as const,
-                  googlePay: "auto" as const,
-                },
-                defaultValues: {
-                  billingDetails: {
-                    address: { country: userCountry || undefined },
+          <>
+            {/* Apple Pay natif — visible uniquement sur iOS */}
+            {applePayAvailable && (
+              <>
+                <Button
+                  type="button"
+                  onClick={handleApplePay}
+                  disabled={isProcessing}
+                  className="w-full h-14 rounded-xl bg-black text-white font-bold text-base flex items-center justify-center gap-2 border border-white/10"
+                >
+                  {isProcessing ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M17.05 10.27c-.03-2.55 2.08-3.78 2.17-3.84-1.18-1.73-3.02-1.97-3.68-2-1.56-.16-3.06.93-3.85.93-.79 0-2-.91-3.3-.88-1.69.03-3.26.99-4.13 2.5-1.77 3.06-.45 7.58 1.26 10.07.84 1.22 1.84 2.59 3.15 2.54 1.27-.05 1.75-.82 3.28-.82 1.53 0 1.97.82 3.3.8 1.36-.03 2.22-1.24 3.05-2.47.97-1.41 1.36-2.79 1.38-2.86-.03-.01-2.64-1.02-2.63-4.03zM14.52 3.5c.7-.85 1.17-2.03 1.04-3.21-1.01.04-2.23.67-2.95 1.52-.65.75-1.22 1.96-1.07 3.11 1.13.09 2.28-.57 2.98-1.42z" />
+                      </svg>
+                      Pay
+                    </>
+                  )}
+                </Button>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-xs text-muted-foreground px-2">ou payer par carte</span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+              </>
+            )}
+            {/* Carte via Stripe Elements — Apple Pay désactivé ici (géré nativement) */}
+            <div className="rounded-xl border border-border p-4 bg-secondary/50">
+              <PaymentElement
+                options={{
+                  layout: "tabs",
+                  wallets: { applePay: "never", googlePay: "never" },
+                  defaultValues: {
+                    billingDetails: {
+                      address: { country: userCountry || undefined },
+                    },
                   },
-                },
-              }}
-            />
-          </div>
+                }}
+              />
+            </div>
+          </>
         )}
       </div>
       <div className="sticky bottom-0 px-4 pt-3 pb-4 bg-background border-t border-border">
@@ -213,6 +300,7 @@ const StripePaymentSheet = ({
   clientSecret,
   paymentIntentId,
   amount,
+  currency,
   description,
   onSuccess,
   onError,
@@ -269,10 +357,12 @@ const StripePaymentSheet = ({
           >
             <PaymentForm
               amount={amount}
+              currency={currency}
               description={description}
               onSuccess={onSuccess}
               onError={onError}
               paymentIntentId={paymentIntentId}
+              clientSecret={clientSecret}
               showPromoCode={showPromoCode}
               promoEndpoint={promoEndpoint}
               promoBody={promoBody}
