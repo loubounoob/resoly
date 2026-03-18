@@ -271,8 +271,6 @@ const StripePaymentSheet = ({
             stripe={stripeInstance}
             options={{
               clientSecret,
-              // ✅ FIX APPLE PAY GUIDELINE 4.9 : nom du marchand affiché sur la feuille Apple Pay
-              merchantDisplayName: "Resoly",
               appearance: {
                 theme: "night",
                 variables: {
