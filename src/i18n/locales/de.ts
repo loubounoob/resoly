@@ -1,4 +1,4 @@
-import type { TranslationKeys } from './fr';
+import type { TranslationKeys } from "./fr";
 
 const de: TranslationKeys = {
   common: {
@@ -27,7 +27,8 @@ const de: TranslationKeys = {
   landing: {
     heroTitle1: "Setze auf",
     heroTitleHighlight: "deine Disziplin.",
-    heroSubtitle: "Setze dein Geld ein, schaffe deine Fitness-Challenge und hol dir deinen Einsatz zurück + exklusive Belohnungen.",
+    heroSubtitle:
+      "Setze dein Geld ein, schaffe deine Fitness-Challenge und hol dir deinen Einsatz zurück + exklusive Belohnungen.",
     feature1: "Ziele intelligent an dein Tempo angepasst",
     feature2: "KI-verifiziertes Foto bei jeder Einheit",
     feature3: "Steigende Belohnungen bei Erfolg",
@@ -85,15 +86,30 @@ const de: TranslationKeys = {
     slide3Title: "Das einzige Geheimnis\nist Regelmäßigkeit.",
     slide3Body: "90% der Menschen geben vor 3 Monaten auf.\nDu nicht.",
     slide4Title: "Setze auf dich selbst.",
-    slide4Body: "Du setzt Geld ein.\nWenn du durchhältst, bekommst du alles zurück\n+ Belohnungen.\n\nDieses System sorgt für 7x mehr Regelmäßigkeit.",
+    slide4Body:
+      "Du setzt Geld ein.\nWenn du durchhältst, bekommst du alles zurück\n+ Belohnungen.\n\nDieses System sorgt für 7x mehr Regelmäßigkeit.",
     slide5Title: "Sie haben die Challenge angenommen.",
     slide5Sub: "+2.400 Nutzer transformiert",
     statsSuccess: "Erfolgsquote",
     statsRegular: "regelmäßiger",
     statsTransformed: "transformiert",
     testimonialNames: ["Clara, 26", "Thomas, 31", "Karim, 24", "Philippe, 52", "Marc, 41", "Sophie, 35"],
-    testimonialResults: ["-8 kg in 2 Monaten", "-14 kg in 3 Monaten", "+6 kg Muskeln", "-11 kg in 3 Monaten", "-9 kg in 2 Monaten", "-7 kg in 2 Monaten"],
-    testimonialQuotes: ["Ich habe noch nie so lange durchgehalten. Der Einsatz hat alles verändert.", "Ich dachte, es wäre unmöglich. Resoly hat mir das Gegenteil bewiesen.", "Die Challenge mit einem Freund hat mir wahnsinnige Disziplin gegeben.", "In meinem Alter hätte ich nie gedacht, wieder Sport zu machen. Danke Resoly.", "Einfach, effektiv. Ich habe meine Form und mein Selbstvertrauen zurück.", "Die Ergebnisse sprechen für sich. Ich empfehle es zu 100%."],
+    testimonialResults: [
+      "-8 kg in 2 Monaten",
+      "-14 kg in 3 Monaten",
+      "+6 kg Muskeln",
+      "-11 kg in 3 Monaten",
+      "-9 kg in 2 Monaten",
+      "-7 kg in 2 Monaten",
+    ],
+    testimonialQuotes: [
+      "Ich habe noch nie so lange durchgehalten. Der Einsatz hat alles verändert.",
+      "Ich dachte, es wäre unmöglich. Resoly hat mir das Gegenteil bewiesen.",
+      "Die Challenge mit einem Freund hat mir wahnsinnige Disziplin gegeben.",
+      "In meinem Alter hätte ich nie gedacht, wieder Sport zu machen. Danke Resoly.",
+      "Einfach, effektiv. Ich habe meine Form und mein Selbstvertrauen zurück.",
+      "Die Ergebnisse sprechen für sich. Ich empfehle es zu 100%.",
+    ],
     slide6Title: "Wie entschlossen\nbist du?",
     slide6Opts: ["Ich probiere es", "Ich bin motiviert", "Nichts hält mich auf"],
     slide6Emojis: ["🤔", "💪", "🔥"],
@@ -118,11 +134,13 @@ const de: TranslationKeys = {
     accessible: "Erreichbar",
     launch: "Challenge starten",
     firstWeekTitle: "Erste Woche angepasst",
-    firstWeekDesc0: "Du startest an einem {day}. Dein Ziel diese Woche ist 0 Einheiten — deine Challenge beginnt richtig nächsten Montag mit {sessions} Einheiten/Woche.",
-    firstWeekDesc: "Du startest an einem {day}. Dein Ziel für diese erste Woche ist {goal} Einheit{s} (statt {sessions}). Folgende Wochen: {sessions} Einheiten.",
+    firstWeekDesc0:
+      "Du startest an einem {day}. Dein Ziel diese Woche ist 0 Einheiten — deine Challenge beginnt richtig nächsten Montag mit {sessions} Einheiten/Woche.",
+    firstWeekDesc:
+      "Du startest an einem {day}. Dein Ziel für diese erste Woche ist {goal} Einheit{s} (statt {sessions}). Folgende Wochen: {sessions} Einheiten.",
     paymentError: "Zahlungsfehler",
     dayNames: ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"],
-    betDescription: "Resoly Einsatz — {amount} — {sessions}x/Woche für {duration} Monate",
+    betDescription: "Resoly",
     promoPlaceholder: "Aktionscode",
     promoApply: "Anwenden",
     promoApplied: "Code angewendet! +50% Münzen 🎉",
@@ -244,7 +262,8 @@ const de: TranslationKeys = {
     coinsAddedTitle: "Münzen hinzugefügt!",
     paymentConfirmed: "Zahlung bestätigt!",
     coinsCredit: "Deine Münzen wurden deinem Konto gutgeschrieben! 🪙",
-    socialConfirmed: "Dein Einsatz ist registriert! Die Challenge wird aktiviert wenn alle Teilnehmer bezahlt haben. 🤝",
+    socialConfirmed:
+      "Dein Einsatz ist registriert! Die Challenge wird aktiviert wenn alle Teilnehmer bezahlt haben. 🤝",
     returnBtn: "Zurück",
     viewChallenges: "Meine Challenges",
     errorTitle: "Zahlungsfehler",
@@ -272,7 +291,8 @@ const de: TranslationKeys = {
     giftChallenge: "🎁 Challenge verschenken",
     bet: "Einsatz",
     frequency: "Häufigkeit",
-    friendSuccess: "✅ Dein Freund wird bei Erfolg erstattet · ❌ Dein Einsatz geht bei Misserfolg verloren · 🪙 +{coins} Münzen Bonus",
+    friendSuccess:
+      "✅ Dein Freund wird bei Erfolg erstattet · ❌ Dein Einsatz geht bei Misserfolg verloren · 🪙 +{coins} Münzen Bonus",
     pay: "{amount} zahlen und Challenge verschenken",
     createError: "Fehler beim Erstellen",
     betDescription: "Resoly Einsatz — Challenge verschenken {amount} — {sessions}x/Woche für {duration} Monate",
@@ -299,10 +319,20 @@ const de: TranslationKeys = {
     step2Opts: ["Gar nicht", "Ab und zu", "Regelmäßig aber könnte besser", "Hat seit einer Weile aufgegeben"],
     step3Title: "Was hat dich überzeugt?",
     step3Sub: "Warum jetzt?",
-    step3Opts: ["Ich will dass wir es zusammen machen", "Er/sie braucht einen Boost", "Ich will zeigen dass ich an ihn/sie glaube", "Es ist ein Geschenk das wirklich etwas verändert"],
+    step3Opts: [
+      "Ich will dass wir es zusammen machen",
+      "Er/sie braucht einen Boost",
+      "Ich will zeigen dass ich an ihn/sie glaube",
+      "Es ist ein Geschenk das wirklich etwas verändert",
+    ],
     step4Title: "Was ist das Ziel?",
     step4Sub: "Was möchtest du für ihn/sie?",
-    step4Opts: ["Wieder eine Routine aufbauen", "Sich besser fühlen", "Sich gegenseitig herausfordern", "Über sich hinauswachsen"],
+    step4Opts: [
+      "Wieder eine Routine aufbauen",
+      "Sich besser fühlen",
+      "Sich gegenseitig herausfordern",
+      "Über sich hinauswachsen",
+    ],
     step5Title: "Echte handeln.",
     step5Sub: "Eine Challenge zu verschenken bedeutet auf jemanden zu setzen. Und das ist stark.",
     step5Cta: "Los geht's",
@@ -347,7 +377,8 @@ const de: TranslationKeys = {
     title: "Challenge vorbei...",
     didntReach: "Du hast dein Ziel nicht erreicht 😔",
     betLost: "Einsatz verloren",
-    encouragement: "Jeder Misserfolg bringt dich dem Erfolg näher. Regelmäßigkeit wird erlernt — komm stärker zurück! 💪",
+    encouragement:
+      "Jeder Misserfolg bringt dich dem Erfolg näher. Regelmäßigkeit wird erlernt — komm stärker zurück! 💪",
     retryChallenge: "Challenge annehmen",
   },
   victory: {
@@ -372,7 +403,8 @@ const de: TranslationKeys = {
     title: "Münzen kaufen",
     coins: "{count} Münzen",
     referral: "Empfehlung",
-    referralDesc: "Teile deinen Code und verdiene 50 Münzen pro Empfehlung + 250 Münzen wenn eine Challenge von +50{currency} erstellt wird!",
+    referralDesc:
+      "Teile deinen Code und verdiene 50 Münzen pro Empfehlung + 250 Münzen wenn eine Challenge von +50{currency} erstellt wird!",
     codeCopied: "Code kopiert!",
     code: "Code: {code}",
     paymentError: "Zahlung konnte nicht gestartet werden",
@@ -409,7 +441,8 @@ const de: TranslationKeys = {
     countrySaved: "Land aktualisiert!",
     deleteAccount: "Mein Konto löschen",
     deleteAccountConfirm: "Endgültig löschen",
-    deleteAccountDescription: "Diese Aktion ist unwiderruflich. Alle deine Daten, Challenges, Münzen und Verlauf werden gelöscht.",
+    deleteAccountDescription:
+      "Diese Aktion ist unwiderruflich. Alle deine Daten, Challenges, Münzen und Verlauf werden gelöscht.",
     deleteAccountSuccess: "Konto erfolgreich gelöscht",
     deleteAccountError: "Fehler beim Löschen des Kontos",
     privacyPolicy: "Datenschutzrichtlinie",
@@ -418,7 +451,8 @@ const de: TranslationKeys = {
     later: "Vielleicht später",
     notifications: {
       title: "Verpasse nie einen Sieg 🏆",
-      description: "Werde benachrichtigt wenn deine Challenge in Gefahr ist, ein Freund dich herausfordert und du Belohnungen verdienst.",
+      description:
+        "Werde benachrichtigt wenn deine Challenge in Gefahr ist, ein Freund dich herausfordert und du Belohnungen verdienst.",
       bullet1: "Alarm wenn deine Challenge in Gefahr ist — reagiere rechtzeitig",
       bullet2: "Sofortige Benachrichtigung wenn ein Freund dich herausfordert — nimm an",
       bullet3: "Erfahre als Erster wenn du Belohnungen freischaltest 🎁",
