@@ -269,20 +269,24 @@ const StripePaymentSheet = ({
         <div className="px-4 pb-6">
           <Elements
             stripe={stripeInstance}
-            options={{
-              clientSecret,
-              appearance: {
-                theme: "night",
-                variables: {
-                  colorPrimary: "#a3e635",
-                  colorBackground: "#1a1a2e",
-                  colorText: "#e2e8f0",
-                  colorDanger: "#ef4444",
-                  borderRadius: "12px",
-                  fontFamily: "system-ui, sans-serif",
+            options={
+              {
+                clientSecret,
+                // ✅ FIX APPLE PAY GUIDELINE 4.9 : nom du marchand affiché sur la feuille Apple Pay
+                merchantDisplayName: "Resoly",
+                appearance: {
+                  theme: "night",
+                  variables: {
+                    colorPrimary: "#a3e635",
+                    colorBackground: "#1a1a2e",
+                    colorText: "#e2e8f0",
+                    colorDanger: "#ef4444",
+                    borderRadius: "12px",
+                    fontFamily: "system-ui, sans-serif",
+                  },
                 },
-              },
-            }}
+              } as any // contourne l'erreur TS2353 (types @stripe/stripe-js obsolètes)
+            }
           >
             <PaymentForm
               amount={amount}
