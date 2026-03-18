@@ -295,7 +295,7 @@ const de: TranslationKeys = {
       "✅ Dein Freund wird bei Erfolg erstattet · ❌ Dein Einsatz geht bei Misserfolg verloren · 🪙 +{coins} Münzen Bonus",
     pay: "{amount} zahlen und Challenge verschenken",
     createError: "Fehler beim Erstellen",
-    betDescription: "Resoly Einsatz — Challenge verschenken {amount} — {sessions}x/Woche für {duration} Monate",
+    betDescription: "Resoly",
   },
   createGroup: {
     title: "Gruppe erstellen",

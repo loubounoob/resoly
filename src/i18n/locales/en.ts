@@ -1,4 +1,4 @@
-import type { TranslationKeys } from './fr';
+import type { TranslationKeys } from "./fr";
 
 const en: TranslationKeys = {
   common: {
@@ -27,7 +27,8 @@ const en: TranslationKeys = {
   landing: {
     heroTitle1: "Bet on",
     heroTitleHighlight: "your discipline.",
-    heroSubtitle: "Put your money on the line, crush your fitness challenge, and get your stake back + exclusive rewards.",
+    heroSubtitle:
+      "Put your money on the line, crush your fitness challenge, and get your stake back + exclusive rewards.",
     feature1: "Goals intelligently adjusted to your pace",
     feature2: "AI-verified photo at every session",
     feature3: "Escalating rewards if you win",
@@ -85,15 +86,30 @@ const en: TranslationKeys = {
     slide3Title: "The only secret\nis consistency.",
     slide3Body: "90% of people quit before 3 months.\nNot you.",
     slide4Title: "Bet on yourself.",
-    slide4Body: "You put money on the line.\nIf you stick with it, you get it all back\n+ rewards.\n\nThis system drives 7x more consistency.",
+    slide4Body:
+      "You put money on the line.\nIf you stick with it, you get it all back\n+ rewards.\n\nThis system drives 7x more consistency.",
     slide5Title: "They took the challenge.",
     slide5Sub: "+2,400 users transformed",
     statsSuccess: "success rate",
     statsRegular: "more consistent",
     statsTransformed: "transformed",
     testimonialNames: ["Clara, 26", "Thomas, 31", "Karim, 24", "Philippe, 52", "Marc, 41", "Sophie, 35"],
-    testimonialResults: ["-8 kg in 2 months", "-14 kg in 3 months", "+6 kg muscle", "-11 kg in 3 months", "-9 kg in 2 months", "-7 kg in 2 months"],
-    testimonialQuotes: ["I never lasted this long before. Betting on myself changed everything.", "I thought it was impossible. Resoly proved me wrong.", "The challenge with a friend gave me insane discipline.", "At my age, I never thought I'd get back to sport. Thanks Resoly.", "Simple, effective. I got my shape and confidence back.", "The results speak for themselves. I recommend it 100%."],
+    testimonialResults: [
+      "-8 kg in 2 months",
+      "-14 kg in 3 months",
+      "+6 kg muscle",
+      "-11 kg in 3 months",
+      "-9 kg in 2 months",
+      "-7 kg in 2 months",
+    ],
+    testimonialQuotes: [
+      "I never lasted this long before. Betting on myself changed everything.",
+      "I thought it was impossible. Resoly proved me wrong.",
+      "The challenge with a friend gave me insane discipline.",
+      "At my age, I never thought I'd get back to sport. Thanks Resoly.",
+      "Simple, effective. I got my shape and confidence back.",
+      "The results speak for themselves. I recommend it 100%.",
+    ],
     slide6Title: "How determined\nare you?",
     slide6Opts: ["I'll try", "I'm motivated", "Nothing will stop me"],
     slide6Emojis: ["🤔", "💪", "🔥"],
@@ -118,11 +134,13 @@ const en: TranslationKeys = {
     accessible: "Accessible",
     launch: "Launch the challenge",
     firstWeekTitle: "First week adjusted",
-    firstWeekDesc0: "You're starting on a {day}. Your goal this week will be 0 sessions — your challenge really starts next Monday with {sessions} sessions/week.",
-    firstWeekDesc: "You're starting on a {day}. Your goal for this first week will be {goal} session{s} (instead of {sessions}). Following weeks: {sessions} sessions.",
+    firstWeekDesc0:
+      "You're starting on a {day}. Your goal this week will be 0 sessions — your challenge really starts next Monday with {sessions} sessions/week.",
+    firstWeekDesc:
+      "You're starting on a {day}. Your goal for this first week will be {goal} session{s} (instead of {sessions}). Following weeks: {sessions} sessions.",
     paymentError: "Payment error",
     dayNames: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-    betDescription: "Resoly Stake — {amount} — {sessions}x/week for {duration} months",
+    betDescription: "Resoly",
     promoPlaceholder: "Promo code",
     promoApply: "Apply",
     promoApplied: "Code applied! +50% coins 🎉",
@@ -258,7 +276,8 @@ const en: TranslationKeys = {
     totalSessions: "Total sessions",
     durationLabel: "Duration",
     coinsToEarn: "Coins to earn",
-    friendCoins: "Your friend earns {coins} coins if they complete the challenge. Your stake of {amount} is refunded to them on success.",
+    friendCoins:
+      "Your friend earns {coins} coins if they complete the challenge. Your stake of {amount} is refunded to them on success.",
     whatTheyCanBuy: "What they'll be able to buy",
     accessible: "Accessible",
     selectFriend: "Select a friend",
@@ -272,10 +291,11 @@ const en: TranslationKeys = {
     giftChallenge: "🎁 Gift a challenge",
     bet: "Stake",
     frequency: "Frequency",
-    friendSuccess: "✅ Your friend is refunded if they succeed · ❌ Your stake is lost if they fail · 🪙 +{coins} coins bonus",
+    friendSuccess:
+      "✅ Your friend is refunded if they succeed · ❌ Your stake is lost if they fail · 🪙 +{coins} coins bonus",
     pay: "Pay {amount} and gift the challenge",
     createError: "Error creating challenge",
-    betDescription: "Resoly Stake — Gift a challenge {amount} — {sessions}x/week for {duration} months",
+    betDescription: "Resoly",
   },
   createGroup: {
     title: "Create a group",
@@ -299,10 +319,20 @@ const en: TranslationKeys = {
     step2Opts: ["Not at all", "Occasionally", "Regularly but could do better", "They've given up for a while"],
     step3Title: "What made you decide?",
     step3Sub: "Why now?",
-    step3Opts: ["I want us to do it together", "They need a boost", "I want to show them I believe in them", "It's a gift that really makes a difference"],
+    step3Opts: [
+      "I want us to do it together",
+      "They need a boost",
+      "I want to show them I believe in them",
+      "It's a gift that really makes a difference",
+    ],
     step4Title: "What's the goal?",
     step4Sub: "What are you aiming for?",
-    step4Opts: ["Get them back into a routine", "Help them feel better", "Challenge each other", "Help them push beyond"],
+    step4Opts: [
+      "Get them back into a routine",
+      "Help them feel better",
+      "Challenge each other",
+      "Help them push beyond",
+    ],
     step5Title: "Real ones take action.",
     step5Sub: "Gifting a challenge means betting on someone. And that's powerful.",
     step5Cta: "Let's go",
@@ -372,7 +402,8 @@ const en: TranslationKeys = {
     title: "Buy coins",
     coins: "{count} coins",
     referral: "Referral",
-    referralDesc: "Share your code and earn 50 coins per referral + 250 coins if they create a challenge of +50{currency}!",
+    referralDesc:
+      "Share your code and earn 50 coins per referral + 250 coins if they create a challenge of +50{currency}!",
     codeCopied: "Code copied!",
     code: "Code: {code}",
     paymentError: "Unable to start payment",
@@ -409,7 +440,8 @@ const en: TranslationKeys = {
     countrySaved: "Country updated!",
     deleteAccount: "Delete my account",
     deleteAccountConfirm: "Delete permanently",
-    deleteAccountDescription: "This action is irreversible. All your data, challenges, coins and history will be deleted.",
+    deleteAccountDescription:
+      "This action is irreversible. All your data, challenges, coins and history will be deleted.",
     deleteAccountSuccess: "Account deleted successfully",
     deleteAccountError: "Error deleting account",
     privacyPolicy: "Privacy Policy",
@@ -418,7 +450,8 @@ const en: TranslationKeys = {
     later: "Maybe later",
     notifications: {
       title: "Never miss a win 🏆",
-      description: "Get alerted when your challenge is at risk, when a friend challenges you, and when you earn rewards.",
+      description:
+        "Get alerted when your challenge is at risk, when a friend challenges you, and when you earn rewards.",
       bullet1: "Alert when your challenge is in danger — react before it's too late",
       bullet2: "Instant notification when a friend challenges you — step up",
       bullet3: "Be the first to know when you unlock rewards 🎁",
