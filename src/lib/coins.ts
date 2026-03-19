@@ -22,10 +22,10 @@ export const getPromoMultiplier = (code?: string): number => {
 };
 
 export const getCurrencyMultiplier = (currency?: string): number => {
-  if (!currency) return 1.5;
+  if (!currency) return 1.0;
   const c = currency.toUpperCase();
-  if (c === "AUD" || c === "CAD") return 1.0;
-  if (c === "USD") return 1.25;
+  if (c === "AUD" || c === "CAD") return 0.65;
+  if (c === "USD") return 0.85;
   return 1.5;
 };
 
