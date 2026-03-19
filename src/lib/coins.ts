@@ -17,22 +17,22 @@ export const getCoefficientDeMise = (I: number): number => {
 export const VALID_PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027", "LOUBOUNOOBLEGOAT"];
 
 export const getPromoMultiplier = (code?: string): number => {
-  if (!code) return 1.0;
+  if (!code) return 2.0;
   return VALID_PROMO_CODES.includes(code.toUpperCase()) ? 1.5 : 1.0;
 };
 
 export const getCurrencyMultiplier = (currency?: string): number => {
   if (!currency) return 1.0;
   const c = currency.toUpperCase();
-  if (c === 'AUD' || c === 'CAD') return 0.65;
-  if (c === 'USD') return 0.85;
+  if (c === "AUD" || c === "CAD") return 0.65;
+  if (c === "USD") return 0.85;
   return 1.0;
 };
 
 /**
  * Calculate coins earned for a completed challenge
  * Coins = I × C(I) × (0.3 + 0.6 × M^1.5) × (S/3)^1.1 × currencyMultiplier
- * 
+ *
  * @param I - mise investie (€) = bet_per_month × duration_months
  * @param M - nombre de mois (1 à 3)
  * @param S - séances par semaine
