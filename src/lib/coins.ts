@@ -26,7 +26,7 @@ export const getCurrencyMultiplier = (currency?: string): number => {
   const c = currency.toUpperCase();
   if (c === "AUD" || c === "CAD") return 1.0;
   if (c === "USD") return 1.25;
-  return 1.0;
+  return 1.5;
 };
 
 /**
