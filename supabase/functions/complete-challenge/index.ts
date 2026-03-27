@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { countryToLocale, getNotifText } from "../_shared/notif-i18n.ts";
 
@@ -9,20 +8,43 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Coin system — mirrors src/lib/coins.ts
+type SubscriptionTier = "free" | "starter" | "pro" | "elite";
+
+const TIER_COINS_PER_SESSION: Record<SubscriptionTier, number> = {
+  free: 1,
+  starter: 3,
+  pro: 5,
+  elite: 7,
+};
+const TIER_MULTIPLIER: Record<SubscriptionTier, number> = {
+  free: 0.05,
+  starter: 1,
+  pro: 2,
+  elite: 3,
+};
+const BASE_BONUS = 300;
+const VALID_PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027", "LOUBOUNOOBLEGOAT"];
+
+const calculateMonthlyBonus = (sessionsPerWeek: number, tier: SubscriptionTier): number => {
+  return Math.round(BASE_BONUS * Math.pow(sessionsPerWeek / 3, 1.1) * TIER_MULTIPLIER[tier]);
+};
+
+const getCoinsPerSession = (tier: SubscriptionTier): number => TIER_COINS_PER_SESSION[tier];
+
+const getPromoMultiplier = (code?: string): number => {
+  if (!code) return 1.0;
+  return VALID_PROMO_CODES.includes(code.toUpperCase()) ? 1.5 : 1.0;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabaseAdmin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+  const supabaseAdmin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-  const supabaseClient = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_ANON_KEY")!
-  );
+  const supabaseClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -45,7 +67,7 @@ serve(async (req) => {
     const { challengeId } = await req.json();
     if (!challengeId) throw new Error("Missing challengeId");
 
-    // Fetch challenge data (needed for coin calculation, but NOT as a status guard)
+    // Fetch challenge
     const { data: challenge, error: chErr } = await supabaseAdmin
       .from("challenges")
       .select("*")
@@ -64,44 +86,32 @@ serve(async (req) => {
       throw new Error("Not all sessions completed");
     }
 
-    // Fetch profile (needed for currency multiplier)
+    // Fetch profile (subscription tier, country, coins)
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("coins, country")
+      .select("coins, country, subscription_tier, streak_months")
       .eq("user_id", userId)
       .single();
 
-    // Calculate coins
-    const getCoefficientDeMise = (I: number): number => {
-      if (I <= 50) return 1 + 0.004 * I;
-      if (I <= 75) return 1.2 + 0.012 * (I - 50);
-      if (I <= 100) return 1.5 + 0.02 * (I - 75);
-      if (I <= 300) return 2 - 0.0045 * (I - 100);
-      if (I <= 860) return 1.1 - 0.000785 * (I - 300);
-      if (I <= 1000) return 0.6604 - 0.0005 * (I - 860);
-      return Math.max(0.15, 0.59 - 0.00009 * (I - 1000));
-    };
-    const I = challenge.bet_per_month;
-    const M = challenge.duration_months;
-    const S = challenge.sessions_per_week;
-    const CI = getCoefficientDeMise(I);
-    const monthFactor = 0.3 + 0.6 * Math.pow(M, 1.5);
-    const sessionFactor = Math.pow(S / 3, 1.1);
+    const tier: SubscriptionTier = (profile?.subscription_tier as SubscriptionTier) ?? "free";
+    const sessionsPerWeek: number = challenge.sessions_per_week ?? 3;
+    const completedSessions: number = count ?? 0;
 
-    const countryToCurrencyMult: Record<string, number> = {
-      AU: 0.65, CA: 0.65, US: 0.85,
-    };
-    const userCountry = (profile?.country || 'FR').toUpperCase();
-    const currencyMult = countryToCurrencyMult[userCountry] ?? 1.0;
-    const VALID_PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027"];
-    const promoMult = challenge.promo_code && VALID_PROMO_CODES.includes(challenge.promo_code.toUpperCase()) ? 1.5 : 1.0;
-    const coinsToEarn = Math.round(I * CI * monthFactor * sessionFactor * currencyMult * promoMult);
+    // Calculate coins
+    const coinsPerSession = getCoinsPerSession(tier);
+    const promoMult = getPromoMultiplier(challenge.promo_code ?? undefined);
+    const sessionCoinsEarned = Math.round(completedSessions * coinsPerSession * promoMult);
+    const bonusCoins = Math.round(calculateMonthlyBonus(sessionsPerWeek, tier) * promoMult);
+    const totalCoinsToAward = sessionCoinsEarned + bonusCoins;
 
     // === ATOMIC UPDATE: mark completed WHERE status = 'active' ===
-    // This is the critical idempotency guard — only one concurrent request can win
     const { data: updated, error: updateErr } = await supabaseAdmin
       .from("challenges")
-      .update({ status: "completed", coins_awarded: coinsToEarn })
+      .update({
+        status: "completed",
+        coins_awarded: totalCoinsToAward,
+        session_coins_earned: sessionCoinsEarned,
+      })
       .eq("id", challengeId)
       .eq("user_id", userId)
       .eq("status", "active")
@@ -109,93 +119,95 @@ serve(async (req) => {
 
     if (updateErr) throw updateErr;
     if (!updated || updated.length === 0) {
-      // Already completed or failed by another concurrent request
-      return new Response(
-        JSON.stringify({ success: true, already_completed: true }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-      );
+      return new Response(JSON.stringify({ success: true, already_completed: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
-    // === CREDIT COINS via atomic SQL function ===
-    await supabaseAdmin.rpc('increment_coins', { _user_id: userId, _amount: coinsToEarn });
+    // === CREDIT COINS ===
+    await supabaseAdmin.rpc("increment_coins", { _user_id: userId, _amount: totalCoinsToAward });
 
-    // === STRIPE REFUND (after atomic update to prevent double refund) ===
-    let refunded = false;
-    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-      apiVersion: "2025-08-27.basil",
-    });
+    // === Record coin transaction ===
+    await supabaseAdmin
+      .from("coin_transactions")
+      .insert({
+        user_id: userId,
+        amount: totalCoinsToAward,
+        transaction_type: "monthly_bonus",
+        challenge_id: challengeId,
+        description: `Challenge completed: ${sessionCoinsEarned} session coins + ${bonusCoins} bonus`,
+      })
+      .then(() => {})
+      .catch(console.error);
 
-    if (challenge.social_challenge_id) {
-      const { data: sc } = await supabaseAdmin
-        .from("social_challenges")
-        .select("created_by")
-        .eq("id", challenge.social_challenge_id)
-        .single();
+    // === Update streak_months ===
+    const newStreak = (profile?.streak_months ?? 0) + 1;
+    await supabaseAdmin.from("profiles").update({ streak_months: newStreak }).eq("user_id", userId);
 
-      if (sc?.created_by) {
-        const { data: creatorMember } = await supabaseAdmin
-          .from("social_challenge_members")
-          .select("stripe_payment_intent_id")
-          .eq("social_challenge_id", challenge.social_challenge_id)
-          .eq("user_id", sc.created_by)
-          .single();
-
-        if (creatorMember?.stripe_payment_intent_id) {
-          await stripe.refunds.create(
-            { payment_intent: creatorMember.stripe_payment_intent_id },
-            { idempotencyKey: `refund-${challengeId}` }
-          );
-          refunded = true;
-        }
-      }
-    } else if (challenge.stripe_payment_intent_id) {
-      await stripe.refunds.create(
-        { payment_intent: challenge.stripe_payment_intent_id },
-        { idempotencyKey: `refund-${challengeId}` }
-      );
-      refunded = true;
-    }
-
-    const userLocale = countryToLocale(profile?.country);
-
-    // Sync status update to Google Sheets
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    try {
-      await fetch(`${supabaseUrl}/functions/v1/sync-challenge-sheet`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceKey}`,
-        },
-        body: JSON.stringify({
-          challenge_id: challengeId,
-          status: "completed",
-          update_only: true,
-        }),
-      });
-    } catch (syncErr) {
-      console.error("Sheet sync error:", syncErr);
-    }
 
+    // === Sync to Google Sheets (non-blocking) ===
+    fetch(`${supabaseUrl}/functions/v1/sync-challenge-sheet`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        challenge_id: challengeId,
+        status: "completed",
+        update_only: true,
+      }),
+    }).catch(console.error);
+
+    // === Schedule auto-renewal (non-blocking) ===
+    fetch(`${supabaseUrl}/functions/v1/auto-renew-challenge`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ challengeId, userId, reason: "completed" }),
+    }).catch(console.error);
+
+    // === Send victory notification ===
+    const userLocale = countryToLocale(profile?.country);
     const isBoosted = !!challenge.social_challenge_id;
 
-    // Send victory notification
     try {
-      if (isBoosted) {
-        const notifPlayer = getNotifText(userLocale, 'challenge_completed_boost', coinsToEarn);
-        await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
-          body: JSON.stringify({
-            user_id: userId,
-            type: "challenge_completed",
-            title: notifPlayer.title,
-            body: notifPlayer.body,
-            data: { challenge_id: challengeId, coins: coinsToEarn, route: "/dashboard" },
-          }),
-        });
+      const notifTitle =
+        userLocale === "fr"
+          ? "Challenge terminé ! 🏆"
+          : userLocale === "de"
+            ? "Challenge abgeschlossen! 🏆"
+            : "Challenge complete! 🏆";
+      const notifBody =
+        userLocale === "fr"
+          ? `Tu as gagné ${totalCoinsToAward} coins ce mois-ci 🪙`
+          : userLocale === "de"
+            ? `Du hast ${totalCoinsToAward} Münzen diesen Monat verdient 🪙`
+            : `You earned ${totalCoinsToAward} coins this month 🪙`;
 
+      await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+        body: JSON.stringify({
+          user_id: userId,
+          type: "challenge_completed",
+          title: notifTitle,
+          body: notifBody,
+          data: {
+            challenge_id: challengeId,
+            coins: totalCoinsToAward,
+            bonus_coins: bonusCoins,
+            route: "/dashboard",
+          },
+        }),
+      });
+
+      if (isBoosted) {
         const { data: sc } = await supabaseAdmin
           .from("social_challenges")
           .select("created_by")
@@ -214,48 +226,53 @@ serve(async (req) => {
             .eq("user_id", sc.created_by)
             .single();
           const creatorLocale = countryToLocale(creatorProfile?.country);
-          const playerName = playerProfile?.username ? `@${playerProfile.username}` : (creatorLocale === 'fr' ? "Ton ami" : creatorLocale === 'de' ? "Dein Freund" : "Your friend");
+          const playerName = playerProfile?.username
+            ? `@${playerProfile.username}`
+            : creatorLocale === "fr"
+              ? "Ton ami"
+              : creatorLocale === "de"
+                ? "Dein Freund"
+                : "Your friend";
 
-          const notifCreator = getNotifText(creatorLocale, 'boost_completed', playerName, refunded);
+          const creatorTitle =
+            creatorLocale === "fr"
+              ? `${playerName} a terminé son challenge ! 🎉`
+              : creatorLocale === "de"
+                ? `${playerName} hat die Challenge abgeschlossen! 🎉`
+                : `${playerName} completed the challenge! 🎉`;
+
           await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
             body: JSON.stringify({
               user_id: sc.created_by,
               type: "boost_completed",
-              title: notifCreator.title,
-              body: notifCreator.body,
+              title: creatorTitle,
+              body: "",
               data: { challenge_id: challengeId, route: "/friends" },
             }),
           });
         }
-      } else {
-        const betTotal = challenge.bet_per_month * challenge.duration_months;
-        const notif = getNotifText(userLocale, 'challenge_completed', coinsToEarn, refunded, betTotal);
-        await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
-          body: JSON.stringify({
-            user_id: userId,
-            type: "challenge_completed",
-            title: notif.title,
-            body: notif.body,
-            data: { challenge_id: challengeId, coins: coinsToEarn, refunded, route: "/dashboard" },
-          }),
-        });
       }
     } catch (notifErr) {
       console.error("Victory notification error (non-blocking):", notifErr);
     }
 
     return new Response(
-      JSON.stringify({ success: true, refunded, coinsAwarded: coinsToEarn, isBoosted }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      JSON.stringify({
+        success: true,
+        coinsAwarded: totalCoinsToAward,
+        sessionCoins: sessionCoinsEarned,
+        bonusCoins,
+        streakMonths: newStreak,
+        isBoosted,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
     );
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 400,
+    });
   }
 });
