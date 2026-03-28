@@ -22,14 +22,17 @@ export type Database = {
           duration_months: number
           first_week_sessions: number | null
           id: string
+          next_month_sessions_per_week: number | null
           odds: number
           payment_status: string
           promo_code: string | null
+          session_coins_earned: number
           sessions_per_week: number
           social_challenge_id: string | null
           started_at: string
           status: string
           stripe_payment_intent_id: string | null
+          tier_at_creation: string | null
           total_sessions: number
           updated_at: string
           user_id: string
@@ -41,14 +44,17 @@ export type Database = {
           duration_months?: number
           first_week_sessions?: number | null
           id?: string
+          next_month_sessions_per_week?: number | null
           odds?: number
           payment_status?: string
           promo_code?: string | null
+          session_coins_earned?: number
           sessions_per_week?: number
           social_challenge_id?: string | null
           started_at?: string
           status?: string
           stripe_payment_intent_id?: string | null
+          tier_at_creation?: string | null
           total_sessions?: number
           updated_at?: string
           user_id: string
@@ -60,14 +66,17 @@ export type Database = {
           duration_months?: number
           first_week_sessions?: number | null
           id?: string
+          next_month_sessions_per_week?: number | null
           odds?: number
           payment_status?: string
           promo_code?: string | null
+          session_coins_earned?: number
           sessions_per_week?: number
           social_challenge_id?: string | null
           started_at?: string
           status?: string
           stripe_payment_intent_id?: string | null
+          tier_at_creation?: string | null
           total_sessions?: number
           updated_at?: string
           user_id?: string
@@ -188,6 +197,44 @@ export type Database = {
           variant_title?: string | null
         }
         Relationships: []
+      }
+      coin_transactions: {
+        Row: {
+          amount: number
+          challenge_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          challenge_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          challenge_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coin_transactions_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       friendships: {
         Row: {
@@ -379,6 +426,8 @@ export type Database = {
           phone: string | null
           referral_bonus_paid: boolean
           referred_by: string | null
+          streak_months: number
+          subscription_tier: string
           updated_at: string
           user_id: string
           username: string | null
@@ -406,6 +455,8 @@ export type Database = {
           phone?: string | null
           referral_bonus_paid?: boolean
           referred_by?: string | null
+          streak_months?: number
+          subscription_tier?: string
           updated_at?: string
           user_id: string
           username?: string | null
@@ -433,6 +484,8 @@ export type Database = {
           phone?: string | null
           referral_bonus_paid?: boolean
           referred_by?: string | null
+          streak_months?: number
+          subscription_tier?: string
           updated_at?: string
           user_id?: string
           username?: string | null
@@ -720,6 +773,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      subscriptions: {
+        Row: {
+          billing_cycle: string
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          id: string
+          started_at: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          tier: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billing_cycle?: string
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billing_cycle?: string
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
