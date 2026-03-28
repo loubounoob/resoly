@@ -90,6 +90,14 @@ export const useCreateChallenge = () => {
         .eq("status", "active")
         .eq("payment_status", "pending");
 
+      // Also fail any active free challenges before creating a paid one
+      await supabase
+        .from("challenges")
+        .update({ status: "failed" })
+        .eq("user_id", user!.id)
+        .eq("status", "active")
+        .eq("bet_per_month", 0);
+
       const total_sessions = params.sessions_per_week * params.duration_months * 4;
       const { data, error } = await supabase
         .from("challenges")
