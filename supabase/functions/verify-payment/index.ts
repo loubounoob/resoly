@@ -5,7 +5,8 @@ import { countryToLocale, getNotifText } from "../_shared/notif-i18n.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 serve(async (req) => {
@@ -15,13 +16,10 @@ serve(async (req) => {
 
   const supabaseAdmin = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
-  const supabaseClient = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? ""
-  );
+  const supabaseClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "");
 
   try {
     const rawBody = await req.text();
@@ -40,7 +38,7 @@ serve(async (req) => {
     if (isWebhook) {
       // Verify Stripe webhook signature
       const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-        apiVersion: "2025-08-27.basil",
+        apiVersion: "2023-10-16",
       });
       const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
       if (!webhookSecret) {
@@ -107,7 +105,7 @@ serve(async (req) => {
           if (dedupError) throw dedupError;
 
           // === ATOMIC coin increment ===
-          await supabaseAdmin.rpc('increment_coins', { _user_id: userId, _amount: coinsToAdd });
+          await supabaseAdmin.rpc("increment_coins", { _user_id: userId, _amount: coinsToAdd });
           console.log(`Webhook: credited ${coinsToAdd} coins to user ${userId}`);
         }
         return new Response(JSON.stringify({ received: true }), {
@@ -134,7 +132,7 @@ serve(async (req) => {
       const promoFree = body.promoFree === true;
 
       const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-        apiVersion: "2025-08-27.basil",
+        apiVersion: "2023-10-16",
       });
 
       // Handle free promo code bypass — validate that the challenge actually has a free promo code
@@ -162,7 +160,11 @@ serve(async (req) => {
         }
         // Cancel the unused PaymentIntent
         if (paymentIntentId) {
-          try { await stripe.paymentIntents.cancel(paymentIntentId); } catch { /* already canceled or completed */ }
+          try {
+            await stripe.paymentIntents.cancel(paymentIntentId);
+          } catch {
+            /* already canceled or completed */
+          }
         }
         // Create a fake paymentIntent object for the shared logic
         paymentIntent = { id: paymentIntentId || "free_promo", metadata: {} };
@@ -190,7 +192,8 @@ serve(async (req) => {
     }
 
     // --- SHARED LOGIC: process the paid payment ---
-    const paymentIntentId = typeof paymentIntent.id === 'string' ? paymentIntent.id : (paymentIntent.payment_intent as string);
+    const paymentIntentId =
+      typeof paymentIntent.id === "string" ? paymentIntent.id : (paymentIntent.payment_intent as string);
 
     // Handle regular challenge
     if (challengeId) {
@@ -206,11 +209,7 @@ serve(async (req) => {
 
       // Sync to Google Sheets
       try {
-        const { data: challenge } = await supabaseAdmin
-          .from("challenges")
-          .select("*")
-          .eq("id", challengeId)
-          .single();
+        const { data: challenge } = await supabaseAdmin.from("challenges").select("*").eq("id", challengeId).single();
         const { data: profile } = await supabaseAdmin
           .from("profiles")
           .select("username, age, gender")
@@ -299,9 +298,15 @@ serve(async (req) => {
             .single();
           const referrerLocale = countryToLocale(referrerProfile?.country);
 
-          const referredName = currentUserProfile?.username ? `@${currentUserProfile.username}` : (referrerLocale === 'fr' ? "ton filleul" : referrerLocale === 'de' ? "dein Empfohlener" : "your referral");
+          const referredName = currentUserProfile?.username
+            ? `@${currentUserProfile.username}`
+            : referrerLocale === "fr"
+              ? "ton filleul"
+              : referrerLocale === "de"
+                ? "dein Empfohlener"
+                : "your referral";
           const rewardCoins = 250;
-          const notif = getNotifText(referrerLocale, 'referral_reward', referredName, rewardCoins);
+          const notif = getNotifText(referrerLocale, "referral_reward", referredName, rewardCoins);
 
           const { error: notifError } = await supabaseAdmin.functions.invoke("send-notification", {
             body: {
@@ -319,10 +324,7 @@ serve(async (req) => {
           });
 
           if (!notifError) {
-            await supabaseAdmin
-              .from("profiles")
-              .update({ referral_bonus_paid: true })
-              .eq("user_id", userId);
+            await supabaseAdmin.from("profiles").update({ referral_bonus_paid: true }).eq("user_id", userId);
           }
         }
       }
@@ -360,7 +362,14 @@ serve(async (req) => {
             .single();
           const targetLocale = countryToLocale(targetProfile?.country);
           const username = creatorProfile?.username || "Someone";
-          const notif = getNotifText(targetLocale, 'social_challenge', username, sc.bet_amount, sc.sessions_per_week, sc.duration_months);
+          const notif = getNotifText(
+            targetLocale,
+            "social_challenge",
+            username,
+            sc.bet_amount,
+            sc.sessions_per_week,
+            sc.duration_months,
+          );
 
           await supabaseAdmin.functions.invoke("send-notification", {
             body: {
@@ -390,10 +399,7 @@ serve(async (req) => {
           .eq("social_challenge_id", socialChallengeId);
 
         if (members && members.length > 0 && members.every((m: any) => m.payment_status === "paid")) {
-          await supabaseAdmin
-            .from("social_challenges")
-            .update({ status: "active" })
-            .eq("id", socialChallengeId);
+          await supabaseAdmin.from("social_challenges").update({ status: "active" }).eq("id", socialChallengeId);
 
           const { data: sc } = await supabaseAdmin
             .from("social_challenges")
@@ -411,12 +417,9 @@ serve(async (req) => {
             const now = new Date();
             const dayOfWeek = now.getDay();
             const daysLeft = dayOfWeek === 0 ? 1 : 7 - dayOfWeek + 1;
-            const firstWeekSessions = Math.min(
-              Math.floor((sc.sessions_per_week / 7) * daysLeft),
-              sc.sessions_per_week
-            );
+            const firstWeekSessions = Math.min(Math.floor((sc.sessions_per_week / 7) * daysLeft), sc.sessions_per_week);
 
-            for (const member of (allMembers.data ?? [])) {
+            for (const member of allMembers.data ?? []) {
               const { data: inserted } = await supabaseAdmin
                 .from("challenges")
                 .insert({
