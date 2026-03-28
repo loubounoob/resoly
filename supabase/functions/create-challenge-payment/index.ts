@@ -26,7 +26,6 @@ serve(async (req) => {
     if (!amount) throw new Error("Missing amount");
     if (!challengeId && !socialChallengeId) throw new Error("Missing challengeId or socialChallengeId");
 
-    // Fetch user profile for Stripe customer enrichment
     const { data: profile } = await supabaseClient
       .from("profiles")
       .select("display_name, first_name, last_name, country")
@@ -46,7 +45,6 @@ serve(async (req) => {
       customerId = customer.id;
     }
 
-    // Enrich Stripe customer with profile data
     const customerName =
       profile?.first_name && profile?.last_name
         ? `${profile.first_name} ${profile.last_name}`
@@ -62,7 +60,6 @@ serve(async (req) => {
 
     const currencyCode = (currency || "EUR").toLowerCase();
 
-    // === ANTI-SPAM: Reuse existing pending PaymentIntent for the same challenge ===
     if (challengeId) {
       const { data: existingChallenge } = await supabaseClient
         .from("challenges")
@@ -80,10 +77,7 @@ serve(async (req) => {
                 clientSecret: existingPI.client_secret,
                 paymentIntentId: existingPI.id,
               }),
-              {
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-                status: 200,
-              },
+              { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
             );
           }
         } catch {
@@ -96,14 +90,12 @@ serve(async (req) => {
       amount: Math.round(amount * 100),
       currency: currencyCode,
       customer: customerId,
-      description: description || "Fitness Challenge",
-      // ✅ FIX APPLE PAY GUIDELINE 4.9 : nom du marchand affiché sur le relevé bancaire
-      statement_descriptor: "RESOLY",
       metadata: {
         challenge_id: challengeId || "",
         social_challenge_id: socialChallengeId || "",
         member_id: memberId || "",
         user_id: user.id,
+        description: description || "Fitness Challenge",
       },
       automatic_payment_methods: {
         enabled: true,
@@ -115,10 +107,7 @@ serve(async (req) => {
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      },
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
     );
   } catch (error) {
     console.error("Error:", error);
