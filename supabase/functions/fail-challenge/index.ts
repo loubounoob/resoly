@@ -1,10 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { countryToLocale } from "../_shared/notif-i18n.ts";
+import { countryToLocale, getNotifText } from "../_shared/notif-i18n.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
@@ -27,8 +26,9 @@ Deno.serve(async (req) => {
 
     let query = supabase
       .from("challenges")
-      .select("id, user_id, sessions_per_week, started_at, first_week_sessions, duration_months, session_coins_earned")
-      .eq("status", "active");
+      .select("id, user_id, sessions_per_week, started_at, first_week_sessions, duration_months, bet_per_month")
+      .eq("status", "active")
+      .eq("payment_status", "paid");
 
     if (targetChallengeId) {
       query = query.eq("id", targetChallengeId);
@@ -68,10 +68,9 @@ Deno.serve(async (req) => {
       challengeWeekStart.setHours(0, 0, 0, 0);
 
       const isFirstWeek = weekStart.getTime() === challengeWeekStart.getTime();
-      const weeklyGoal =
-        isFirstWeek && challenge.first_week_sessions != null
-          ? challenge.first_week_sessions
-          : challenge.sessions_per_week;
+      const weeklyGoal = isFirstWeek && challenge.first_week_sessions != null
+        ? challenge.first_week_sessions
+        : challenge.sessions_per_week;
 
       const { data: checkInData } = await supabase
         .from("check_ins")
@@ -82,12 +81,14 @@ Deno.serve(async (req) => {
         .gte("checked_in_at", weekStart.toISOString())
         .lte("checked_in_at", sundayEnd.toISOString());
 
-      const uniqueDays = new Set((checkInData ?? []).map((ci: any) => new Date(ci.checked_in_at).getDay()));
+      const uniqueDays = new Set(
+        (checkInData ?? []).map((ci: any) => new Date(ci.checked_in_at).getDay())
+      );
       const weeklyDone = uniqueDays.size;
       const sessionsRemaining = weeklyGoal - weeklyDone;
 
       if (sessionsRemaining > 0 && sessionsRemaining > daysLeftInWeek) {
-        // === ATOMIC UPDATE with status guard ===
+        // === ATOMIC UPDATE with status guard to prevent race condition with complete-challenge ===
         const { data: updated, error: updateErr } = await supabase
           .from("challenges")
           .update({ status: "failed" })
@@ -100,6 +101,7 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // If no rows updated, challenge was already completed/failed by another process
         if (!updated || updated.length === 0) {
           console.log(`Challenge ${challenge.id} already changed status, skipping`);
           continue;
@@ -113,26 +115,8 @@ Deno.serve(async (req) => {
           .single();
         const locale = countryToLocale(userProfile?.country);
 
-        const sessionCoins = (challenge as any).session_coins_earned ?? 0;
-
-        const notifTitle =
-          locale === "fr"
-            ? "Challenge non réussi ce mois-ci 😔"
-            : locale === "de"
-              ? "Challenge nicht geschafft diesen Monat 😔"
-              : "Challenge not completed this month 😔";
-        const notifBody =
-          sessionCoins > 0
-            ? locale === "fr"
-              ? `Tu as quand même gagné ${sessionCoins} coins ce mois-ci ! 🪙 Un nouveau défi se lance bientôt.`
-              : locale === "de"
-                ? `Du hast trotzdem ${sessionCoins} Münzen diesen Monat verdient! 🪙 Eine neue Challenge startet bald.`
-                : `You still earned ${sessionCoins} coins this month! 🪙 A new challenge starts soon.`
-            : locale === "fr"
-              ? "Pas de bonus ce mois-ci, mais tu peux faire mieux ! Un nouveau défi se lance bientôt."
-              : locale === "de"
-                ? "Kein Bonus diesen Monat, aber du kannst es besser machen! Eine neue Challenge startet bald."
-                : "No bonus this month, but you can do better! A new challenge starts soon.";
+        const betAmount = challenge.bet_per_month;
+        const notif = getNotifText(locale, 'challenge_failed', betAmount);
 
         await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
           method: "POST",
@@ -143,32 +127,15 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             user_id: challenge.user_id,
             type: "challenge_failed",
-            title: notifTitle,
-            body: notifBody,
+            title: notif.title,
+            body: notif.body,
             data: {
               challenge_id: challenge.id,
-              session_coins_earned: sessionCoins,
+              bet_lost: betAmount,
               route: "/dashboard",
             },
           }),
         });
-
-        // Reset streak_months to 0 on failure
-        await supabase.from("profiles").update({ streak_months: 0 }).eq("user_id", challenge.user_id);
-
-        // Schedule auto-renewal (non-blocking)
-        fetch(`${supabaseUrl}/functions/v1/auto-renew-challenge`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${serviceKey}`,
-          },
-          body: JSON.stringify({
-            challengeId: challenge.id,
-            userId: challenge.user_id,
-            reason: "failed",
-          }),
-        }).catch(console.error);
 
         // Sync to Google Sheets
         try {
