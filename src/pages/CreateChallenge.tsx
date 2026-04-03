@@ -1,497 +1,575 @@
-import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import { ArrowLeft, Flame, Coins, Loader2, Users, User, Timer } from "lucide-react";
-import CoinIcon from "@/components/CoinIcon";
-import { useCreateChallenge, useActiveChallenge } from "@/hooks/useChallenge";
-import { calculateCoins, VALID_PROMO_CODES } from "@/lib/coins";
-import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { getDay } from "date-fns";
-import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
-import { Badge } from "@/components/ui/badge";
-import { useLocale } from "@/contexts/LocaleContext";
-import StripePaymentSheet from "@/components/StripePaymentSheet";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import Stripe from "https://esm.sh/stripe@14.5.0";
+import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { countryToLocale, getNotifText } from "../_shared/notif-i18n.ts";
 
-type ChallengeMode = "solo" | "social";
-
-const DURATION_OPTIONS = [1, 2, 3];
-const SESSIONS_OPTIONS = [2, 3, 4, 5, 6];
-const PROMO_DURATION_MS = 30 * 60 * 1000; // 30 minutes
-
-function computeFirstWeekGoal(sessionsPerWeek: number, dayNames: string[]): { firstWeekGoal: number; daysLeft: number; dayName: string; needsAdjustment: boolean } {
-  const today = new Date();
-  const dayOfWeek = getDay(today); 
-  const daysLeft = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
-
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
-    return { firstWeekGoal: 0, daysLeft, dayName: dayNames[dayOfWeek], needsAdjustment: true };
-  }
-
-  const firstWeekGoal = Math.max(1, Math.floor(sessionsPerWeek * daysLeft / 7));
-  const needsAdjustment = dayOfWeek !== 1;
-  return { firstWeekGoal, daysLeft, dayName: dayNames[dayOfWeek], needsAdjustment };
-}
-
-function formatCountdown(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-}
-
-const CreateChallenge = () => {
-  const navigate = useNavigate();
-  const { t, formatCurrency, currency, locale, country } = useLocale();
-  const { data: activeChallenge, isLoading: loadingActive } = useActiveChallenge();
-  const [mode] = useState<ChallengeMode>("solo");
-  const [betAmount, setBetAmount] = useState(100);
-  const [sessionsPerWeek, setSessionsPerWeek] = useState(3);
-  const [duration, setDuration] = useState(3);
-  const [isProcessing, setIsProcessing] = useState(false);
-  
-  const [showFirstWeekDialog, setShowFirstWeekDialog] = useState(false);
-  const [shopProducts, setShopProducts] = useState<ShopifyProduct[]>([]);
-  const [promoInput, setPromoInput] = useState("");
-  const [promoApplied, setPromoApplied] = useState<string | null>(null);
-  const [promoAnimating, setPromoAnimating] = useState(false);
-  const [animatedCoins, setAnimatedCoins] = useState<number | null>(null);
-
-  // Promo countdown
-  const [promoExpiresAt, setPromoExpiresAt] = useState<number | null>(null);
-  const [timeLeft, setTimeLeft] = useState(0);
-
-  // Stripe PaymentSheet state
-  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
-  const [clientSecret, setClientSecret] = useState("");
-  const [paymentIntentId, setPaymentIntentId] = useState("");
-  const [pendingChallengeId, setPendingChallengeId] = useState<string | null>(null);
-
-  const createChallenge = useCreateChallenge();
-
-  useEffect(() => {
-    if (!loadingActive && activeChallenge) {
-      navigate("/dashboard", { replace: true });
-    }
-  }, [loadingActive, activeChallenge, navigate]);
-
-  useEffect(() => {
-    if (mode === "social") {
-      navigate("/friends/create-social", { replace: true });
-    }
-  }, [mode, navigate]);
-
-  useEffect(() => {
-    fetchShopifyProducts(20)
-      .then(setShopProducts)
-      .catch(console.error);
-  }, []);
-
-  // Promo countdown timer
-  useEffect(() => {
-    if (!promoExpiresAt) return;
-    const tick = () => {
-      const remaining = Math.max(0, Math.round((promoExpiresAt - Date.now()) / 1000));
-      setTimeLeft(remaining);
-      if (remaining <= 0) {
-        setPromoApplied(null);
-        setPromoExpiresAt(null);
-        setPromoInput("");
-        toast.error(t('createChallenge.promoExpired'));
-      }
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [promoExpiresAt, t]);
-
-  if (loadingActive) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
-    );
-  }
-
-  const totalSessions = sessionsPerWeek * duration * 4;
-  const baseCoins = calculateCoins(betAmount, duration, sessionsPerWeek, currency);
-  const coinsPreview = promoApplied ? Math.round(baseCoins * 1.5) : baseCoins;
-
-  const handleApplyPromo = () => {
-    const code = promoInput.trim().toUpperCase();
-    if (VALID_PROMO_CODES.includes(code)) {
-      setPromoApplied(code);
-      setPromoExpiresAt(Date.now() + PROMO_DURATION_MS);
-      setPromoAnimating(true);
-      setAnimatedCoins(baseCoins);
-      toast.success(t('createChallenge.promoApplied'));
-
-      // Animate coin counter from base → boosted over 2s
-      const target = Math.round(baseCoins * 1.5);
-      const steps = 40;
-      const stepTime = 2000 / steps;
-      let current = baseCoins;
-      const increment = (target - baseCoins) / steps;
-      let step = 0;
-      const timer = setInterval(() => {
-        step++;
-        current += increment;
-        if (step >= steps) {
-          clearInterval(timer);
-          setAnimatedCoins(null);
-        }
-        setAnimatedCoins(Math.round(current));
-      }, stepTime);
-
-      setTimeout(() => setPromoAnimating(false), 2500);
-    } else {
-      toast.error(t('createChallenge.promoInvalid'));
-    }
-  };
-  const dayNames = t('createChallenge.dayNames') as unknown as string[];
-  const { firstWeekGoal, dayName, needsAdjustment } = computeFirstWeekGoal(sessionsPerWeek, dayNames);
-
-  const handleSubmit = () => {
-    if (needsAdjustment) {
-      setShowFirstWeekDialog(true);
-    } else {
-      proceedWithChallenge(null);
-    }
-  };
-
-  const proceedWithChallenge = async (firstWeekSessions: number | null) => {
-    setShowFirstWeekDialog(false);
-    setIsProcessing(true);
-    try {
-      const challenge = await createChallenge.mutateAsync({
-        sessions_per_week: sessionsPerWeek,
-        duration_months: duration,
-        bet_per_month: betAmount,
-        odds: 1,
-        ...(promoApplied ? { promo_code: promoApplied } : {}),
-      });
-
-      if (firstWeekSessions != null) {
-        await supabase
-          .from("challenges")
-          .update({ first_week_sessions: firstWeekSessions } as any)
-          .eq("id", challenge.id);
-      }
-
-      const { data, error } = await supabase.functions.invoke("create-challenge-payment", {
-        body: {
-          challengeId: challenge.id,
-          amount: betAmount,
-          currency: currency,
-          locale: locale,
-          description: t('createChallenge.betDescription', { amount: formatCurrency(betAmount), sessions: sessionsPerWeek, duration }),
-        },
-      });
-
-      if (error) throw error;
-      if (data?.clientSecret && data?.paymentIntentId) {
-        setPendingChallengeId(challenge.id);
-        setClientSecret(data.clientSecret);
-        setPaymentIntentId(data.paymentIntentId);
-        setPaymentSheetOpen(true);
-        setIsProcessing(false);
-      } else {
-        throw new Error("No payment data returned");
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error(t('createChallenge.paymentError'));
-      setIsProcessing(false);
-    }
-  };
-
-  const handlePaymentSuccess = async (piId: string, isFreePromo?: boolean) => {
-    setPaymentSheetOpen(false);
-    setIsProcessing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("verify-payment", {
-        body: {
-          paymentIntentId: piId,
-          challengeId: pendingChallengeId,
-          ...(isFreePromo ? { promoFree: true } : {}),
-        },
-      });
-      if (error) throw error;
-      if (data?.success) {
-        navigate("/payment-success?type=challenge&verified=true");
-      } else {
-        toast.error(t('createChallenge.paymentError'));
-      }
-    } catch {
-      toast.error(t('createChallenge.paymentError'));
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex flex-col px-6 pt-6 pb-8">
-      <div className="flex items-center gap-3 mb-8">
-        <button onClick={() => navigate("/dashboard")} className="text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="w-6 h-6" />
-        </button>
-        <h1 className="text-2xl font-bold">{t('createChallenge.title')}</h1>
-      </div>
-
-      {mode === "solo" && (
-      <>
-      <div className="flex-1 space-y-8">
-        <section>
-          <label className="text-sm text-muted-foreground mb-3 block">{t('createChallenge.yourBet')}</label>
-          <div className="text-center mb-4">
-            <span className="text-5xl font-display font-bold text-gradient-primary">{formatCurrency(betAmount)}</span>
-          </div>
-          <Slider
-            value={[betAmount]}
-            onValueChange={(v) => setBetAmount(v[0])}
-            min={10}
-            max={1000}
-            step={10}
-            className="w-full"
-          />
-          <div className="flex justify-between text-xs text-muted-foreground mt-1">
-            <span>{formatCurrency(10)}</span>
-            <span>{formatCurrency(1000)}</span>
-          </div>
-        </section>
-
-        <section>
-          <label className="text-sm text-muted-foreground mb-3 block">{t('createChallenge.sessionsPerWeek')}</label>
-          <div className="grid grid-cols-5 gap-2">
-            {SESSIONS_OPTIONS.map((s) => (
-              <button
-                key={s}
-                onClick={() => setSessionsPerWeek(s)}
-                className={`h-12 rounded-lg font-display font-bold text-lg transition-all ${
-                  sessionsPerWeek === s
-                    ? "bg-gradient-primary text-primary-foreground shadow-glow"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <label className="text-sm text-muted-foreground mb-3 block">{t('createChallenge.duration')}</label>
-          <div className="grid grid-cols-3 gap-2">
-            {DURATION_OPTIONS.map((d) => (
-              <button
-                key={d}
-                onClick={() => setDuration(d)}
-                className={`h-12 rounded-lg font-display font-bold transition-all ${
-                  duration === d
-                    ? "bg-gradient-primary text-primary-foreground shadow-glow"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                }`}
-              >
-                {d}<span className="text-xs font-normal ml-0.5">{t('common.months')}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <label className="text-sm text-muted-foreground mb-3 block">{t('createChallenge.promoPlaceholder')}</label>
-          <div className="flex gap-2">
-            <Input
-              value={promoInput}
-              onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
-              placeholder={t('createChallenge.promoPlaceholder')}
-              className={`flex-1 font-mono tracking-wider uppercase ${promoApplied ? 'border-green-500 bg-green-500/10 text-green-400' : ''}`}
-              disabled={!!promoApplied}
-            />
-            {promoApplied ? (
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono font-bold text-sm tabular-nums ${timeLeft < 300 ? 'bg-destructive/15 text-destructive animate-pulse border border-destructive/30' : 'bg-accent/15 text-accent border border-accent/30'}`}>
-                <Timer className="w-4 h-4" />
-                {formatCountdown(timeLeft)}
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={handleApplyPromo}
-                disabled={!promoInput.trim()}
-                className="whitespace-nowrap"
-              >
-                {t('createChallenge.promoApply')}
-              </Button>
-            )}
-          </div>
-        </section>
-
-        <div className="bg-gradient-card rounded-2xl border border-border p-5 space-y-4 shadow-card">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground block">{t('createChallenge.totalSessions')}</span>
-              <span className="font-bold text-lg">{totalSessions}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground block">{t('createChallenge.durationLabel')}</span>
-              <span className="font-bold text-lg">{duration} {t('common.months')}</span>
-            </div>
-          </div>
-
-          <div className="h-px bg-border" />
-
-          <div className="relative flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Coins className="w-5 h-5 text-accent" />
-              <span className="text-sm text-muted-foreground">{t('createChallenge.coinsToEarn')}</span>
-            </div>
-            <div className="relative flex items-center gap-2">
-              {/* Floating +50% badge during animation */}
-              {promoAnimating && (
-                <span className="absolute -top-6 right-0 text-xs font-display font-bold text-accent animate-float-up pointer-events-none whitespace-nowrap">
-                  +50% 🔥
-                </span>
-              )}
-              {/* Strikethrough base + animated boosted value */}
-              <span className={`font-display font-bold text-lg text-gradient-gold ${promoAnimating ? 'animate-coin-glow-burst' : ''}`}>
-                <span className="inline-flex items-center gap-1">
-                  <CoinIcon size={18} />
-                  {promoAnimating && animatedCoins !== null ? (
-                    <>
-                      <span className="line-through text-muted-foreground text-sm mr-1">{baseCoins}</span>
-                      {animatedCoins}
-                    </>
-                  ) : (
-                    coinsPreview
-                  )}
-                </span>
-              </span>
-              {/* Static +50% badge next to coins when promo is active */}
-              {promoApplied && !promoAnimating && (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-green-500/20 text-green-400 text-xs font-bold whitespace-nowrap border border-green-500/30">
-                  ✅ +50%
-                </span>
-              )}
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {t('createChallenge.coinsIfWin', { coins: coinsPreview })}
-          </p>
-        </div>
-      </div>
-
-      {shopProducts.length > 0 && (
-        <section className="mt-2">
-          <label className="text-sm text-muted-foreground mb-3 block">{t('createChallenge.whatYouCanBuy')}</label>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
-            {shopProducts.map((product) => {
-              const price = product.node.priceRange.minVariantPrice;
-              const coinsPrice = Math.ceil(parseFloat(price.amount) * 50);
-              const isAccessible = coinsPreview >= coinsPrice;
-              return (
-                <div
-                  key={product.node.id}
-                  className={`flex-shrink-0 w-[120px] rounded-xl border border-border bg-gradient-card overflow-hidden transition-opacity ${
-                    isAccessible ? "opacity-100" : "opacity-50"
-                  }`}
-                >
-                  <div className="w-full aspect-square bg-secondary">
-                    <img
-                      src={product.node.images.edges[0]?.node?.url || "/placeholder.svg"}
-                      alt={product.node.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="p-2 space-y-1">
-                    <p className="text-xs font-medium truncate">{product.node.title}</p>
-                    <div className="flex items-center gap-1 text-xs font-bold text-primary">
-                      <CoinIcon size={12} /> {coinsPrice}
-                    </div>
-                    {isAccessible && (
-                      <Badge className="text-[10px] px-1.5 py-0 bg-green-500/20 text-green-400 border-green-500/30">
-                        {t('createChallenge.accessible')}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      <Button
-        onClick={handleSubmit}
-        disabled={isProcessing || createChallenge.isPending}
-        className="w-full h-14 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity shadow-glow rounded-xl mt-6"
-      >
-        {isProcessing ? (
-          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-        ) : (
-          <Flame className="w-5 h-5 mr-2" />
-        )}
-        {t('createChallenge.launch')}
-      </Button>
-
-      <Dialog open={showFirstWeekDialog} onOpenChange={setShowFirstWeekDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('createChallenge.firstWeekTitle')}</DialogTitle>
-            <DialogDescription>
-              {firstWeekGoal === 0 ? (
-                <span dangerouslySetInnerHTML={{ 
-                  __html: t('createChallenge.firstWeekDesc0', { day: dayName, sessions: sessionsPerWeek })
-                    .replace(dayName, `<strong>${dayName}</strong>`)
-                    .replace('0', '<strong>0</strong>')
-                }} />
-              ) : (
-                <span dangerouslySetInnerHTML={{ 
-                  __html: t('createChallenge.firstWeekDesc', { day: dayName, goal: firstWeekGoal, sessions: sessionsPerWeek })
-                    .replace(dayName, `<strong>${dayName}</strong>`)
-                    .replace(String(firstWeekGoal), `<strong>${firstWeekGoal}</strong>`)
-                }} />
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowFirstWeekDialog(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              onClick={() => proceedWithChallenge(firstWeekGoal)}
-              className="bg-gradient-primary text-primary-foreground"
-            >
-              {t('common.confirm')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <StripePaymentSheet
-        open={paymentSheetOpen}
-        onOpenChange={setPaymentSheetOpen}
-        clientSecret={clientSecret}
-        paymentIntentId={paymentIntentId}
-        amount={betAmount}
-        description={t('createChallenge.betDescription', { amount: formatCurrency(betAmount), sessions: sessionsPerWeek, duration })}
-        onSuccess={handlePaymentSuccess}
-        showPromoCode={true}
-        promoEndpoint="apply-promo-code"
-        stripeLocale={locale}
-        userCountry={country}
-      />
-      </>
-      )}
-    </div>
-  );
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-export default CreateChallenge;
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const supabaseAdmin = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+  );
+
+  const supabaseClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "");
+
+  try {
+    const rawBody = await req.text();
+    let body: any;
+
+    // Detect webhook by stripe-signature header
+    const stripeSignature = req.headers.get("stripe-signature");
+    const isWebhook = !!stripeSignature;
+
+    let paymentIntent: any;
+    let userId: string;
+    let challengeId: string | null = null;
+    let socialChallengeId: string | null = null;
+    let memberId: string | null = null;
+    let currency: string | null = null;
+
+    if (isWebhook) {
+      // Verify Stripe webhook signature
+      const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+        apiVersion: "2023-10-16" as any,
+      });
+      const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+      if (!webhookSecret) {
+        console.error("STRIPE_WEBHOOK_SECRET not configured");
+        return new Response(JSON.stringify({ error: "Webhook secret not configured" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500,
+        });
+      }
+
+      let event: any;
+      try {
+        event = await stripe.webhooks.constructEventAsync(rawBody, stripeSignature!, webhookSecret);
+      } catch (err) {
+        console.error("Webhook signature verification failed:", err.message);
+        return new Response(JSON.stringify({ error: "Invalid signature" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        });
+      }
+
+      console.log("Webhook event verified:", event.type);
+
+      if (event.type !== "payment_intent.succeeded") {
+        return new Response(JSON.stringify({ received: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+
+      body = event;
+      paymentIntent = event.data.object;
+      const meta = paymentIntent.metadata || {};
+      userId = meta.user_id;
+      challengeId = meta.challenge_id || null;
+      socialChallengeId = meta.social_challenge_id || null;
+      memberId = meta.member_id || null;
+      currency = paymentIntent.currency?.toUpperCase() || null;
+
+      if (!userId) {
+        console.error("No user_id in payment intent metadata");
+        return new Response(JSON.stringify({ received: true, error: "No user_id in metadata" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+
+      // Handle coin purchases via webhook
+      if (meta.type === "coin_purchase") {
+        const coinsToAdd = parseInt(meta.coins, 10);
+        if (coinsToAdd && coinsToAdd > 0) {
+          // === DEDUPLICATION: prevent double credit on webhook retry ===
+          const { error: dedupError } = await supabaseAdmin
+            .from("processed_coin_payments")
+            .insert({ payment_intent_id: paymentIntent.id, user_id: userId, coins: coinsToAdd });
+
+          if (dedupError && dedupError.code === "23505") {
+            // Already processed this payment intent
+            console.log(`Webhook: payment ${paymentIntent.id} already processed, skipping`);
+            return new Response(JSON.stringify({ received: true, alreadyProcessed: true }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 200,
+            });
+          }
+          if (dedupError) throw dedupError;
+
+          // === ATOMIC coin increment ===
+          await supabaseAdmin.rpc("increment_coins", { _user_id: userId, _amount: coinsToAdd });
+          console.log(`Webhook: credited ${coinsToAdd} coins to user ${userId}`);
+        }
+        return new Response(JSON.stringify({ received: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+    } else {
+      // --- FRONTEND CALL PATH ---
+      body = JSON.parse(rawBody);
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) throw new Error("Missing Authorization header");
+      const token = authHeader.replace("Bearer ", "");
+      const { data } = await supabaseClient.auth.getUser(token);
+      const user = data.user;
+      if (!user) throw new Error("User not authenticated");
+      userId = user.id;
+
+      // Support both old sessionId and new paymentIntentId
+      const { paymentIntentId, sessionId } = body;
+      challengeId = body.challengeId || null;
+      socialChallengeId = body.socialChallengeId || null;
+      memberId = body.memberId || null;
+      currency = body.currency?.toUpperCase() || null;
+      const promoFree = body.promoFree === true;
+
+      const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+        apiVersion: "2023-10-16" as any,
+      });
+
+      // Handle free promo code bypass — validate that the challenge actually has a free promo code
+      const FREE_PROMO_CODES = ["LOUBOUNOOBLEGOAT"];
+      if (promoFree) {
+        let hasValidFreePromo = false;
+        if (challengeId) {
+          const { data: ch } = await supabaseAdmin
+            .from("challenges")
+            .select("promo_code")
+            .eq("id", challengeId)
+            .eq("user_id", userId)
+            .single();
+          hasValidFreePromo = !!ch?.promo_code && FREE_PROMO_CODES.includes(ch.promo_code.toUpperCase());
+        }
+        // For social challenges, allow free promo bypass (validated by apply-promo-code)
+        if (socialChallengeId) {
+          hasValidFreePromo = true;
+        }
+        if (!hasValidFreePromo) {
+          return new Response(JSON.stringify({ success: false, error: "Invalid free promo" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+        // Cancel the unused PaymentIntent
+        if (paymentIntentId) {
+          try {
+            await stripe.paymentIntents.cancel(paymentIntentId);
+          } catch {
+            /* already canceled or completed */
+          }
+        }
+        // Create a fake paymentIntent object for the shared logic
+        paymentIntent = { id: paymentIntentId || "free_promo", metadata: {} };
+      } else if (paymentIntentId) {
+        paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        if (paymentIntent.status !== "succeeded") {
+          return new Response(JSON.stringify({ success: false, status: paymentIntent.status }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+      } else if (sessionId) {
+        // Backward compatibility with old checkout sessions
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        if (session.payment_status !== "paid") {
+          return new Response(JSON.stringify({ success: false, status: session.payment_status }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+        paymentIntent = { id: session.payment_intent, metadata: session.metadata };
+      } else {
+        throw new Error("Missing paymentIntentId or sessionId");
+      }
+    }
+
+    // --- SHARED LOGIC: process the paid payment ---
+    const paymentIntentId =
+      typeof paymentIntent.id === "string" ? paymentIntent.id : (paymentIntent.payment_intent as string);
+
+    // Shared helpers (mirror src/lib/coins.ts exactly)
+    const getCoefficientDeMise = (i: number): number => {
+      if (i <= 50) return 1 + 0.004 * i;
+      if (i <= 75) return 1.2 + 0.012 * (i - 50);
+      if (i <= 100) return 1.5 + 0.02 * (i - 75);
+      if (i <= 300) return 2 - 0.0045 * (i - 100);
+      if (i <= 860) return 1.1 - 0.000785 * (i - 300);
+      if (i <= 1000) return 0.6604 - 0.0005 * (i - 860);
+      return Math.max(0.15, 0.59 - 0.00009 * (i - 1000));
+    };
+
+    const getCurrencyMult = (cur: string | null): number => {
+      if (!cur) return 1.0;
+      if (cur === "AUD" || cur === "CAD") return 0.65;
+      if (cur === "USD") return 0.85;
+      return 1.0;
+    };
+    const currencyMult = getCurrencyMult(currency);
+
+    const computeBaseCoins = (totalCoins: number): number => {
+      if (totalCoins === 0) return 0;
+      return Math.max(10, Math.round(totalCoins * 0.1));
+    };
+
+    const PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027", "LOUBOUNOOBLEGOAT"];
+
+    // Handle regular challenge
+    if (challengeId) {
+      // Filter by payment_status = "pending" so double-calls (e.g. webhook + manual) are idempotent
+      const { data: updatedRows, error } = await supabaseAdmin
+        .from("challenges")
+        .update({
+          payment_status: "paid",
+          stripe_payment_intent_id: paymentIntentId || null,
+        })
+        .eq("id", challengeId)
+        .eq("user_id", userId)
+        .eq("payment_status", "pending")
+        .select("bet_per_month, duration_months, sessions_per_week, promo_code");
+      if (error) throw error;
+
+      // Award base coins only on the first confirmation (idempotency guard above)
+      if (updatedRows && updatedRows.length > 0) {
+        const ch = updatedRows[0];
+        const I = ch.bet_per_month;
+        if (I > 0) {
+          const promoMult = ch.promo_code && PROMO_CODES.includes(ch.promo_code.toUpperCase()) ? 1.5 : 1.0;
+          const CI = getCoefficientDeMise(I);
+          const monthFactor = 0.3 + 0.6 * Math.pow(ch.duration_months, 1.5);
+          const sessionFactor = Math.pow(ch.sessions_per_week / 3, 1.1);
+          const totalCoins = Math.round(I * CI * monthFactor * sessionFactor * 1.5 * promoMult * currencyMult);
+          const baseCoins = computeBaseCoins(totalCoins);
+          const { error: coinsErr } = await supabaseAdmin.rpc("increment_coins", {
+            _user_id: userId,
+            _amount: baseCoins,
+          });
+          if (coinsErr) console.error("Base coins award error:", coinsErr);
+          else console.log(`Base coins awarded at payment: ${baseCoins} → user ${userId}`);
+        }
+      }
+
+      // Sync to Google Sheets
+      try {
+        const { data: challenge } = await supabaseAdmin.from("challenges").select("*").eq("id", challengeId).single();
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("username, age, gender")
+          .eq("user_id", userId)
+          .single();
+
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+        const userEmail = authUser?.user?.email || "";
+
+        if (challenge && profile) {
+          const I = challenge.bet_per_month; // one-shot stake (not monthly)
+          const M = challenge.duration_months;
+          const S = challenge.sessions_per_week;
+          const getCoefficientDeMise = (i: number): number => {
+            if (i <= 50) return 1 + 0.004 * i;
+            if (i <= 75) return 1.2 + 0.012 * (i - 50);
+            if (i <= 100) return 1.5 + 0.02 * (i - 75);
+            if (i <= 300) return 2 - 0.0045 * (i - 100);
+            if (i <= 860) return 1.1 - 0.000785 * (i - 300);
+            if (i <= 1000) return 0.6604 - 0.0005 * (i - 860);
+            return Math.max(0.15, 0.59 - 0.00009 * (i - 1000));
+          };
+          const CI = getCoefficientDeMise(I);
+          const monthFactor = 0.3 + 0.6 * Math.pow(M, 1.5);
+          const sessionFactor = Math.pow(S / 3, 1.1);
+          const estimatedCoins = Math.round(I * CI * monthFactor * sessionFactor);
+          const endDate = new Date(challenge.created_at);
+          endDate.setMonth(endDate.getMonth() + challenge.duration_months);
+
+          // Call Google Sheets webhook directly for reliability
+          // NOTE: Google Apps Script exec URLs return a 302 redirect — we must follow it
+          // manually with POST to avoid fetch silently converting POST→GET on redirect.
+          const GOOGLE_SHEETS_CHALLENGE_WEBHOOK_FALLBACK =
+            "https://script.google.com/macros/s/AKfycbwUlwqg597CDtmynybfirYxaPal9eBX5w1TVZvccFeAPLfKir-kKYodIQjhlhTLA7S6/exec";
+          const sheetWebhookUrl =
+            Deno.env.get("GOOGLE_SHEETS_CHALLENGE_WEBHOOK_URL") || GOOGLE_SHEETS_CHALLENGE_WEBHOOK_FALLBACK;
+          if (sheetWebhookUrl) {
+            const sheetPayload = {
+              challenge_id: challengeId,
+              username: profile.username,
+              age: profile.age,
+              gender: profile.gender,
+              email: userEmail,
+              type: challenge.social_challenge_id ? "social" : "perso",
+              mise_totale: challenge.bet_per_month,
+              mise_par_mois: challenge.bet_per_month,
+              sessions_per_week: challenge.sessions_per_week,
+              duration_months: challenge.duration_months,
+              total_sessions: challenge.total_sessions,
+              estimated_coins: estimatedCoins,
+              status: "active",
+              created_at: challenge.created_at,
+              estimated_end_date: endDate.toISOString(),
+              stripe_payment_intent_id: paymentIntentId,
+              promo_code: challenge.promo_code || "",
+            };
+            console.log("Sending to Google Sheets:", JSON.stringify(sheetPayload));
+            const postBody = JSON.stringify(sheetPayload);
+            const postHeaders = { "Content-Type": "application/json" };
+            // Google Apps Script exec URLs: doPost() runs on the initial POST,
+            // then Google returns a 302 to the response URL.
+            // redirect:"follow" lets fetch follow that 302 automatically so we
+            // can read the final response without losing the execution.
+            const sheetRes = await fetch(sheetWebhookUrl, {
+              method: "POST",
+              headers: postHeaders,
+              body: postBody,
+              redirect: "follow",
+            });
+            const resText = await sheetRes.text();
+            console.log(`Google Sheets response [${sheetRes.status}]: ${resText.substring(0, 200)}`);
+            if (!sheetRes.ok) {
+              console.error(`Google Sheets webhook failed [${sheetRes.status}]: ${resText}`);
+            } else {
+              console.log("Google Sheets sync successful");
+            }
+          } else {
+            console.warn("GOOGLE_SHEETS_CHALLENGE_WEBHOOK_URL not configured — skipping sheet sync");
+          }
+        }
+      } catch (syncErr) {
+        console.error("Sheet sync error:", syncErr);
+      }
+
+      // Referral bonus — triggered only when total stake ≥ 50 (in the user's currency)
+      const { data: challengeForReferral } = await supabaseAdmin
+        .from("challenges")
+        .select("bet_per_month")
+        .eq("id", challengeId)
+        .single();
+
+      const totalStake = challengeForReferral?.bet_per_month ?? 0; // one-shot stake
+      if (challengeForReferral && totalStake >= 50) {
+        const { data: profileRef } = await supabaseAdmin
+          .from("profiles")
+          .select("referred_by, referral_bonus_paid")
+          .eq("user_id", userId)
+          .single();
+
+        if (profileRef?.referred_by && !profileRef.referral_bonus_paid) {
+          const { data: currentUserProfile } = await supabaseAdmin
+            .from("profiles")
+            .select("username")
+            .eq("user_id", userId)
+            .single();
+
+          const { data: referrerProfile } = await supabaseAdmin
+            .from("profiles")
+            .select("country")
+            .eq("user_id", profileRef.referred_by)
+            .single();
+          const referrerLocale = countryToLocale(referrerProfile?.country);
+
+          const referredName = currentUserProfile?.username
+            ? `@${currentUserProfile.username}`
+            : referrerLocale === "fr"
+              ? "ton filleul"
+              : referrerLocale === "de"
+                ? "dein Empfohlener"
+                : "your referral";
+          const rewardCoins = 250;
+          const notif = getNotifText(referrerLocale, "referral_reward", referredName, rewardCoins);
+
+          const { error: notifError } = await supabaseAdmin.functions.invoke("send-notification", {
+            body: {
+              user_id: profileRef.referred_by,
+              type: "referral_reward",
+              title: notif.title,
+              body: notif.body,
+              data: {
+                coins: rewardCoins,
+                referred_user_id: userId,
+                reward_type: "referral_challenge_success",
+                claimed: false,
+              },
+            },
+          });
+
+          if (!notifError) {
+            await supabaseAdmin.from("profiles").update({ referral_bonus_paid: true }).eq("user_id", userId);
+          }
+        }
+      }
+    }
+
+    // Handle social challenge member payment
+    if (socialChallengeId && memberId) {
+      // Idempotency guard: only processes once even if webhook + frontend race
+      const { data: updatedMemberRows, error } = await supabaseAdmin
+        .from("social_challenge_members")
+        .update({
+          payment_status: "paid",
+          stripe_payment_intent_id: paymentIntentId || null,
+        })
+        .eq("id", memberId)
+        .eq("user_id", userId)
+        .eq("payment_status", "pending")
+        .select("bet_amount");
+      if (error) throw error;
+
+      // Award base coins to this member on first confirmation
+      if (updatedMemberRows && updatedMemberRows.length > 0) {
+        const I = updatedMemberRows[0].bet_amount;
+        if (I > 0) {
+          const { data: scParams } = await supabaseAdmin
+            .from("social_challenges")
+            .select("sessions_per_week, duration_months")
+            .eq("id", socialChallengeId)
+            .single();
+          if (scParams) {
+            const CI = getCoefficientDeMise(I);
+            const monthFactor = 0.3 + 0.6 * Math.pow(scParams.duration_months, 1.5);
+            const sessionFactor = Math.pow(scParams.sessions_per_week / 3, 1.1);
+            const totalCoins = Math.round(I * CI * monthFactor * sessionFactor * 1.5 * currencyMult);
+            const baseCoins = computeBaseCoins(totalCoins);
+            const { error: coinsErr } = await supabaseAdmin.rpc("increment_coins", {
+              _user_id: userId,
+              _amount: baseCoins,
+            });
+            if (coinsErr) console.error("Social base coins award error:", coinsErr);
+            else console.log(`Social base coins awarded: ${baseCoins} → user ${userId}`);
+          }
+        }
+      }
+
+      // Notify target user for boost challenges
+      try {
+        const { data: sc } = await supabaseAdmin
+          .from("social_challenges")
+          .select("target_user_id, created_by, bet_amount, sessions_per_week, duration_months, type")
+          .eq("id", socialChallengeId)
+          .single();
+        if (sc && sc.type === "boost" && sc.target_user_id) {
+          const { data: creatorProfile } = await supabaseAdmin
+            .from("profiles")
+            .select("username")
+            .eq("user_id", sc.created_by)
+            .single();
+          const { data: targetProfile } = await supabaseAdmin
+            .from("profiles")
+            .select("country")
+            .eq("user_id", sc.target_user_id)
+            .single();
+          const targetLocale = countryToLocale(targetProfile?.country);
+          const username = creatorProfile?.username || "Someone";
+          const notif = getNotifText(
+            targetLocale,
+            "social_challenge",
+            username,
+            sc.bet_amount,
+            sc.sessions_per_week,
+            sc.duration_months,
+          );
+
+          await supabaseAdmin.functions.invoke("send-notification", {
+            body: {
+              user_id: sc.target_user_id,
+              type: "social_challenge",
+              title: notif.title,
+              body: notif.body,
+              data: { socialChallengeId },
+            },
+          });
+        }
+      } catch (notifErr) {
+        console.error("Failed to notify target:", notifErr);
+      }
+
+      // For boost challenges, DON'T activate here
+      const { data: scType } = await supabaseAdmin
+        .from("social_challenges")
+        .select("type")
+        .eq("id", socialChallengeId)
+        .single();
+
+      if (scType?.type !== "boost") {
+        const { data: members } = await supabaseAdmin
+          .from("social_challenge_members")
+          .select("payment_status")
+          .eq("social_challenge_id", socialChallengeId);
+
+        if (members && members.length > 0 && members.every((m: any) => m.payment_status === "paid")) {
+          await supabaseAdmin.from("social_challenges").update({ status: "active" }).eq("id", socialChallengeId);
+
+          const { data: sc } = await supabaseAdmin
+            .from("social_challenges")
+            .select("*")
+            .eq("id", socialChallengeId)
+            .single();
+
+          if (sc) {
+            const allMembers = await supabaseAdmin
+              .from("social_challenge_members")
+              .select("id, user_id, bet_amount")
+              .eq("social_challenge_id", socialChallengeId);
+
+            const totalSessions = sc.sessions_per_week * sc.duration_months * 4;
+            const now = new Date();
+            const dayOfWeek = now.getDay();
+            const daysLeft = dayOfWeek === 0 ? 1 : 7 - dayOfWeek + 1;
+            const firstWeekSessions = Math.min(Math.floor((sc.sessions_per_week / 7) * daysLeft), sc.sessions_per_week);
+
+            for (const member of allMembers.data ?? []) {
+              const { data: inserted } = await supabaseAdmin
+                .from("challenges")
+                .insert({
+                  user_id: member.user_id,
+                  sessions_per_week: sc.sessions_per_week,
+                  duration_months: sc.duration_months,
+                  bet_per_month: member.bet_amount,
+                  total_sessions: totalSessions,
+                  status: "active",
+                  payment_status: "paid",
+                  social_challenge_id: socialChallengeId,
+                  first_week_sessions: firstWeekSessions > 0 ? firstWeekSessions : 1,
+                })
+                .select("id")
+                .single();
+
+              if (inserted) {
+                await supabaseAdmin
+                  .from("social_challenge_members")
+                  .update({ challenge_id: inserted.id })
+                  .eq("id", member.id);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Return appropriate response
+    if (isWebhook) {
+      return new Response(JSON.stringify({ received: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
+    return new Response(JSON.stringify({ success: true, status: "paid" }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+    });
+  }
+});
