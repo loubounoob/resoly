@@ -34,6 +34,7 @@ serve(async (req) => {
     let challengeId: string | null = null;
     let socialChallengeId: string | null = null;
     let memberId: string | null = null;
+    let currency: string | null = null;
 
     if (isWebhook) {
       // Verify Stripe webhook signature
@@ -76,6 +77,7 @@ serve(async (req) => {
       challengeId = meta.challenge_id || null;
       socialChallengeId = meta.social_challenge_id || null;
       memberId = meta.member_id || null;
+      currency = paymentIntent.currency?.toUpperCase() || null;
 
       if (!userId) {
         console.error("No user_id in payment intent metadata");
@@ -129,6 +131,7 @@ serve(async (req) => {
       challengeId = body.challengeId || null;
       socialChallengeId = body.socialChallengeId || null;
       memberId = body.memberId || null;
+      currency = body.currency?.toUpperCase() || null;
       const promoFree = body.promoFree === true;
 
       const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
@@ -195,11 +198,31 @@ serve(async (req) => {
     const paymentIntentId =
       typeof paymentIntent.id === "string" ? paymentIntent.id : (paymentIntent.payment_intent as string);
 
-    // Helper: base-coin formula (mirrors src/lib/coins.ts)
+    // Shared helpers (mirror src/lib/coins.ts exactly)
+    const getCoefficientDeMise = (i: number): number => {
+      if (i <= 50) return 1 + 0.004 * i;
+      if (i <= 75) return 1.2 + 0.012 * (i - 50);
+      if (i <= 100) return 1.5 + 0.02 * (i - 75);
+      if (i <= 300) return 2 - 0.0045 * (i - 100);
+      if (i <= 860) return 1.1 - 0.000785 * (i - 300);
+      if (i <= 1000) return 0.6604 - 0.0005 * (i - 860);
+      return Math.max(0.15, 0.59 - 0.00009 * (i - 1000));
+    };
+
+    const getCurrencyMult = (cur: string | null): number => {
+      if (!cur) return 1.0;
+      if (cur === "AUD" || cur === "CAD") return 0.65;
+      if (cur === "USD") return 0.85;
+      return 1.0;
+    };
+    const currencyMult = getCurrencyMult(currency);
+
     const computeBaseCoins = (totalCoins: number): number => {
       if (totalCoins === 0) return 0;
       return Math.max(10, Math.round(totalCoins * 0.1));
     };
+
+    const PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027", "LOUBOUNOOBLEGOAT"];
 
     // Handle regular challenge
     if (challengeId) {
@@ -221,21 +244,11 @@ serve(async (req) => {
         const ch = updatedRows[0];
         const I = ch.bet_per_month;
         if (I > 0) {
-          const getCoefficientDeMise = (i: number): number => {
-            if (i <= 50) return 1 + 0.004 * i;
-            if (i <= 75) return 1.2 + 0.012 * (i - 50);
-            if (i <= 100) return 1.5 + 0.02 * (i - 75);
-            if (i <= 300) return 2 - 0.0045 * (i - 100);
-            if (i <= 860) return 1.1 - 0.000785 * (i - 300);
-            if (i <= 1000) return 0.6604 - 0.0005 * (i - 860);
-            return Math.max(0.15, 0.59 - 0.00009 * (i - 1000));
-          };
-          const PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027", "LOUBOUNOOBLEGOAT"];
           const promoMult = ch.promo_code && PROMO_CODES.includes(ch.promo_code.toUpperCase()) ? 1.5 : 1.0;
           const CI = getCoefficientDeMise(I);
           const monthFactor = 0.3 + 0.6 * Math.pow(ch.duration_months, 1.5);
           const sessionFactor = Math.pow(ch.sessions_per_week / 3, 1.1);
-          const totalCoins = Math.round(I * CI * monthFactor * sessionFactor * 1.5 * promoMult);
+          const totalCoins = Math.round(I * CI * monthFactor * sessionFactor * 1.5 * promoMult * currencyMult);
           const baseCoins = computeBaseCoins(totalCoins);
           const { error: coinsErr } = await supabaseAdmin.rpc("increment_coins", {
             _user_id: userId,
@@ -396,15 +409,43 @@ serve(async (req) => {
 
     // Handle social challenge member payment
     if (socialChallengeId && memberId) {
-      const { error } = await supabaseAdmin
+      // Idempotency guard: only processes once even if webhook + frontend race
+      const { data: updatedMemberRows, error } = await supabaseAdmin
         .from("social_challenge_members")
         .update({
           payment_status: "paid",
           stripe_payment_intent_id: paymentIntentId || null,
         })
         .eq("id", memberId)
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .eq("payment_status", "pending")
+        .select("bet_amount");
       if (error) throw error;
+
+      // Award base coins to this member on first confirmation
+      if (updatedMemberRows && updatedMemberRows.length > 0) {
+        const I = updatedMemberRows[0].bet_amount;
+        if (I > 0) {
+          const { data: scParams } = await supabaseAdmin
+            .from("social_challenges")
+            .select("sessions_per_week, duration_months")
+            .eq("id", socialChallengeId)
+            .single();
+          if (scParams) {
+            const CI = getCoefficientDeMise(I);
+            const monthFactor = 0.3 + 0.6 * Math.pow(scParams.duration_months, 1.5);
+            const sessionFactor = Math.pow(scParams.sessions_per_week / 3, 1.1);
+            const totalCoins = Math.round(I * CI * monthFactor * sessionFactor * 1.5 * currencyMult);
+            const baseCoins = computeBaseCoins(totalCoins);
+            const { error: coinsErr } = await supabaseAdmin.rpc("increment_coins", {
+              _user_id: userId,
+              _amount: baseCoins,
+            });
+            if (coinsErr) console.error("Social base coins award error:", coinsErr);
+            else console.log(`Social base coins awarded: ${baseCoins} → user ${userId}`);
+          }
+        }
+      }
 
       // Notify target user for boost challenges
       try {
