@@ -38,7 +38,7 @@ serve(async (req) => {
     if (isWebhook) {
       // Verify Stripe webhook signature
       const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-        apiVersion: "2023-10-16",
+        apiVersion: "2023-10-16" as any,
       });
       const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
       if (!webhookSecret) {
@@ -132,7 +132,7 @@ serve(async (req) => {
       const promoFree = body.promoFree === true;
 
       const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-        apiVersion: "2023-10-16",
+        apiVersion: "2023-10-16" as any,
       });
 
       // Handle free promo code bypass — validate that the challenge actually has a free promo code
@@ -195,17 +195,56 @@ serve(async (req) => {
     const paymentIntentId =
       typeof paymentIntent.id === "string" ? paymentIntent.id : (paymentIntent.payment_intent as string);
 
+    // Helper: base-coin formula (mirrors src/lib/coins.ts)
+    const computeBaseCoins = (totalCoins: number): number => {
+      if (totalCoins === 0) return 0;
+      return Math.max(10, Math.round(totalCoins * 0.1));
+    };
+
     // Handle regular challenge
     if (challengeId) {
-      const { error } = await supabaseAdmin
+      // Filter by payment_status = "pending" so double-calls (e.g. webhook + manual) are idempotent
+      const { data: updatedRows, error } = await supabaseAdmin
         .from("challenges")
         .update({
           payment_status: "paid",
           stripe_payment_intent_id: paymentIntentId || null,
         })
         .eq("id", challengeId)
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .eq("payment_status", "pending")
+        .select("bet_per_month, duration_months, sessions_per_week, promo_code");
       if (error) throw error;
+
+      // Award base coins only on the first confirmation (idempotency guard above)
+      if (updatedRows && updatedRows.length > 0) {
+        const ch = updatedRows[0];
+        const I = ch.bet_per_month;
+        if (I > 0) {
+          const getCoefficientDeMise = (i: number): number => {
+            if (i <= 50) return 1 + 0.004 * i;
+            if (i <= 75) return 1.2 + 0.012 * (i - 50);
+            if (i <= 100) return 1.5 + 0.02 * (i - 75);
+            if (i <= 300) return 2 - 0.0045 * (i - 100);
+            if (i <= 860) return 1.1 - 0.000785 * (i - 300);
+            if (i <= 1000) return 0.6604 - 0.0005 * (i - 860);
+            return Math.max(0.15, 0.59 - 0.00009 * (i - 1000));
+          };
+          const PROMO_CODES = ["SUMMER", "SUMMERBODY", "WINTER", "NEWYEAR", "2027", "LOUBOUNOOBLEGOAT"];
+          const promoMult = ch.promo_code && PROMO_CODES.includes(ch.promo_code.toUpperCase()) ? 1.5 : 1.0;
+          const CI = getCoefficientDeMise(I);
+          const monthFactor = 0.3 + 0.6 * Math.pow(ch.duration_months, 1.5);
+          const sessionFactor = Math.pow(ch.sessions_per_week / 3, 1.1);
+          const totalCoins = Math.round(I * CI * monthFactor * sessionFactor * 1.5 * promoMult);
+          const baseCoins = computeBaseCoins(totalCoins);
+          const { error: coinsErr } = await supabaseAdmin.rpc("increment_coins", {
+            _user_id: userId,
+            _amount: baseCoins,
+          });
+          if (coinsErr) console.error("Base coins award error:", coinsErr);
+          else console.log(`Base coins awarded at payment: ${baseCoins} → user ${userId}`);
+        }
+      }
 
       // Sync to Google Sheets
       try {
@@ -220,7 +259,7 @@ serve(async (req) => {
         const userEmail = authUser?.user?.email || "";
 
         if (challenge && profile) {
-          const I = challenge.bet_per_month * challenge.duration_months;
+          const I = challenge.bet_per_month; // one-shot stake (not monthly)
           const M = challenge.duration_months;
           const S = challenge.sessions_per_week;
           const getCoefficientDeMise = (i: number): number => {
@@ -239,20 +278,22 @@ serve(async (req) => {
           const endDate = new Date(challenge.created_at);
           endDate.setMonth(endDate.getMonth() + challenge.duration_months);
 
-          await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-challenge-sheet`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-            },
-            body: JSON.stringify({
+          // Call Google Sheets webhook directly for reliability
+          // NOTE: Google Apps Script exec URLs return a 302 redirect — we must follow it
+          // manually with POST to avoid fetch silently converting POST→GET on redirect.
+          const GOOGLE_SHEETS_CHALLENGE_WEBHOOK_FALLBACK =
+            "https://script.google.com/macros/s/AKfycbwUlwqg597CDtmynybfirYxaPal9eBX5w1TVZvccFeAPLfKir-kKYodIQjhlhTLA7S6/exec";
+          const sheetWebhookUrl =
+            Deno.env.get("GOOGLE_SHEETS_CHALLENGE_WEBHOOK_URL") || GOOGLE_SHEETS_CHALLENGE_WEBHOOK_FALLBACK;
+          if (sheetWebhookUrl) {
+            const sheetPayload = {
               challenge_id: challengeId,
               username: profile.username,
               age: profile.age,
               gender: profile.gender,
               email: userEmail,
               type: challenge.social_challenge_id ? "social" : "perso",
-              mise_totale: challenge.bet_per_month * challenge.duration_months,
+              mise_totale: challenge.bet_per_month,
               mise_par_mois: challenge.bet_per_month,
               sessions_per_week: challenge.sessions_per_week,
               duration_months: challenge.duration_months,
@@ -263,21 +304,44 @@ serve(async (req) => {
               estimated_end_date: endDate.toISOString(),
               stripe_payment_intent_id: paymentIntentId,
               promo_code: challenge.promo_code || "",
-            }),
-          });
+            };
+            console.log("Sending to Google Sheets:", JSON.stringify(sheetPayload));
+            const postBody = JSON.stringify(sheetPayload);
+            const postHeaders = { "Content-Type": "application/json" };
+            // Google Apps Script exec URLs: doPost() runs on the initial POST,
+            // then Google returns a 302 to the response URL.
+            // redirect:"follow" lets fetch follow that 302 automatically so we
+            // can read the final response without losing the execution.
+            const sheetRes = await fetch(sheetWebhookUrl, {
+              method: "POST",
+              headers: postHeaders,
+              body: postBody,
+              redirect: "follow",
+            });
+            const resText = await sheetRes.text();
+            console.log(`Google Sheets response [${sheetRes.status}]: ${resText.substring(0, 200)}`);
+            if (!sheetRes.ok) {
+              console.error(`Google Sheets webhook failed [${sheetRes.status}]: ${resText}`);
+            } else {
+              console.log("Google Sheets sync successful");
+            }
+          } else {
+            console.warn("GOOGLE_SHEETS_CHALLENGE_WEBHOOK_URL not configured — skipping sheet sync");
+          }
         }
       } catch (syncErr) {
         console.error("Sheet sync error:", syncErr);
       }
 
-      // Referral bonus
+      // Referral bonus — triggered only when total stake ≥ 50 (in the user's currency)
       const { data: challengeForReferral } = await supabaseAdmin
         .from("challenges")
         .select("bet_per_month")
         .eq("id", challengeId)
         .single();
 
-      if (challengeForReferral && challengeForReferral.bet_per_month >= 50) {
+      const totalStake = challengeForReferral?.bet_per_month ?? 0; // one-shot stake
+      if (challengeForReferral && totalStake >= 50) {
         const { data: profileRef } = await supabaseAdmin
           .from("profiles")
           .select("referred_by, referral_bonus_paid")
