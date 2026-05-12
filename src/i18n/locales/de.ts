@@ -474,6 +474,18 @@ const de: TranslationKeys = {
       bullet3: "Läuft im Hintergrund — du machst nichts extra 🚀",
       cta: "Standort aktivieren",
     },
+    coinGift: {
+      title: "Coins senden",
+      sent: "Coins gesendet!",
+      balance: "Du hast {coins} Münzen verfügbar",
+      selectFriend: "Freund wählen",
+      amount: "Betrag",
+      addMessage: "Nachricht (optional)",
+      messagePlaceholder: "Viel Erfolg!",
+      send: "{coins} Münzen senden",
+      insufficientBalance: "Unzureichendes Guthaben ({current} Münzen)",
+      sendCoinsBtn: "Coins senden",
+    },
   },
 };
 

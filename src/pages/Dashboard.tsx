@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Flame, Camera, Plus, Loader2, Trophy, Settings } from "lucide-react";
+import { Flame, Camera, Plus, Loader2, Trophy, Settings, Gift } from "lucide-react";
 import BuyCoinsDrawer from "@/components/BuyCoinsDrawer";
 import CoinIcon from "@/components/CoinIcon";
 import AnimatedCoinCounter from "@/components/AnimatedCoinCounter";
@@ -98,6 +98,13 @@ const Dashboard = () => {
         </div>
         <div className="flex items-center gap-2">
           <NotificationBell />
+          <button
+            onClick={() => navigate("/send-coins")}
+            className="p-2 rounded-lg hover:bg-secondary transition-colors"
+            aria-label={t("coinGift.sendCoinsBtn")}
+          >
+            <Gift className="w-5 h-5 text-accent" />
+          </button>
           <button
             onClick={() => navigate("/settings")}
             className="p-2 rounded-lg hover:bg-secondary transition-colors"

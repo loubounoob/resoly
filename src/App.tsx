@@ -22,6 +22,7 @@ import CreateSocialChallenge from "./pages/CreateSocialChallenge";
 import CreateGroup from "./pages/CreateGroup";
 import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
+import SendCoins from "./pages/SendCoins";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
@@ -81,6 +82,7 @@ const AppRoutes = () => {
       <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
       <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/send-coins" element={<ProtectedRoute><SendCoins /></ProtectedRoute>} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

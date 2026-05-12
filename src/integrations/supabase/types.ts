@@ -129,6 +129,33 @@ export type Database = {
           },
         ]
       }
+      coin_gifts: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          message: string | null
+          recipient_id: string
+          sender_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          message?: string | null
+          recipient_id: string
+          sender_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          message?: string | null
+          recipient_id?: string
+          sender_id?: string
+        }
+        Relationships: []
+      }
       coin_orders: {
         Row: {
           coins_spent: number
@@ -839,6 +866,10 @@ export type Database = {
       is_social_challenge_member: {
         Args: { _challenge_id: string; _user_id: string }
         Returns: boolean
+      }
+      send_coin_gift: {
+        Args: { _amount: number; _message?: string; _recipient_id: string }
+        Returns: string
       }
     }
     Enums: {
