@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 interface SendCoinGiftParams {
@@ -121,11 +121,8 @@ export const useSendCoinGift = () => {
 
       // ─── Pool Hooks ───────────────────────────────────────────────────────────────
 
-      import { useQuery } from "@tanstack/react-query";
-
       export const useCurrentPool = () => {
         return useQuery({
-          queryKey: ["current_pool"],
           queryFn: async (): Promise<ChallengePool | null> => {
             const weekStart = currentWeekStart();
             const { data, error } = await (supabase as any)
