@@ -94,6 +94,11 @@ const texts: Record<string, Record<string, { title: string; body: string | ((...
     en: { title: "Gym saved! 📍", body: (name: string) => `Your gym "${name}" has been saved. You'll get a reminder on each visit.` },
     de: { title: "Gym gespeichert! 📍", body: (name: string) => `Dein Gym "${name}" wurde gespeichert. Du erhältst bei jedem Besuch eine Erinnerung.` },
   },
+  coin_gift: {
+    fr: { title: "Tu as reçu des coins ! 🎁", body: (name: string, amount: number, msg?: string) => msg ? `@${name} t'a envoyé ${amount} pièces : "${msg}"` : `@${name} t'a envoyé ${amount} pièces. Bonne chance !` },
+    en: { title: "You received coins! 🎁", body: (name: string, amount: number, msg?: string) => msg ? `@${name} sent you ${amount} coins: "${msg}"` : `@${name} sent you ${amount} coins. Keep it up!` },
+    de: { title: "Du hast Coins erhalten! 🎁", body: (name: string, amount: number, msg?: string) => msg ? `@${name} hat dir ${amount} Münzen geschickt: "${msg}"` : `@${name} hat dir ${amount} Münzen geschickt. Weiter so!` },
+  },
 };
 
 export function getNotifText(locale: 'fr' | 'en' | 'de', type: string, ...args: any[]): NotifTexts {

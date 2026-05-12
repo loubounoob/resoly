@@ -473,6 +473,18 @@ const en: TranslationKeys = {
       bullet3: "Works in the background — you do nothing extra 🚀",
       cta: "Enable location",
     },
+    coinGift: {
+      title: "Send coins",
+      sent: "Coins sent!",
+      balance: "You have {coins} coins available",
+      selectFriend: "Pick a friend",
+      amount: "Amount",
+      addMessage: "Message (optional)",
+      messagePlaceholder: "Good luck!",
+      send: "Send {coins} coins",
+      insufficientBalance: "Insufficient balance ({current} coins)",
+      sendCoinsBtn: "Send coins",
+    },
   },
 };
 
