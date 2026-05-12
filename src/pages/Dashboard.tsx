@@ -12,7 +12,13 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import BottomNav from "@/components/BottomNav";
 import AvatarUpload from "@/components/AvatarUpload";
-import { useActiveChallenge, useCheckIns, useUserCoins, useRecentlyFailedChallenge, useAutoFailCheck } from "@/hooks/useChallenge";
+import {
+  useActiveChallenge,
+  useCheckIns,
+  useUserCoins,
+  useRecentlyFailedChallenge,
+  useAutoFailCheck,
+} from "@/hooks/useChallenge";
 import ChallengeFailedOverlay from "@/components/ChallengeFailedOverlay";
 import ChallengeVictoryOverlay from "@/components/ChallengeVictoryOverlay";
 import ChallengeAcceptedOverlay from "@/components/ChallengeAcceptedOverlay";
@@ -91,9 +97,7 @@ const Dashboard = () => {
           </button>
           <div>
             <span className="font-display font-bold text-xl">Resoly</span>
-            {myProfile?.username && (
-              <p className="text-xs text-muted-foreground">@{myProfile.username}</p>
-            )}
+            {myProfile?.username && <p className="text-xs text-muted-foreground">@{myProfile.username}</p>}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -124,21 +128,13 @@ const Dashboard = () => {
       <Dialog open={avatarDialogOpen} onOpenChange={setAvatarDialogOpen}>
         <DialogContent className="max-w-xs">
           <DialogHeader>
-            <DialogTitle className="text-center">{t('dashboard.profilePhoto')}</DialogTitle>
+            <DialogTitle className="text-center">{t("dashboard.profilePhoto")}</DialogTitle>
           </DialogHeader>
-          <AvatarUpload
-            currentUrl={myProfile?.avatar_url}
-            size="lg"
-            onUploaded={() => setAvatarDialogOpen(false)}
-          />
+          <AvatarUpload currentUrl={myProfile?.avatar_url} size="lg" onUploaded={() => setAvatarDialogOpen(false)} />
         </DialogContent>
       </Dialog>
 
-      <BuyCoinsDrawer
-        open={buyCoinsOpen}
-        onOpenChange={setBuyCoinsOpen}
-        inviteCode={myProfile?.invite_code}
-      />
+      <BuyCoinsDrawer open={buyCoinsOpen} onOpenChange={setBuyCoinsOpen} inviteCode={myProfile?.invite_code} />
     </>
   );
 
@@ -149,15 +145,15 @@ const Dashboard = () => {
         <div className="flex-1 flex flex-col items-center justify-center gap-6">
           <div className="text-center space-y-3">
             <Flame className="w-12 h-12 text-primary mx-auto" />
-            <h2 className="text-2xl font-display font-bold">{t('dashboard.noChallenge')}</h2>
-            <p className="text-muted-foreground text-sm">{t('dashboard.noChallengeSub')}</p>
+            <h2 className="text-2xl font-display font-bold">{t("dashboard.noChallenge")}</h2>
+            <p className="text-muted-foreground text-sm">{t("dashboard.noChallengeSub")}</p>
           </div>
           <Button
             onClick={() => navigate("/onboarding-challenge")}
             className="h-14 px-8 text-lg font-display font-bold bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow rounded-xl"
           >
             <Plus className="w-5 h-5 mr-2" />
-            {t('dashboard.createChallenge')}
+            {t("dashboard.createChallenge")}
           </Button>
         </div>
         {showFailedOverlay && failedChallenge && (
@@ -174,7 +170,7 @@ const Dashboard = () => {
     );
   }
 
-  const verifiedCheckIns = checkIns?.filter(c => c.verified) ?? [];
+  const verifiedCheckIns = checkIns?.filter((c) => c.verified) ?? [];
   const completedSessions = verifiedCheckIns.length;
   const totalSessions = challenge.total_sessions;
   const isChallengeComplete = completedSessions >= totalSessions && totalSessions > 0;
@@ -182,19 +178,17 @@ const Dashboard = () => {
   const now = new Date();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-  const thisWeekCheckIns = verifiedCheckIns.filter(ci =>
-    isWithinInterval(new Date(ci.checked_in_at), { start: weekStart, end: weekEnd })
+  const thisWeekCheckIns = verifiedCheckIns.filter((ci) =>
+    isWithinInterval(new Date(ci.checked_in_at), { start: weekStart, end: weekEnd }),
   );
-  const checkedDays = new Set(thisWeekCheckIns.map(ci => new Date(ci.checked_in_at).getDay()));
+  const checkedDays = new Set(thisWeekCheckIns.map((ci) => new Date(ci.checked_in_at).getDay()));
   const weeklyDone = checkedDays.size;
 
   const challengeStartDate = new Date(challenge.started_at);
   const challengeWeekStart = startOfWeek(challengeStartDate, { weekStartsOn: 1 });
   const isFirstWeek = weekStart.getTime() === challengeWeekStart.getTime();
   const firstWeekSessions = (challenge as any).first_week_sessions as number | null;
-  const weeklyGoal = isFirstWeek && firstWeekSessions != null
-    ? firstWeekSessions
-    : challenge.sessions_per_week;
+  const weeklyGoal = isFirstWeek && firstWeekSessions != null ? firstWeekSessions : challenge.sessions_per_week;
 
   const weeklyProgress = weeklyGoal > 0 ? Math.min(100, Math.round((weeklyDone / weeklyGoal) * 100)) : 0;
 
@@ -207,8 +201,8 @@ const Dashboard = () => {
   const ringColors = isGoalMet
     ? { start: "hsl(82, 85%, 55%)", end: "hsl(82, 85%, 40%)" }
     : isUrgent
-    ? { start: "hsl(0, 85%, 55%)", end: "hsl(0, 70%, 45%)" }
-    : { start: "hsl(35, 95%, 55%)", end: "hsl(25, 90%, 45%)" };
+      ? { start: "hsl(0, 85%, 55%)", end: "hsl(0, 70%, 45%)" }
+      : { start: "hsl(35, 95%, 55%)", end: "hsl(25, 90%, 45%)" };
 
   const weekStatus = Array.from({ length: 7 }, (_, i) => {
     const dayIndex = i === 6 ? 0 : i + 1;
@@ -221,16 +215,18 @@ const Dashboard = () => {
   const remaining = weeklyGoal - weeklyDone;
   const motivationMessage =
     weeklyDone === 0
-      ? t('dashboard.motivStart')
+      ? t("dashboard.motivStart")
       : weeklyDone >= weeklyGoal
-      ? t('dashboard.motivDone')
-      : t('dashboard.motivRemaining', { remaining });
+        ? t("dashboard.motivDone")
+        : t("dashboard.motivRemaining", { remaining });
 
   const totalBet = challenge.bet_per_month;
   const promoMult = getPromoMultiplier(challenge.promo_code ?? undefined);
-  const coinsToEarn = Math.round(calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week, currency) * promoMult);
+  const coinsToEarn = Math.round(
+    calculateCoins(totalBet, challenge.duration_months, challenge.sessions_per_week, currency) * promoMult,
+  );
 
-  const weekDayLabels = t('dashboard.weekDays') as unknown as string[];
+  const weekDayLabels = t("dashboard.weekDays") as unknown as string[];
 
   return (
     <div className="min-h-full flex flex-col px-6 pt-6 pb-24 overflow-y-auto">
@@ -240,14 +236,22 @@ const Dashboard = () => {
         onClick={() => !isGoalMet && navigate("/verify")}
         className={`flex flex-col items-center mb-6 group ${!isGoalMet ? "cursor-pointer" : "cursor-default"}`}
       >
-        <div className={`relative w-44 h-44 transition-transform duration-200 ${!isGoalMet ? "group-hover:scale-105 group-active:scale-95" : ""}`}>
+        <div
+          className={`relative w-44 h-44 transition-transform duration-200 ${!isGoalMet ? "group-hover:scale-105 group-active:scale-95" : ""}`}
+        >
           {isUrgent && (
-            <div className="absolute inset-0 rounded-full animate-ping opacity-10" style={{ background: ringColors.start }} />
+            <div
+              className="absolute inset-0 rounded-full animate-ping opacity-10"
+              style={{ background: ringColors.start }}
+            />
           )}
           <svg className="w-full h-full -rotate-90 relative z-10" viewBox="0 0 120 120">
             <circle cx="60" cy="60" r="52" fill="none" stroke="hsl(220, 15%, 18%)" strokeWidth="8" />
             <circle
-              cx="60" cy="60" r="52" fill="none"
+              cx="60"
+              cy="60"
+              r="52"
+              fill="none"
               stroke="url(#progressGrad)"
               strokeWidth="8"
               strokeLinecap="round"
@@ -263,12 +267,14 @@ const Dashboard = () => {
             </defs>
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
-            <span className="text-4xl font-display font-bold">{weeklyDone}/{weeklyGoal}</span>
-            <span className="text-xs text-muted-foreground">{t('dashboard.thisWeek')}</span>
+            <span className="text-4xl font-display font-bold">
+              {weeklyDone}/{weeklyGoal}
+            </span>
+            <span className="text-xs text-muted-foreground">{t("dashboard.thisWeek")}</span>
             {!isGoalMet && (
               <div className="flex items-center gap-1 mt-1 text-muted-foreground">
                 <Camera className="w-3.5 h-3.5" />
-                <span className="text-[10px] font-medium">{t('dashboard.checkIn')}</span>
+                <span className="text-[10px] font-medium">{t("dashboard.checkIn")}</span>
               </div>
             )}
           </div>
@@ -278,8 +284,18 @@ const Dashboard = () => {
 
       {isFirstWeek && firstWeekSessions != null && (
         <div className="bg-accent/20 border border-accent/30 rounded-xl p-3 mb-4 text-center">
-          <p className="text-sm font-medium" dangerouslySetInnerHTML={{ __html: t('dashboard.firstWeekBanner', { sessions: firstWeekSessions }).replace(String(firstWeekSessions), `<span class="font-bold text-primary">${firstWeekSessions}</span>`) }} />
-          <p className="text-[11px] text-muted-foreground mt-0.5">{t('dashboard.firstWeekNormal', { sessions: challenge.sessions_per_week })}</p>
+          <p
+            className="text-sm font-medium"
+            dangerouslySetInnerHTML={{
+              __html: t("dashboard.firstWeekBanner", { sessions: firstWeekSessions }).replace(
+                String(firstWeekSessions),
+                `<span class="font-bold text-primary">${firstWeekSessions}</span>`,
+              ),
+            }}
+          />
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {t("dashboard.firstWeekNormal", { sessions: challenge.sessions_per_week })}
+          </p>
         </div>
       )}
 
@@ -290,15 +306,25 @@ const Dashboard = () => {
         const weeksRemaining = Math.max(0, Math.ceil(msLeft / (7 * 24 * 60 * 60 * 1000)));
         return weeksRemaining > 0 ? (
           <div className="text-center mb-4">
-            <p className="text-xs text-muted-foreground" dangerouslySetInnerHTML={{ __html: t('dashboard.weeksRemaining', { count: weeksRemaining }).replace(String(weeksRemaining), `<span class="font-semibold">${weeksRemaining}</span>`) }} />
+            <p
+              className="text-xs text-muted-foreground"
+              dangerouslySetInnerHTML={{
+                __html: t("dashboard.weeksRemaining", { count: weeksRemaining }).replace(
+                  String(weeksRemaining),
+                  `<span class="font-semibold">${weeksRemaining}</span>`,
+                ),
+              }}
+            />
           </div>
         ) : null;
       })()}
 
       <div className="bg-gradient-card rounded-2xl border border-border p-4 mb-4 shadow-card">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-medium">{t('dashboard.yourWeek')}</span>
-          <span className="text-xs text-muted-foreground">{weeklyDone}/{weeklyGoal} {t('common.sessions')}</span>
+          <span className="text-sm font-medium">{t("dashboard.yourWeek")}</span>
+          <span className="text-xs text-muted-foreground">
+            {weeklyDone}/{weeklyGoal} {t("common.sessions")}
+          </span>
         </div>
         <div className="grid grid-cols-7 gap-2 mb-3">
           {weekDayLabels.map((day, i) => (
@@ -309,8 +335,8 @@ const Dashboard = () => {
                   weekStatus[i] === true
                     ? "bg-gradient-primary text-primary-foreground shadow-glow"
                     : weekStatus[i] === false
-                    ? "bg-destructive/20 text-destructive"
-                    : "bg-secondary text-muted-foreground"
+                      ? "bg-destructive/20 text-destructive"
+                      : "bg-secondary text-muted-foreground"
                 }`}
               >
                 {weekStatus[i] === true ? "✓" : weekStatus[i] === false ? "✗" : "·"}
@@ -335,14 +361,16 @@ const Dashboard = () => {
             </div>
             <div className="flex-1 space-y-1.5">
               <div className="flex items-baseline gap-2">
-                <span className="text-xl font-display font-bold tracking-tight text-gradient-gold">{t('dashboard.betWon', { amount: formatCurrency(totalBet) })}</span>
+                <span className="text-xl font-display font-bold tracking-tight text-gradient-gold">
+                  {t("dashboard.betWon", { amount: formatCurrency(totalBet) })}
+                </span>
               </div>
               <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-0.5">
                 <CoinIcon size={13} />
                 <span className="text-xs font-display font-bold text-amber-400">+{coinsToEarn}</span>
-                <span className="text-[10px] text-muted-foreground">{t('common.bonus')}</span>
+                <span className="text-[10px] text-muted-foreground">{t("common.bonus")}</span>
               </div>
-              <p className="text-xs text-amber-300/60 animate-pulse">{t('dashboard.tapToClaim')}</p>
+              <p className="text-xs text-amber-300/60 animate-pulse">{t("dashboard.tapToClaim")}</p>
             </div>
           </div>
         </button>
@@ -357,13 +385,13 @@ const Dashboard = () => {
             <div className="flex-1 space-y-1.5">
               <div className="flex items-baseline gap-2">
                 <span className="text-xl font-display font-bold tracking-tight">{formatCurrency(totalBet)}</span>
-                <span className="text-xs text-muted-foreground font-medium">{t('dashboard.atStake')}</span>
+                <span className="text-xs text-muted-foreground font-medium">{t("dashboard.atStake")}</span>
               </div>
-              <p className="text-xs text-muted-foreground">{t('dashboard.holdOn')}</p>
+              <p className="text-xs text-muted-foreground">{t("dashboard.holdOn")}</p>
               <div className="inline-flex items-center gap-1.5 bg-accent/10 border border-accent/20 rounded-full px-2.5 py-0.5">
                 <CoinIcon size={13} />
                 <span className="text-xs font-display font-bold text-accent">+{coinsToEarn}</span>
-                <span className="text-[10px] text-muted-foreground">{t('common.bonus')}</span>
+                <span className="text-[10px] text-muted-foreground">{t("common.bonus")}</span>
               </div>
             </div>
           </div>
@@ -380,9 +408,7 @@ const Dashboard = () => {
         />
       )}
 
-      {showAcceptedOverlay && (
-        <ChallengeAcceptedOverlay onClose={() => setShowAcceptedOverlay(false)} />
-      )}
+      {showAcceptedOverlay && <ChallengeAcceptedOverlay onClose={() => setShowAcceptedOverlay(false)} />}
 
       <BottomNav />
     </div>
