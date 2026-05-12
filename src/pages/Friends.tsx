@@ -289,6 +289,20 @@ const Friends = () => {
             </DrawerDescription>
           </DrawerHeader>
           <div className="px-4 pb-6">
+            <Button
+              onClick={() => {
+                if (!selectedFriend?.profile) return;
+                const recipientId = selectedFriend.profile.user_id ?? selectedFriend.userId;
+                const recipientUsername = selectedFriend.profile.username;
+                const recipientAvatar = selectedFriend.profile.avatar_url;
+                setSelectedFriend(null);
+                navigate("/send-coins", { state: { recipientId, recipientUsername, recipientAvatar } } as any);
+              }}
+              className="w-full h-12 mb-4 font-display font-bold bg-accent/10 text-accent hover:bg-accent/20 border border-accent/20 rounded-xl"
+            >
+              <Gift className="w-4 h-4 mr-2" />
+              {t("coinGift.sendCoinsBtn")}
+            </Button>
             {selectedFriend?.hasChallenge && selectedFriend?.challenge ? (
               (() => {
                 const f = selectedFriend;
