@@ -123,6 +123,7 @@ export const useSendCoinGift = () => {
 
       export const useCurrentPool = () => {
         return useQuery({
+    queryKey: ["current_pool"],
           queryFn: async (): Promise<ChallengePool | null> => {
             const weekStart = currentWeekStart();
             const { data, error } = await (supabase as any)
@@ -251,8 +252,3 @@ export const useSendCoinGift = () => {
           },
         });
       };
-      qc.invalidateQueries({ queryKey: ["user-coins"] });
-      qc.invalidateQueries({ queryKey: ["my-profile"] });
-    },
-  });
-};
