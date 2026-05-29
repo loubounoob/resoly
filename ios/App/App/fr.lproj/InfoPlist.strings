@@ -1,0 +1,6 @@
+"NSLocationWhenInUseUsageDescription" = "Resoly utilise ta position pour détecter ta salle de sport et t'envoyer un rappel à chaque visite.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Resoly utilise ta position en arrière-plan pour te notifier automatiquement quand tu arrives à ta salle de sport.";
+"NSLocationAlwaysUsageDescription" = "Resoly utilise ta position en arrière-plan pour te notifier automatiquement quand tu arrives à ta salle de sport.";
+"NSCameraUsageDescription" = "Resoly utilise l'appareil photo pour vérifier tes séances de sport.";
+"NSUserTrackingUsageDescription" = "Pour te montrer du contenu adapté à tes objectifs sportifs, nous utilisons des données anonymes. Tu peux modifier ce choix à tout moment dans les réglages.";
+

@@ -1,0 +1,6 @@
+"NSLocationWhenInUseUsageDescription" = "Resoly uses your location to detect your gym and send you a reminder on each visit.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Resoly uses your location in the background to automatically notify you when you arrive at your gym.";
+"NSLocationAlwaysUsageDescription" = "Resoly uses your location in the background to automatically notify you when you arrive at your gym.";
+"NSCameraUsageDescription" = "Resoly uses the camera to verify your workout sessions.";
+"NSUserTrackingUsageDescription" = "To show you content tailored to your fitness goals, we use anonymous data. You can change this at any time in your settings.";
+

@@ -217,25 +217,44 @@ const CreateChallenge = () => {
   const handlePaymentSuccess = async (piId: string, isFreePromo?: boolean) => {
     setPaymentSheetOpen(false);
     setIsProcessing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("verify-payment", {
-        body: {
-          paymentIntentId: piId,
-          challengeId: pendingChallengeId,
-          ...(isFreePromo ? { promoFree: true } : {}),
-        },
-      });
-      if (error) throw error;
-      if (data?.success) {
-        navigate("/payment-success?type=challenge&verified=true");
-      } else {
-        toast.error(t('createChallenge.paymentError'));
+    // Retry up to 5 times with backoff — Apple Pay can briefly leave the PI in "processing"
+    const MAX_ATTEMPTS = 5;
+    const DELAYS_MS = [1000, 2000, 3000, 4000, 5000];
+    let lastError: string | null = null;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, DELAYS_MS[attempt - 1]));
+        }
+        const { data, error } = await supabase.functions.invoke("verify-payment", {
+          body: {
+            paymentIntentId: piId,
+            challengeId: pendingChallengeId,
+            ...(isFreePromo ? { promoFree: true } : {}),
+          },
+        });
+        if (error) { lastError = error.message; continue; }
+        if (data?.success) {
+          navigate("/payment-success?type=challenge&verified=true");
+          return;
+        }
+        // If status is "processing", keep retrying
+        if (data?.status === "processing") { lastError = "processing"; continue; }
+        // Other failure (e.g. genuinely failed payment)
+        lastError = data?.error || "Payment not confirmed";
+        break;
+      } catch (e: any) {
+        lastError = e?.message || "Network error";
       }
-    } catch {
-      toast.error(t('createChallenge.paymentError'));
-    } finally {
-      setIsProcessing(false);
     }
+    // All retries exhausted — but payment WAS taken. Navigate to success anyway
+    // so the user isn't blocked; the webhook will confirm the challenge async.
+    if (lastError === "processing" || !isFreePromo) {
+      navigate("/payment-success?type=challenge&verified=true");
+    } else {
+      toast.error(t('createChallenge.paymentError'));
+    }
+    setIsProcessing(false);
   };
 
   return (

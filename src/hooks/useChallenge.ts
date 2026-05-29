@@ -82,13 +82,16 @@ export const useCreateChallenge = () => {
       odds: number;
       promo_code?: string;
     }) => {
-      // Cancel any zombie challenges (created but never paid)
+      // Cancel zombie challenges (created but never reached payment — no PI set yet)
+      // IMPORTANT: .is("stripe_payment_intent_id", null) ensures we NEVER kill a challenge
+      // that already has a PaymentIntent (payment might be processing via Apple Pay webhook)
       await supabase
         .from("challenges")
         .update({ status: "failed" })
         .eq("user_id", user!.id)
         .eq("status", "active")
-        .eq("payment_status", "pending");
+        .eq("payment_status", "pending")
+        .is("stripe_payment_intent_id", null);
 
       // Also fail any active free challenges before creating a paid one
       await supabase

@@ -287,7 +287,7 @@ const Dashboard = () => {
           <p
             className="text-sm font-medium"
             dangerouslySetInnerHTML={{
-              __html: t("dashboard.firstWeekBanner", { sessions: firstWeekSessions }).replace(
+              __html: t("dashboard.firstWeekBanner", { sessions: firstWeekSessions, count: firstWeekSessions }).replace(
                 String(firstWeekSessions),
                 `<span class="font-bold text-primary">${firstWeekSessions}</span>`,
               ),

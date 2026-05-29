@@ -231,7 +231,7 @@ serve(async (req) => {
 
     // Handle regular challenge
     if (challengeId) {
-      // Filter by payment_status = "pending" so double-calls (e.g. webhook + manual) are idempotent
+      // First attempt: update pending→paid (idempotent guard)
       const { data: updatedRows, error } = await supabaseAdmin
         .from("challenges")
         .update({
@@ -243,6 +243,28 @@ serve(async (req) => {
         .eq("payment_status", "pending")
         .select("bet_per_month, duration_months, sessions_per_week, promo_code");
       if (error) return new Response(JSON.stringify({ success: false, error: error.message, code: error.code }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 });
+
+      // RECOVERY: if the zombie-cleanup marked this challenge as "failed" while payment
+      // was in-flight (race condition with Apple Pay), restore it to active now.
+      if (!updatedRows || updatedRows.length === 0) {
+        const { data: failedChallenge } = await supabaseAdmin
+          .from("challenges")
+          .select("id, status, payment_status, bet_per_month, duration_months, sessions_per_week, promo_code")
+          .eq("id", challengeId)
+          .eq("user_id", userId)
+          .single();
+        if (failedChallenge?.payment_status === "paid") {
+          // Already confirmed (webhook beat us) — nothing to do
+        } else if (failedChallenge?.status === "failed" && failedChallenge?.payment_status === "pending") {
+          // Zombie cleanup killed a challenge whose payment actually succeeded — restore it
+          console.log(`Restoring challenge ${challengeId} from failed→active (payment race condition)`);
+          await supabaseAdmin
+            .from("challenges")
+            .update({ status: "active", payment_status: "paid", stripe_payment_intent_id: paymentIntentId || null })
+            .eq("id", challengeId)
+            .eq("user_id", userId);
+        }
+      }
 
       // Award base coins only on the first confirmation (idempotency guard above)
       if (updatedRows && updatedRows.length > 0) {
