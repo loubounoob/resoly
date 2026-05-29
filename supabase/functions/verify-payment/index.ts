@@ -173,6 +173,11 @@ serve(async (req) => {
         paymentIntent = { id: paymentIntentId || "free_promo", metadata: {} };
       } else if (paymentIntentId) {
         paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        // Apple Pay can briefly sit in "processing" before "succeeded" — retry once after 2s
+        if (paymentIntent.status === "processing") {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        }
         if (paymentIntent.status !== "succeeded") {
           return new Response(JSON.stringify({ success: false, status: paymentIntent.status }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -237,7 +242,7 @@ serve(async (req) => {
         .eq("user_id", userId)
         .eq("payment_status", "pending")
         .select("bet_per_month, duration_months, sessions_per_week, promo_code");
-      if (error) throw error;
+      if (error) return new Response(JSON.stringify({ success: false, error: error.message, code: error.code }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 });
 
       // Award base coins only on the first confirmation (idempotency guard above)
       if (updatedRows && updatedRows.length > 0) {
@@ -420,7 +425,7 @@ serve(async (req) => {
         .eq("user_id", userId)
         .eq("payment_status", "pending")
         .select("bet_amount");
-      if (error) throw error;
+      if (error) return new Response(JSON.stringify({ success: false, error: error.message, code: error.code }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 });
 
       // Award base coins to this member on first confirmation
       if (updatedMemberRows && updatedMemberRows.length > 0) {
